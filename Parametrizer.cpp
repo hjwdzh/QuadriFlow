@@ -42,6 +42,7 @@ void Parametrizer::Initialize()
 	num_vertices = V.cols() / 16;
 	num_faces = num_vertices;
 	scale = sqrt(surface_area / num_faces);
+
 	printf("Compute Direct Graph\n");
 	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	printf("Compute Direct Graph finish\n");
@@ -576,15 +577,17 @@ void Parametrizer::ComputeOrientationSingularities()
 	singularities.clear();
 	for (int f = 0; f < F.cols(); ++f) {
 		int index = 0;
+		int abs_index = 0;
 		for (int k = 0; k < 3; ++k) {
 			int i = F(k, f), j = F(k == 2 ? 0 : (k + 1), f);
 			auto value = compat_orientation_extrinsic_index_4(Q.col(i), N.col(i), Q.col(j), N.col(j));
 			index += value.second - value.first;
+			abs_index += std::abs(value.second - value.first);
 		}
-		index = modulo(index, 4);
-		if (index == 1 || index == 3) {
-			singularities[f] = index;
+		int index_mod = modulo(index, 4);
+		if (index_mod == 1 || index_mod == 3) {
+			singularities[f] = index_mod;
 		}
 	}
-	printf("singularities = %d\n", singularities.size());
+	printf("singularities %d...\n", singularities.size());
 }

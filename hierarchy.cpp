@@ -14,11 +14,18 @@ Hierarchy::Hierarchy()
 
 void Hierarchy::Initialize(float scale)
 {
-	printf("Initialize Hierarchy...\n");
 	for (int i = 0; i < MAX_DEPTH; ++i) {
-		printf("level = %d\n", i);
 		DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1],
 			mToUpper[i], mToLower[i], mAdj[i + 1]);
+		if (mV[i + 1].cols() == 1) {
+			mAdj.resize(i + 2);
+			mV.resize(i + 2);
+			mN.resize(i + 2);
+			mA.resize(i + 2);
+			mToUpper.resize(i + 1);
+			mToLower.resize(i + 1);
+			break;
+		}
 	}
 	mQ.resize(mV.size());
 	mO.resize(mV.size());

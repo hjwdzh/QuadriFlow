@@ -7,7 +7,6 @@
 void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
 	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
-	printf("stage 1...\n");
 	E2E.resize(F.cols() * 3);
 	std::map<Key2i, std::pair<int, int> > edge_indices;
 	for (int i = 0; i < 3; ++i) {
@@ -35,7 +34,6 @@ void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
 			}
 		}
 	}
-	printf("stage 2...\n");
 
 	V2E.resize(V.cols());
 	V2E.setConstant(-1);
@@ -61,15 +59,12 @@ void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
 			}
 		}
 	}
-	printf("stage 3...\n");
 
 	for (int i = 0; i < V2E.rows(); ++i) {
 		int idx = V2E[i];
 		int start = idx;
 		int v2e = INT_MAX;
 		do {
-			if (i == 24)
-				printf("%d\n", idx);
 			if (idx < v2e)
 				v2e = idx;
 			int f_ind = idx % 3;

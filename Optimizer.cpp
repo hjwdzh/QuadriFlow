@@ -10,13 +10,11 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 {
 	int levelIterations = 6;
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
-		printf("optimize orientation level = %d\n", level);
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXf &N = mRes.mN[level];
 		MatrixXf &Q = mRes.mQ[level];
 
 		for (int iter = 0; iter < levelIterations; ++iter) {
-			printf("iter = %d\n", iter);
 			for (int i = 0; i < N.cols(); ++i) {
 				const Vector3f n_i = N.col(i);
 				float weight_sum = 0.0f;
@@ -59,7 +57,6 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 			}
 		}
 	}
-
 	for (int l = 0; l< mRes.mN.size() - 1; ++l)  {
 		const MatrixXf &N = mRes.mN[l];
 		const MatrixXf &N_next = mRes.mN[l + 1];
@@ -96,13 +93,11 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 	int levelIterations = 6;
 
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
-		printf("optimize position level = %d\n", level);
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXf &N = mRes.mN[level];
 		MatrixXf &Q = mRes.mQ[level];
 
 		for (int iter = 0; iter < levelIterations; ++iter) {
-			printf("iter = %d\n", iter);
 			AdjacentMatrix &adj = mRes.mAdj[level];
 			const MatrixXf &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
 			const float scale = mRes.mScale, inv_scale = 1.0f / scale;

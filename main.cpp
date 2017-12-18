@@ -258,8 +258,10 @@ int main(int argc, char** argv)
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-//	Optimizer::optimize_positions(field.hierarchy);
-//	field.ExtractMesh();
+
+	Optimizer::optimize_positions(field.hierarchy);
+
+	field.ExtractMesh();
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
 }
