@@ -181,163 +181,390 @@ void Parametrizer::ComputeVertexArea() {
 #include <map>
 #include "dset.h"
 
-void extract_graph(const Hierarchy &mRes,
-	std::vector<std::vector<TaggedLink> > &adj_new,
-	MatrixXf &O_new, MatrixXf &N_new)
-{
-	int numV = mRes.mV[0].cols();
-	DisjointSets dset(numV);
-	adj_new.clear();
-	adj_new.resize(numV);
+typedef std::pair<uint32_t, uint32_t> Edge;
 
-	typedef std::pair<int, int> Edge;
-	typedef std::pair<Edge, float> WeightedEdge;
-	std::vector<WeightedEdge> collapse_edge_vec;
-	collapse_edge_vec.reserve((uint32_t)(numV*2.5f));
+void
+extract_graph(const Hierarchy &mRes,
+std::vector<std::vector<TaggedLink> > &adj_new,
+MatrixXf &O_new, MatrixXf &N_new,
+bool remove_spurious_vertices,
+bool remove_unnecessary_edges) {
+
+	float scale = mRes.mScale, inv_scale = 1 / scale;
+
+	auto compat_orientation = compat_orientation_extrinsic_4;
+	auto compat_position = compat_position_extrinsic_index_4;
 
 	const MatrixXf &Q = mRes.mQ[0], &O = mRes.mO[0], &N = mRes.mN[0], &V = mRes.mV[0];
-	const float scale = mRes.mScale, inv_scale = 1.0f / scale;
+	const AdjacentMatrix &adj = mRes.mAdj[0];
+	printf("stage 1...\n");
+	{
+		DisjointSets dset(V.cols());
+		adj_new.clear();
+		adj_new.resize(V.cols());
+		typedef std::pair<Edge, float> WeightedEdge;
 
-	// clasify
-	for (int i = 0; i < numV; ++i) {
-		for (auto& link : mRes.mAdj[0][i]) {
-			int j = link.id;
+		std::vector<WeightedEdge> collapse_edge_vec;
+		collapse_edge_vec.reserve((uint32_t)(V.cols()*2.5f));
+		for (uint32_t i = 0; i < adj.size(); ++i) {
+			while (!dset.try_lock(i))
+				;
 
-			if (j < i)
+			for (auto& link : adj[i]) {
+				uint32_t j = link.id;
+
+				if (j < i)
+					continue;
+
+				std::pair<Vector3f, Vector3f> Q_rot = compat_orientation(
+					Q.col(i), N.col(i), Q.col(j), N.col(j));
+
+				float error = 0;
+				std::pair<Vector2i, Vector2i> shift = compat_position(
+					V.col(i), N.col(i), Q_rot.first, O.col(i),
+					V.col(j), N.col(j), Q_rot.second, O.col(j),
+					scale, inv_scale, &error);
+
+				Vector2i absDiff = (shift.first - shift.second).cwiseAbs();
+
+				if (absDiff.maxCoeff() > 1 || (absDiff == Vector2i(1, 1)))
+					continue; /* Ignore longer-distance links and diagonal lines for quads */
+				bool collapse = absDiff.sum() == 0;
+
+				if (collapse) {
+					collapse_edge_vec.push_back(std::make_pair(std::make_pair(i, j), error));
+				}
+				else {
+					while (!dset.try_lock(j))
+						;
+					adj_new[i].push_back(j);
+					adj_new[j].push_back(i);
+					dset.unlock(j);
+				}
+
+			}
+			dset.unlock(i);
+
+		}
+		printf("stage 2...\n");
+		struct WeightedEdgeComparator {
+			bool operator()(const WeightedEdge& e1, const WeightedEdge& e2) const { return e1.second < e2.second; }
+		};
+
+		std::stable_sort(collapse_edge_vec.begin(), collapse_edge_vec.end(), WeightedEdgeComparator());
+
+		std::atomic<uint32_t> nConflicts(0), nItem(0);
+		std::vector<uint16_t> nCollapses(V.cols(), 0);
+		std::set<uint32_t> temp;
+
+		for (int i = 0; i < collapse_edge_vec.size(); ++i) {
+			const WeightedEdge &we = collapse_edge_vec[nItem++];
+			Edge edge = we.first;
+
+			/* Lock both sets and determine the current representative ID */
+			bool ignore_edge = false;
+			do {
+				if (edge.first > edge.second) {
+					std::swap(edge.first, edge.second);
+				}
+				if (!dset.try_lock(edge.first))
+					continue;
+				if (!dset.try_lock(edge.second)) {
+					dset.unlock(edge.first);
+					if (edge.second == edge.first) {
+						ignore_edge = true;
+						break;
+					}
+					continue;
+				}
+				break;
+			} while (true);
+
+			if (ignore_edge)
 				continue;
 
-			std::pair<Vector3f, Vector3f> Q_rot = compat_orientation_extrinsic_4(
-				Q.col(i), N.col(i), Q.col(j), N.col(j));
-
-			float error = 0;
-			const auto Vi = V.col(i), Ni = N.col(i), Oi = O.col(i);
-			const auto Vj = V.col(j), Nj = N.col(j), Oj = O.col(j);
-			std::pair<Vector2i, Vector2i> shift = compat_position_extrinsic_index_4(
-				V.col(i), N.col(i), Q_rot.first, O.col(i),
-				V.col(j), N.col(j), Q_rot.second, O.col(j),
-				scale, inv_scale, &error);
-
-			Vector2i absDiff = (shift.first - shift.second).cwiseAbs();
-
-			if (absDiff.maxCoeff() > 1 || (absDiff == Vector2i(1, 1)))
-				continue; /* Ignore longer-distance links and diagonal lines for quads */
-			bool collapse = absDiff.sum() == 0;
-
-			if (collapse) {
-				collapse_edge_vec.push_back(std::make_pair(std::make_pair(i, j), error));
+			bool contained = false;
+			for (auto neighbor : adj_new[edge.first]) {
+				if (dset.find(neighbor.id) == edge.second) {
+					contained = true;
+					break;
+				}
 			}
-			else {
-				adj_new[i].push_back(j);
-				adj_new[j].push_back(i);
+
+			if (contained) {
+				dset.unlock(edge.first);
+				dset.unlock(edge.second);
+				nConflicts++;
+				continue;
+			}
+
+			temp.clear();
+			for (auto neighbor : adj_new[edge.first])
+				temp.insert(dset.find(neighbor.id));
+			for (auto neighbor : adj_new[edge.second])
+				temp.insert(dset.find(neighbor.id));
+
+			uint32_t target_idx = dset.unite_index_locked(edge.first, edge.second);
+			adj_new[edge.first].clear();
+			adj_new[edge.second].clear();
+			adj_new[target_idx].reserve(temp.size());
+			for (auto j : temp)
+				adj_new[target_idx].push_back(j);
+			nCollapses[target_idx] = nCollapses[edge.first] + nCollapses[edge.second] + 1;
+			adj_new[edge.first].shrink_to_fit();
+			adj_new[edge.second].shrink_to_fit();
+
+			dset.unite_unlock(edge.first, edge.second);
+		}
+		printf("stage 3...\n");
+
+		uint32_t nVertices = 0;
+		std::map<uint32_t, uint32_t> vertex_map;
+		float avg_collapses = 0;
+		for (uint32_t i = 0; i<adj_new.size(); ++i) {
+			if (adj_new[i].empty())
+				continue;
+			if (i != nVertices) {
+				adj_new[nVertices].swap(adj_new[i]);
+				std::swap(nCollapses[nVertices], nCollapses[i]);
+			}
+			avg_collapses += nCollapses[nVertices];
+			vertex_map[i] = nVertices++;
+		}
+		adj_new.resize(nVertices);
+		adj_new.shrink_to_fit();
+		avg_collapses /= nVertices;
+
+		for (int i = 0; i < adj_new.size(); ++i) {
+			temp.clear();
+			for (auto k : adj_new[i])
+				temp.insert(vertex_map[dset.find(k.id)]);
+			std::vector<TaggedLink> new_vec;
+			new_vec.reserve(temp.size());
+			for (auto j : temp)
+				new_vec.push_back(TaggedLink(j));
+			adj_new[i] = std::move(new_vec);
+		}
+		printf("stage 4...\n");
+
+		if (remove_spurious_vertices) {
+			uint32_t removed = 0;
+			for (uint32_t i = 0; i<adj_new.size(); ++i) {
+				if (nCollapses[i] > avg_collapses / 10)
+					continue;
+
+				for (auto neighbor : adj_new[i]) {
+					auto &a = adj_new[neighbor.id];
+					a.erase(std::remove_if(a.begin(), a.end(), [&](const TaggedLink &v) { return v.id == i; }), a.end());
+				}
+
+				adj_new[i].clear();
+				++removed;
 			}
 		}
-	}
-	// collapse neighbors
-	struct WeightedEdgeComparator {
-		bool operator()(const WeightedEdge& e1, const WeightedEdge& e2) const { return e1.second < e2.second; }
-	};
-	std::stable_sort(collapse_edge_vec.begin(), collapse_edge_vec.end());
-	std::vector<int> nCollapses(numV, 0);
-	int nItem = 0;
-	for (int i = 0; i < collapse_edge_vec.size(); ++i) {
-		const WeightedEdge &we = collapse_edge_vec[nItem++];
-		Edge edge = we.first;
-		int t1 = dset.find(edge.first);
-		int t2 = dset.find(edge.second);
-		if (t1 == t2)
-			continue;
-		int target = dset.unite(t1, t2);
-		std::set<int> temp;
-		for (auto& t : adj_new[t1]) {
-			temp.insert(t.id);
+
+		O_new.resize(3, nVertices);
+		N_new.resize(3, nVertices);
+		O_new.setZero();
+		N_new.setZero();
+
+
+		{
+			Eigen::VectorXf cluster_weight(nVertices);
+			cluster_weight.setZero();
+			for (int i = 0; i < V.cols(); ++i) {
+				auto it = vertex_map.find(dset.find(i));
+				if (it == vertex_map.end())
+					continue;
+				uint32_t j = it->second;
+
+				float weight = std::exp(-(O.col(i) - V.col(i)).squaredNorm() * inv_scale * inv_scale * 9);
+
+				for (uint32_t k = 0; k<3; ++k) {
+					O_new.coeffRef(k, j) += O(k, i)*weight;
+					N_new.coeffRef(k, j) += N(k, i)*weight;
+				}
+				cluster_weight[j] += weight;
+			}
+
+
+			for (uint32_t i = 0; i<nVertices; ++i) {
+				if (cluster_weight[i] == 0) {
+					continue;
+				}
+				O_new.col(i) /= cluster_weight[i];
+				N_new.col(i).normalize();
+			}
+
 		}
-		for (auto& t : adj_new[t2]) {
-			temp.insert(t.id);
-		}
-		adj_new[t1].clear();
-		adj_new[t2].clear();
-		nCollapses[target] = nCollapses[t1] + nCollapses[t2] + 1;
-		adj_new[target].insert(adj_new[target].end(), temp.begin(), temp.end());
 	}
-	// compress the array
-	int nVertices = 0;
-	std::map<int, int> vertex_map;
-	float avg_collapses = 0;
+	printf("stage 5...\n");
 
-	for (uint32_t i = 0; i<adj_new.size(); ++i) {
-		if (adj_new[i].empty())
-			continue;
-		if (i != nVertices) {
-			adj_new[nVertices].swap(adj_new[i]);
-			std::swap(nCollapses[nVertices], nCollapses[i]);
-		}
-		avg_collapses += nCollapses[nVertices];
-		vertex_map[i] = nVertices++;
+	if (remove_unnecessary_edges) {
+		bool changed;
+		uint32_t nRemoved = 0, nSnapped = 0;
+		do {
+			changed = false;
+
+			bool changed_inner;
+			do {
+				changed_inner = false;
+				float thresh = 0.3f * scale;
+
+				std::vector<std::tuple<float, uint32_t, uint32_t, uint32_t>> candidates;
+				for (uint32_t i_id = 0; i_id<adj_new.size(); ++i_id) {
+					auto const &adj_i = adj_new[i_id];
+					const Vector3f p_i = O_new.col(i_id);
+					for (uint32_t j = 0; j<adj_i.size(); ++j) {
+						uint32_t j_id = adj_i[j].id;
+						const Vector3f p_j = O_new.col(j_id);
+						auto const &adj_j = adj_new[j_id];
+
+						for (uint32_t k = 0; k<adj_j.size(); ++k) {
+							uint32_t k_id = adj_j[k].id;
+							if (k_id == i_id)
+								continue;
+							const Vector3f p_k = O_new.col(k_id);
+							float a = (p_j - p_k).norm(), b = (p_i - p_j).norm(), c = (p_i - p_k).norm();
+							if (a > std::max(b, c)) {
+								float s = 0.5f * (a + b + c);
+								float height = 2 * std::sqrt(s*(s - a)*(s - b)*(s - c)) / a;
+								if (height < thresh)
+									candidates.push_back(std::make_tuple(height, i_id, j_id, k_id));
+							}
+						}
+					}
+				}
+
+				std::sort(candidates.begin(), candidates.end(), [&](
+					const decltype(candidates)::value_type &v0,
+					const decltype(candidates)::value_type &v1)
+				{ return std::get<0>(v0) < std::get<0>(v1); });
+
+				for (auto t : candidates) {
+					uint32_t i = std::get<1>(t), j = std::get<2>(t), k = std::get<3>(t);
+					bool edge1 = std::find_if(adj_new[i].begin(), adj_new[i].end(),
+						[j](const TaggedLink &l) { return l.id == j; }) != adj_new[i].end();
+					bool edge2 = std::find_if(adj_new[j].begin(), adj_new[j].end(),
+						[k](const TaggedLink &l) { return l.id == k; }) != adj_new[j].end();
+					bool edge3 = std::find_if(adj_new[k].begin(), adj_new[k].end(),
+						[i](const TaggedLink &l) { return l.id == i; }) != adj_new[k].end();
+
+					if (!edge1 || !edge2)
+						continue;
+
+					const Vector3f p_i = O_new.col(i), p_j = O_new.col(j), p_k = O_new.col(k);
+					float a = (p_j - p_k).norm(), b = (p_i - p_j).norm(), c = (p_i - p_k).norm();
+					float s = 0.5f * (a + b + c);
+					float height = 2 * std::sqrt(s*(s - a)*(s - b)*(s - c)) / a;
+					if (height != std::get<0>(t))
+						continue;
+					if ((p_i - p_j).norm() < thresh || (p_i - p_k).norm() < thresh) {
+						uint32_t merge_id = (p_i - p_j).norm() < thresh ? j : k;
+						O_new.col(i) = (O_new.col(i) + O_new.col(merge_id)) * 0.5f;
+						N_new.col(i) = (N_new.col(i) + N_new.col(merge_id)) * 0.5f;
+						std::set<uint32_t> adj_updated;
+						for (auto const &n : adj_new[merge_id]) {
+							if (n.id == i)
+								continue;
+							adj_updated.insert(n.id);
+							for (auto &n2 : adj_new[n.id]) {
+								if (n2.id == merge_id)
+									n2.id = i;
+							}
+						}
+						for (auto &n : adj_new[i])
+							adj_updated.insert(n.id);
+						adj_updated.erase(i);
+						adj_updated.erase(merge_id);
+						adj_new[merge_id].clear();
+						adj_new[i].clear();
+						for (uint32_t l : adj_updated)
+							adj_new[i].push_back(l);
+					}
+					else {
+						Vector3f n_k = N_new.col(k), n_j = N_new.col(j);
+						//Vector3f dp = p_k - p_j, dn = n_k - n_j;
+						//Float t = dp.dot(p_i-p_j) / dp.dot(dp);
+						//O_new.col(i) = p_j + t*dp;
+						//N_new.col(i) = (n_j + t*dn).normalized();
+						O_new.col(i) = (p_j + p_k) * 0.5f;
+						N_new.col(i) = (n_j + n_k).normalized();
+
+						adj_new[j].erase(std::remove_if(adj_new[j].begin(), adj_new[j].end(),
+							[k](const TaggedLink &l) { return l.id == k; }), adj_new[j].end());
+						adj_new[k].erase(std::remove_if(adj_new[k].begin(), adj_new[k].end(),
+							[j](const TaggedLink &l) { return l.id == j; }), adj_new[k].end());
+
+						if (!edge3) {
+							adj_new[i].push_back(k);
+							adj_new[k].push_back(i);
+						}
+					}
+
+					changed = true;
+					changed_inner = true;
+					++nSnapped;
+				}
+			} while (changed_inner);
+
+				std::vector<std::pair<float, Edge>> candidates;
+				for (size_t i = 0; i<adj_new.size(); ++i) {
+					auto const &adj_i = adj_new[i];
+					const Vector3f p_i = O_new.col(i);
+					for (uint32_t j = 0; j<adj_i.size(); ++j) {
+						uint32_t j_id = adj_i[j].id;
+						const Vector3f p_j = O_new.col(j_id);
+
+						uint32_t nTris = 0;
+						float length = 0.0f;
+						for (uint32_t k = 0; k<adj_i.size(); ++k) {
+							uint32_t k_id = adj_i[k].id;
+							if (k_id == j_id)
+								continue;
+							const Vector3f p_k = O_new.col(k_id);
+							if (std::find_if(adj_new[j_id].begin(), adj_new[j_id].end(),
+								[k_id](const TaggedLink &l) { return l.id == k_id; }) == adj_new[j_id].end())
+								continue;
+							nTris++;
+							length += (p_k - p_i).norm() + (p_k - p_j).norm();
+						}
+
+						if (nTris == 2) {
+							float exp_diag = length / 4 * std::sqrt(2.f);
+							float diag = (p_i - p_j).norm();
+							float score = std::abs((diag - exp_diag) / std::min(diag, exp_diag));
+							candidates.push_back(std::make_pair(std::abs(score), std::make_pair(i, j_id)));
+						}
+					}
+				std::sort(candidates.begin(), candidates.end(), [&](
+					const std::pair<float, Edge> &v0,
+					const std::pair<float, Edge> &v1) { return v0.first < v1.first; });
+
+				for (auto c : candidates) {
+					uint32_t i_id = c.second.first, j_id = c.second.second;
+					auto const &adj_i = adj_new[i_id];
+					uint32_t nTris = 0;
+					for (uint32_t k = 0; k<adj_i.size(); ++k) {
+						uint32_t k_id = adj_i[k].id;
+						if (std::find_if(adj_new[j_id].begin(), adj_new[j_id].end(),
+							[k_id](const TaggedLink &l) { return l.id == k_id; }) == adj_new[j_id].end())
+							continue;
+						nTris++;
+					}
+					if (nTris == 2) {
+						adj_new[i_id].erase(std::remove_if(adj_new[i_id].begin(), adj_new[i_id].end(),
+							[j_id](const TaggedLink &l) { return l.id == j_id; }), adj_new[i_id].end());
+						adj_new[j_id].erase(std::remove_if(adj_new[j_id].begin(), adj_new[j_id].end(),
+							[i_id](const TaggedLink &l) { return l.id == i_id; }), adj_new[j_id].end());
+						changed = true;
+						++nRemoved;
+					}
+				}
+			}
+		} while (changed);
 	}
-	adj_new.resize(nVertices);
-	adj_new.shrink_to_fit();
-	avg_collapses /= nVertices;
 
-	for (int i = 0; i < adj_new.size(); ++i) {
-		std::set<int> temp;
-		for (auto& k : adj_new[i])
-			temp.insert(vertex_map[dset.find(k.id)]);
-		std::vector<TaggedLink> new_vec;
-		new_vec.reserve(temp.size());
-		for (auto& j : temp)
-			new_vec.push_back(TaggedLink(j));
-		adj_new[i] = std::move(new_vec);
-	}
-
-	// Remove Spurious Vertices
-	int removed = 0;
-	for (int i = 0; i<adj_new.size(); ++i) {
-		if (nCollapses[i] > avg_collapses / 10)
-			continue;
-
-		for (auto neighbor : adj_new[i]) {
-			auto &a = adj_new[neighbor.id];
-			a.erase(std::remove_if(a.begin(), a.end(), [&](const TaggedLink &v) { return v.id == i; }), a.end());
-		}
-
-		adj_new[i].clear();
-		++removed;
-	}
-
-	// Compute O_new and N_new
-	O_new.resize(3, nVertices);
-	N_new.resize(3, nVertices);
-	O_new.setZero();
-	N_new.setZero();
-
-	Eigen::VectorXf cluster_weight(nVertices);
-	cluster_weight.setZero();
-
-	for (int i = 0; i < numV; ++i) {
-		auto it = vertex_map.find(dset.find(i));
-		if (it == vertex_map.end())
-			continue;
-		uint32_t j = it->second;
-
-		float weight = std::exp(-(O.col(i) - V.col(i)).squaredNorm() * inv_scale * inv_scale * 9);
-		for (uint32_t k = 0; k < 3; ++k) {
-			O_new.coeffRef(k, j) += O(k, i) * weight;
-			N_new.coeffRef(k, j) += N(k, i) * weight;
-		}
-		cluster_weight[j] += weight;
-	}
-	for (uint32_t i = 0; i<nVertices; ++i) {
-		if (cluster_weight[i] == 0) {
-			printf("waring %d %d\n", i, adj_new[i].size());
-			system("pause");
-			continue;
-		}
-		O_new.col(i) /= cluster_weight[i];
-		N_new.col(i).normalize();
-	}
-
-	// remove unnecessary edges...
-	// sort edges
 	for (int i = 0; i < O_new.cols(); ++i) {
 		Vector3f s, t, p = O_new.col(i);
 		coordinate_system(N_new.col(i), s, t);
@@ -346,179 +573,14 @@ void extract_graph(const Hierarchy &mRes,
 			[&](const TaggedLink &j0, const TaggedLink &j1) {
 			Vector3f v0 = O_new.col(j0.id) - p, v1 = O_new.col(j1.id) - p;
 			return std::atan2(t.dot(v0), s.dot(v0)) > std::atan2(t.dot(v1), s.dot(v1));
-		});
-	}
-
-	// remove unnecessary edges
-	bool changed;
-	uint32_t nRemoved = 0, nSnapped = 0;
-	do {
-		changed = false;
-
-		bool changed_inner;
-		do {
-			changed_inner = false;
-			float thresh = 0.3f * scale;
-
-			std::vector<std::tuple<float, uint32_t, uint32_t, uint32_t>> candidates;
-			for (uint32_t i_id = 0; i_id<adj_new.size(); ++i_id) {
-				auto const &adj_i = adj_new[i_id];
-				const Vector3f p_i = O_new.col(i_id);
-				for (uint32_t j = 0; j<adj_i.size(); ++j) {
-					uint32_t j_id = adj_i[j].id;
-					const Vector3f p_j = O_new.col(j_id);
-					auto const &adj_j = adj_new[j_id];
-
-					for (uint32_t k = 0; k<adj_j.size(); ++k) {
-						uint32_t k_id = adj_j[k].id;
-						if (k_id == i_id)
-							continue;
-						const Vector3f p_k = O_new.col(k_id);
-						float a = (p_j - p_k).norm(), b = (p_i - p_j).norm(), c = (p_i - p_k).norm();
-						if (a > std::max(b, c)) {
-							float s = 0.5f * (a + b + c);
-							float height = 2 * std::sqrt(s*(s - a)*(s - b)*(s - c)) / a;
-							if (height < thresh)
-								candidates.push_back(std::make_tuple(height, i_id, j_id, k_id));
-						}
-					}
-				}
-			}
-
-			std::sort(candidates.begin(), candidates.end(), [&](
-				const decltype(candidates)::value_type &v0,
-				const decltype(candidates)::value_type &v1)
-			{ return std::get<0>(v0) < std::get<0>(v1); });
-
-			for (auto t : candidates) {
-				uint32_t i = std::get<1>(t), j = std::get<2>(t), k = std::get<3>(t);
-				bool edge1 = std::find_if(adj_new[i].begin(), adj_new[i].end(),
-					[j](const TaggedLink &l) { return l.id == j; }) != adj_new[i].end();
-				bool edge2 = std::find_if(adj_new[j].begin(), adj_new[j].end(),
-					[k](const TaggedLink &l) { return l.id == k; }) != adj_new[j].end();
-				bool edge3 = std::find_if(adj_new[k].begin(), adj_new[k].end(),
-					[i](const TaggedLink &l) { return l.id == i; }) != adj_new[k].end();
-
-				if (!edge1 || !edge2)
-					continue;
-
-				const Vector3f p_i = O_new.col(i), p_j = O_new.col(j), p_k = O_new.col(k);
-				float a = (p_j - p_k).norm(), b = (p_i - p_j).norm(), c = (p_i - p_k).norm();
-				float s = 0.5f * (a + b + c);
-				float height = 2 * std::sqrt(s*(s - a)*(s - b)*(s - c)) / a;
-				if (height != std::get<0>(t))
-					continue;
-				if ((p_i - p_j).norm() < thresh || (p_i - p_k).norm() < thresh) {
-					uint32_t merge_id = (p_i - p_j).norm() < thresh ? j : k;
-					O_new.col(i) = (O_new.col(i) + O_new.col(merge_id)) * 0.5f;
-					N_new.col(i) = (N_new.col(i) + N_new.col(merge_id)) * 0.5f;
-					std::set<uint32_t> adj_updated;
-					for (auto const &n : adj_new[merge_id]) {
-						if (n.id == i)
-							continue;
-						adj_updated.insert(n.id);
-						for (auto &n2 : adj_new[n.id]) {
-							if (n2.id == merge_id)
-								n2.id = i;
-						}
-					}
-					for (auto &n : adj_new[i])
-						adj_updated.insert(n.id);
-					adj_updated.erase(i);
-					adj_updated.erase(merge_id);
-					adj_new[merge_id].clear();
-					adj_new[i].clear();
-					for (uint32_t l : adj_updated)
-						adj_new[i].push_back(l);
-				}
-				else {
-					Vector3f n_k = N_new.col(k), n_j = N_new.col(j);
-					//Vector3f dp = p_k - p_j, dn = n_k - n_j;
-					//Float t = dp.dot(p_i-p_j) / dp.dot(dp);
-					//O_new.col(i) = p_j + t*dp;
-					//N_new.col(i) = (n_j + t*dn).normalized();
-					O_new.col(i) = (p_j + p_k) * 0.5f;
-					N_new.col(i) = (n_j + n_k).normalized();
-
-					adj_new[j].erase(std::remove_if(adj_new[j].begin(), adj_new[j].end(),
-						[k](const TaggedLink &l) { return l.id == k; }), adj_new[j].end());
-					adj_new[k].erase(std::remove_if(adj_new[k].begin(), adj_new[k].end(),
-						[j](const TaggedLink &l) { return l.id == j; }), adj_new[k].end());
-
-					if (!edge3) {
-						adj_new[i].push_back(k);
-						adj_new[k].push_back(i);
-					}
-				}
-
-				changed = true;
-				changed_inner = true;
-				++nSnapped;
-			}
-		} while (changed_inner);
-
-		std::vector<std::pair<float, Edge>> candidates;
-		for (size_t i = 0; i<adj_new.size(); ++i) {
-			auto const &adj_i = adj_new[i];
-			const Vector3f p_i = O_new.col(i);
-			for (uint32_t j = 0; j<adj_i.size(); ++j) {
-				uint32_t j_id = adj_i[j].id;
-				const Vector3f p_j = O_new.col(j_id);
-
-				uint32_t nTris = 0;
-				float length = 0.0f;
-				for (uint32_t k = 0; k<adj_i.size(); ++k) {
-					uint32_t k_id = adj_i[k].id;
-					if (k_id == j_id)
-						continue;
-					const Vector3f p_k = O_new.col(k_id);
-					if (std::find_if(adj_new[j_id].begin(), adj_new[j_id].end(),
-						[k_id](const TaggedLink &l) { return l.id == k_id; }) == adj_new[j_id].end())
-						continue;
-					nTris++;
-					length += (p_k - p_i).norm() + (p_k - p_j).norm();
-				}
-
-				if (nTris == 2) {
-					float exp_diag = length / 4 * std::sqrt(2.f);
-					float diag = (p_i - p_j).norm();
-					float score = std::abs((diag - exp_diag) / std::min(diag, exp_diag));
-					candidates.push_back(std::make_pair(std::abs(score), std::make_pair(i, j_id)));
-				}
-			}
-			std::sort(candidates.begin(), candidates.end(), [&](
-				const std::pair<float, Edge> &v0,
-				const std::pair<float, Edge> &v1) { return v0.first < v1.first; });
-
-			for (auto c : candidates) {
-				uint32_t i_id = c.second.first, j_id = c.second.second;
-				auto const &adj_i = adj_new[i_id];
-				uint32_t nTris = 0;
-				for (uint32_t k = 0; k<adj_i.size(); ++k) {
-					uint32_t k_id = adj_i[k].id;
-					if (std::find_if(adj_new[j_id].begin(), adj_new[j_id].end(),
-						[k_id](const TaggedLink &l) { return l.id == k_id; }) == adj_new[j_id].end())
-						continue;
-					nTris++;
-				}
-				if (nTris == 2) {
-					adj_new[i_id].erase(std::remove_if(adj_new[i_id].begin(), adj_new[i_id].end(),
-						[j_id](const TaggedLink &l) { return l.id == j_id; }), adj_new[i_id].end());
-					adj_new[j_id].erase(std::remove_if(adj_new[j_id].begin(), adj_new[j_id].end(),
-						[i_id](const TaggedLink &l) { return l.id == i_id; }), adj_new[j_id].end());
-					changed = true;
-					++nRemoved;
-				}
-			}
 		}
-	} while (changed);
-
+		);
+	}
 }
-
-
 void Parametrizer::ExtractMesh() {
+	printf("extract_graph\n");
 	extract_graph(hierarchy, adj_extracted,
-		mV_extracted, mN_extracted);
+		mV_extracted, mN_extracted, true, true);
 	/*
 	Vector3f red = Vector3f::UnitX();
 
