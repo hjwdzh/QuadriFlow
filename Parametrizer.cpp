@@ -186,7 +186,7 @@ typedef std::pair<uint32_t, uint32_t> Edge;
 void
 extract_graph(const Hierarchy &mRes,
 std::vector<std::vector<TaggedLink> > &adj_new,
-MatrixXf &O_new, MatrixXf &N_new,
+MatrixXf &O_new, MatrixXf &N_new, std::map<uint32_t, uint32_t>& vertex_map,
 bool remove_spurious_vertices,
 bool remove_unnecessary_edges) {
 
@@ -197,209 +197,206 @@ bool remove_unnecessary_edges) {
 
 	const MatrixXf &Q = mRes.mQ[0], &O = mRes.mO[0], &N = mRes.mN[0], &V = mRes.mV[0];
 	const AdjacentMatrix &adj = mRes.mAdj[0];
-	printf("stage 1...\n");
-	{
-		DisjointSets dset(V.cols());
-		adj_new.clear();
-		adj_new.resize(V.cols());
-		typedef std::pair<Edge, float> WeightedEdge;
 
-		std::vector<WeightedEdge> collapse_edge_vec;
-		collapse_edge_vec.reserve((uint32_t)(V.cols()*2.5f));
-		for (uint32_t i = 0; i < adj.size(); ++i) {
-			while (!dset.try_lock(i))
-				;
 
-			for (auto& link : adj[i]) {
-				uint32_t j = link.id;
+	DisjointSets dset(V.cols());
+	adj_new.clear();
+	adj_new.resize(V.cols());
+	typedef std::pair<Edge, float> WeightedEdge;
 
-				if (j < i)
-					continue;
+	std::vector<WeightedEdge> collapse_edge_vec;
+	collapse_edge_vec.reserve((uint32_t)(V.cols()*2.5f));
+	for (uint32_t i = 0; i < adj.size(); ++i) {
+		while (!dset.try_lock(i))
+			;
 
-				std::pair<Vector3f, Vector3f> Q_rot = compat_orientation(
-					Q.col(i), N.col(i), Q.col(j), N.col(j));
+		for (auto& link : adj[i]) {
+			uint32_t j = link.id;
 
-				float error = 0;
-				std::pair<Vector2i, Vector2i> shift = compat_position(
-					V.col(i), N.col(i), Q_rot.first, O.col(i),
-					V.col(j), N.col(j), Q_rot.second, O.col(j),
-					scale, inv_scale, &error);
-
-				Vector2i absDiff = (shift.first - shift.second).cwiseAbs();
-
-				if (absDiff.maxCoeff() > 1 || (absDiff == Vector2i(1, 1)))
-					continue; /* Ignore longer-distance links and diagonal lines for quads */
-				bool collapse = absDiff.sum() == 0;
-
-				if (collapse) {
-					collapse_edge_vec.push_back(std::make_pair(std::make_pair(i, j), error));
-				}
-				else {
-					while (!dset.try_lock(j))
-						;
-					adj_new[i].push_back(j);
-					adj_new[j].push_back(i);
-					dset.unlock(j);
-				}
-
-			}
-			dset.unlock(i);
-
-		}
-		printf("stage 2...\n");
-		struct WeightedEdgeComparator {
-			bool operator()(const WeightedEdge& e1, const WeightedEdge& e2) const { return e1.second < e2.second; }
-		};
-
-		std::stable_sort(collapse_edge_vec.begin(), collapse_edge_vec.end(), WeightedEdgeComparator());
-
-		std::atomic<uint32_t> nConflicts(0), nItem(0);
-		std::vector<uint16_t> nCollapses(V.cols(), 0);
-		std::set<uint32_t> temp;
-
-		for (int i = 0; i < collapse_edge_vec.size(); ++i) {
-			const WeightedEdge &we = collapse_edge_vec[nItem++];
-			Edge edge = we.first;
-
-			/* Lock both sets and determine the current representative ID */
-			bool ignore_edge = false;
-			do {
-				if (edge.first > edge.second) {
-					std::swap(edge.first, edge.second);
-				}
-				if (!dset.try_lock(edge.first))
-					continue;
-				if (!dset.try_lock(edge.second)) {
-					dset.unlock(edge.first);
-					if (edge.second == edge.first) {
-						ignore_edge = true;
-						break;
-					}
-					continue;
-				}
-				break;
-			} while (true);
-
-			if (ignore_edge)
+			if (j < i)
 				continue;
 
-			bool contained = false;
-			for (auto neighbor : adj_new[edge.first]) {
-				if (dset.find(neighbor.id) == edge.second) {
-					contained = true;
+			std::pair<Vector3f, Vector3f> Q_rot = compat_orientation(
+				Q.col(i), N.col(i), Q.col(j), N.col(j));
+
+			float error = 0;
+			std::pair<Vector2i, Vector2i> shift = compat_position(
+				V.col(i), N.col(i), Q_rot.first, O.col(i),
+				V.col(j), N.col(j), Q_rot.second, O.col(j),
+				scale, inv_scale, &error);
+
+			Vector2i absDiff = (shift.first - shift.second).cwiseAbs();
+
+			if (absDiff.maxCoeff() > 1 || (absDiff == Vector2i(1, 1)))
+				continue; /* Ignore longer-distance links and diagonal lines for quads */
+			bool collapse = absDiff.sum() == 0;
+
+			if (collapse) {
+				collapse_edge_vec.push_back(std::make_pair(std::make_pair(i, j), error));
+			}
+			else {
+				while (!dset.try_lock(j))
+					;
+				adj_new[i].push_back(j);
+				adj_new[j].push_back(i);
+				dset.unlock(j);
+			}
+
+		}
+		dset.unlock(i);
+
+	}
+
+	struct WeightedEdgeComparator {
+		bool operator()(const WeightedEdge& e1, const WeightedEdge& e2) const { return e1.second < e2.second; }
+	};
+
+	std::stable_sort(collapse_edge_vec.begin(), collapse_edge_vec.end(), WeightedEdgeComparator());
+
+	std::atomic<uint32_t> nConflicts(0), nItem(0);
+	std::vector<uint16_t> nCollapses(V.cols(), 0);
+	std::set<uint32_t> temp;
+
+	for (int i = 0; i < collapse_edge_vec.size(); ++i) {
+		const WeightedEdge &we = collapse_edge_vec[nItem++];
+		Edge edge = we.first;
+
+		/* Lock both sets and determine the current representative ID */
+		bool ignore_edge = false;
+		do {
+			if (edge.first > edge.second) {
+				std::swap(edge.first, edge.second);
+			}
+			if (!dset.try_lock(edge.first))
+				continue;
+			if (!dset.try_lock(edge.second)) {
+				dset.unlock(edge.first);
+				if (edge.second == edge.first) {
+					ignore_edge = true;
 					break;
 				}
-			}
-
-			if (contained) {
-				dset.unlock(edge.first);
-				dset.unlock(edge.second);
-				nConflicts++;
 				continue;
 			}
+			break;
+		} while (true);
 
-			temp.clear();
-			for (auto neighbor : adj_new[edge.first])
-				temp.insert(dset.find(neighbor.id));
-			for (auto neighbor : adj_new[edge.second])
-				temp.insert(dset.find(neighbor.id));
+		if (ignore_edge)
+			continue;
 
-			uint32_t target_idx = dset.unite_index_locked(edge.first, edge.second);
-			adj_new[edge.first].clear();
-			adj_new[edge.second].clear();
-			adj_new[target_idx].reserve(temp.size());
-			for (auto j : temp)
-				adj_new[target_idx].push_back(j);
-			nCollapses[target_idx] = nCollapses[edge.first] + nCollapses[edge.second] + 1;
-			adj_new[edge.first].shrink_to_fit();
-			adj_new[edge.second].shrink_to_fit();
-
-			dset.unite_unlock(edge.first, edge.second);
+		bool contained = false;
+		for (auto neighbor : adj_new[edge.first]) {
+			if (dset.find(neighbor.id) == edge.second) {
+				contained = true;
+				break;
+			}
 		}
-		printf("stage 3...\n");
 
-		uint32_t nVertices = 0;
-		std::map<uint32_t, uint32_t> vertex_map;
-		float avg_collapses = 0;
+		if (contained) {
+			dset.unlock(edge.first);
+			dset.unlock(edge.second);
+			nConflicts++;
+			continue;
+		}
+
+		temp.clear();
+		for (auto neighbor : adj_new[edge.first])
+			temp.insert(dset.find(neighbor.id));
+		for (auto neighbor : adj_new[edge.second])
+			temp.insert(dset.find(neighbor.id));
+
+		uint32_t target_idx = dset.unite_index_locked(edge.first, edge.second);
+		adj_new[edge.first].clear();
+		adj_new[edge.second].clear();
+		adj_new[target_idx].reserve(temp.size());
+		for (auto j : temp)
+			adj_new[target_idx].push_back(j);
+		nCollapses[target_idx] = nCollapses[edge.first] + nCollapses[edge.second] + 1;
+		adj_new[edge.first].shrink_to_fit();
+		adj_new[edge.second].shrink_to_fit();
+
+		dset.unite_unlock(edge.first, edge.second);
+	}
+
+	uint32_t nVertices = 0;
+	float avg_collapses = 0;
+	for (uint32_t i = 0; i<adj_new.size(); ++i) {
+		if (adj_new[i].empty())
+			continue;
+		if (i != nVertices) {
+			adj_new[nVertices].swap(adj_new[i]);
+			std::swap(nCollapses[nVertices], nCollapses[i]);
+		}
+		avg_collapses += nCollapses[nVertices];
+		vertex_map[i] = nVertices++;
+	}
+	adj_new.resize(nVertices);
+	adj_new.shrink_to_fit();
+	avg_collapses /= nVertices;
+
+	for (int i = 0; i < adj_new.size(); ++i) {
+		temp.clear();
+		for (auto k : adj_new[i])
+			temp.insert(vertex_map[dset.find(k.id)]);
+		std::vector<TaggedLink> new_vec;
+		new_vec.reserve(temp.size());
+		for (auto j : temp)
+			new_vec.push_back(TaggedLink(j));
+		adj_new[i] = std::move(new_vec);
+	}
+
+	if (remove_spurious_vertices) {
+		uint32_t removed = 0;
 		for (uint32_t i = 0; i<adj_new.size(); ++i) {
-			if (adj_new[i].empty())
+			if (nCollapses[i] > avg_collapses / 10)
 				continue;
-			if (i != nVertices) {
-				adj_new[nVertices].swap(adj_new[i]);
-				std::swap(nCollapses[nVertices], nCollapses[i]);
-			}
-			avg_collapses += nCollapses[nVertices];
-			vertex_map[i] = nVertices++;
-		}
-		adj_new.resize(nVertices);
-		adj_new.shrink_to_fit();
-		avg_collapses /= nVertices;
 
-		for (int i = 0; i < adj_new.size(); ++i) {
-			temp.clear();
-			for (auto k : adj_new[i])
-				temp.insert(vertex_map[dset.find(k.id)]);
-			std::vector<TaggedLink> new_vec;
-			new_vec.reserve(temp.size());
-			for (auto j : temp)
-				new_vec.push_back(TaggedLink(j));
-			adj_new[i] = std::move(new_vec);
-		}
-		printf("stage 4...\n");
-
-		if (remove_spurious_vertices) {
-			uint32_t removed = 0;
-			for (uint32_t i = 0; i<adj_new.size(); ++i) {
-				if (nCollapses[i] > avg_collapses / 10)
-					continue;
-
-				for (auto neighbor : adj_new[i]) {
-					auto &a = adj_new[neighbor.id];
-					a.erase(std::remove_if(a.begin(), a.end(), [&](const TaggedLink &v) { return v.id == i; }), a.end());
-				}
-
-				adj_new[i].clear();
-				++removed;
-			}
-		}
-
-		O_new.resize(3, nVertices);
-		N_new.resize(3, nVertices);
-		O_new.setZero();
-		N_new.setZero();
-
-
-		{
-			Eigen::VectorXf cluster_weight(nVertices);
-			cluster_weight.setZero();
-			for (int i = 0; i < V.cols(); ++i) {
-				auto it = vertex_map.find(dset.find(i));
-				if (it == vertex_map.end())
-					continue;
-				uint32_t j = it->second;
-
-				float weight = std::exp(-(O.col(i) - V.col(i)).squaredNorm() * inv_scale * inv_scale * 9);
-
-				for (uint32_t k = 0; k<3; ++k) {
-					O_new.coeffRef(k, j) += O(k, i)*weight;
-					N_new.coeffRef(k, j) += N(k, i)*weight;
-				}
-				cluster_weight[j] += weight;
+			for (auto neighbor : adj_new[i]) {
+				auto &a = adj_new[neighbor.id];
+				a.erase(std::remove_if(a.begin(), a.end(), [&](const TaggedLink &v) { return v.id == i; }), a.end());
 			}
 
-
-			for (uint32_t i = 0; i<nVertices; ++i) {
-				if (cluster_weight[i] == 0) {
-					continue;
-				}
-				O_new.col(i) /= cluster_weight[i];
-				N_new.col(i).normalize();
-			}
-
+			adj_new[i].clear();
+			++removed;
 		}
 	}
-	printf("stage 5...\n");
 
+	O_new.resize(3, nVertices);
+	N_new.resize(3, nVertices);
+	O_new.setZero();
+	N_new.setZero();
+
+
+	{
+		Eigen::VectorXf cluster_weight(nVertices);
+		cluster_weight.setZero();
+		std::map<uint32_t, uint32_t> vertex_map_new;
+		for (int i = 0; i < V.cols(); ++i) {
+			auto it = vertex_map.find(dset.find(i));
+			if (it == vertex_map.end())
+				continue;
+			uint32_t j = it->second;
+			vertex_map_new[i] = j;
+
+			float weight = std::exp(-(O.col(i) - V.col(i)).squaredNorm() * inv_scale * inv_scale * 9);
+
+			for (uint32_t k = 0; k<3; ++k) {
+				O_new.coeffRef(k, j) += O(k, i)*weight;
+				N_new.coeffRef(k, j) += N(k, i)*weight;
+			}
+			cluster_weight[j] += weight;
+		}
+		std::swap(vertex_map, vertex_map_new);
+		
+		for (uint32_t i = 0; i<nVertices; ++i) {
+			if (cluster_weight[i] == 0) {
+				continue;
+			}
+			O_new.col(i) /= cluster_weight[i];
+			N_new.col(i).normalize();
+		}
+
+	}
+	
 	if (remove_unnecessary_edges) {
 		bool changed;
 		uint32_t nRemoved = 0, nSnapped = 0;
@@ -577,59 +574,392 @@ bool remove_unnecessary_edges) {
 		);
 	}
 }
-void Parametrizer::ExtractMesh() {
-	printf("extract_graph\n");
-	extract_graph(hierarchy, adj_extracted,
-		mV_extracted, mN_extracted, true, true);
-	/*
-	Vector3f red = Vector3f::UnitX();
 
-	int smooth_iterations = (int)(mSmoothSlider->value() * 10);
-	extract_faces(adj_extracted, mV_extracted, mN_extracted, mNf_extracted,
-		mF_extracted, posy, mRes.scale(), creaseOut, true,
-		mPureQuadBox->checked(), mBVH, smooth_iterations);
+void extract_faces(std::vector<std::vector<TaggedLink> > &adj, MatrixXf &O,
+	MatrixXf &N, MatrixXf &Nf, MatrixXi &F,
+	float scale, bool fill_holes) {
 
-	cout << "Extraction is done. (total time: " << timeString(timer.value()) << ")" << endl;
+	uint32_t nF = 0, nV = O.cols(), nV_old = O.cols();
+	F.resize(4, O.cols());
 
-	int fmult = posy == 3 ? 1 : 2;
+	auto extract_face = [&](uint32_t cur, uint32_t curIdx, size_t targetSize,
+		std::vector<std::pair<uint32_t, uint32_t>> &result) {
+		uint32_t initial = cur;
+		bool success = false;
+		result.clear();
+		for (;;) {
+			if (adj[cur][curIdx].used() ||
+				(targetSize > 0 && result.size() + 1 > targetSize))
+				break;
 
-	MatrixXu F_gpu(3, mF_extracted.cols()*fmult);
-	MatrixXf N_gpu(3, mF_extracted.cols()*posy);
-	MatrixXf O_gpu(3, mF_extracted.cols()*posy);
-	MatrixXf outputMeshWireframe(6, mF_extracted.cols() * posy * 2);
+			result.push_back(std::make_pair(cur, curIdx));
 
-	for (uint32_t i = 0; i<(uint32_t)mF_extracted.cols(); ++i) {
-		int base = posy*i;
-		F_gpu.col(fmult*i) = Vector3u(base + 0, base + 1, base + 2);
-		if (posy == 4)
-			F_gpu.col(fmult*i + 1) = Vector3u(base + 2, base + 3, base + 0);
-		bool irregular = posy == 4 && mF_extracted(2, i) == mF_extracted(3, i);
-		for (int j = 0; j<posy; ++j) {
-			uint32_t k = mF_extracted(j, i), kn = mF_extracted((j + 1) % posy, i);
+			uint32_t next = adj[cur][curIdx].id,
+				next_rank = adj[next].size(),
+				idx = (uint32_t)-1;
 
-			Vector3f col = red;
-			if (irregular && j >= 1)
-				col = Vector3f::Zero();
-			outputMeshWireframe.col(i * 2 * posy + j * 2 + 0) << mV_extracted.col(k), col;
-			outputMeshWireframe.col(i * 2 * posy + j * 2 + 1) << mV_extracted.col(kn), col;
-			O_gpu.col(i*posy + j) = mV_extracted.col(k);
-			N_gpu.col(i*posy + j) = mNf_extracted.col(i);
+			for (uint32_t j = 0; j<next_rank; ++j) {
+				if (adj[next][j].id == cur) {
+					idx = j; break;
+				}
+			}
+
+			if (idx == (uint32_t)-1 || next_rank == 1)
+				break;
+
+			cur = next;
+			curIdx = (idx + 1) % next_rank;
+			if (cur == initial) {
+				success = targetSize == 0 || result.size() == targetSize;
+				break;
+			}
+		}
+
+		if (success) {
+			for (auto kv : result)
+				adj[kv.first][kv.second].markUsed();
+		}
+		else {
+			result.clear();
+		}
+		return success;
+	};
+
+	std::vector<std::vector<uint32_t>> irregular_faces;
+	auto fill_face = [&](std::vector<std::pair<uint32_t, uint32_t>> &verts) -> std::vector<uint32_t> {
+		std::vector<uint32_t> irregular;
+		while (verts.size() > 2) {
+			if (verts.size() == (size_t)4) {
+				uint32_t idx = nF++;
+				if (nF > F.cols())
+					F.conservativeResize(F.rows(), F.cols() * 2);
+				for (int i = 0; i < 4; ++i)
+					F(i, idx) = verts[i].first;
+				break;
+			}
+			else if (verts.size() >(size_t) 4 + 1 || 4 == 3) {
+				float best_score = std::numeric_limits<float>::infinity();
+				uint32_t best_idx = (uint32_t)-1;
+
+				for (uint32_t i = 0; i<verts.size(); ++i) {
+					float score = 0.f;
+					for (int k = 0; k < 4; ++k) {
+						Vector3f v0 = O.col(verts[(i + k) % verts.size()].first);
+						Vector3f v1 = O.col(verts[(i + k + 1) % verts.size()].first);
+						Vector3f v2 = O.col(verts[(i + k + 2) % verts.size()].first);
+						Vector3f d0 = (v0 - v1).normalized();
+						Vector3f d1 = (v2 - v1).normalized();
+						float angle = std::acos(d0.dot(d1)) * 180.0f / M_PI;
+						score += std::abs(angle - (4 == 4 ? 90 : 60));
+					}
+
+					if (score < best_score) {
+						best_score = score;
+						best_idx = i;
+					}
+				}
+				uint32_t idx = nF++;
+				if (nF > F.cols())
+					F.conservativeResize(F.rows(), F.cols() * 2);
+
+				for (int i = 0; i < 4; ++i) {
+					uint32_t &j = verts[(best_idx + i) % verts.size()].first;
+					F(i, idx) = j;
+					if (i != 0 && (int)i != 4 - 1)
+						j = (uint32_t)-1;
+				}
+				verts.erase(std::remove_if(verts.begin(), verts.end(),
+					[](const std::pair<uint32_t, uint32_t> &v) { return v.first == (uint32_t)-1; }), verts.end());
+			}
+			else {
+				Vector3f centroid = Vector3f::Zero();
+				Vector3f centroid_normal = Vector3f::Zero();
+				for (uint32_t k = 0; k<verts.size(); ++k) {
+					centroid += O.col(verts[k].first);
+					centroid_normal += N.col(verts[k].first);
+				}
+				uint32_t idx_centroid = nV++;
+				if (nV > O.cols()) {
+					O.conservativeResize(O.rows(), O.cols() * 2);
+					N.conservativeResize(O.rows(), O.cols());
+				}
+				O.col(idx_centroid) = centroid / verts.size();
+				N.col(idx_centroid) = centroid_normal.normalized();
+
+				for (uint32_t i = 0; i<verts.size(); ++i) {
+					uint32_t idx = nF++;
+					if (nF > F.cols())
+						F.conservativeResize(F.rows(), F.cols() * 2);
+
+					F.col(idx) = Vector4i(
+						verts[i].first,
+						verts[(i + 1) % verts.size()].first,
+						idx_centroid,
+						idx_centroid
+						);
+					irregular.push_back(idx);
+				}
+				break;
+			}
+		}
+		return irregular;
+	};
+
+	VectorXi stats(10);
+	stats.setZero();
+	uint32_t nFaces = 0, nHoles = 0;
+	std::vector<std::pair<uint32_t, uint32_t>> result;
+	for (uint32_t _deg = 3; _deg <= 8; _deg++) {
+		uint32_t deg = _deg;
+		if ((deg == 3 || deg == 4))
+			deg = 7 - deg;
+
+		for (uint32_t i = 0; i<nV_old; ++i) {
+			for (uint32_t j = 0; j<adj[i].size(); ++j) {
+				if (!extract_face(i, j, _deg, result))
+					continue;
+				stats[result.size()]++;
+				std::vector<uint32_t> irregular = fill_face(result);
+				if (!irregular.empty())
+					irregular_faces.push_back(std::move(irregular));
+				nFaces++;
+			}
 		}
 	}
 
-	mOutputMeshShader.bind();
-	mOutputMeshShader.uploadAttrib("position", O_gpu);
-	mOutputMeshShader.uploadAttrib("normal", N_gpu);
-	mOutputMeshShader.uploadIndices(F_gpu);
-	mOutputMeshFaces = F_gpu.cols();
-	mOutputMeshLines = outputMeshWireframe.cols();
-	mOutputMeshWireframeShader.bind();
-	mOutputMeshWireframeShader.uploadAttrib("position", MatrixXf(outputMeshWireframe.block(0, 0, 3, mOutputMeshLines)));
-	mOutputMeshWireframeShader.uploadAttrib("color", MatrixXf(outputMeshWireframe.block(3, 0, 3, mOutputMeshLines)));
+	if (fill_holes) {
+		for (uint32_t i = 0; i<nV_old; ++i) {
+			for (uint32_t j = 0; j<adj[i].size(); ++j) {
+				if (!adj[i][j].used()) {
+					uint32_t j_id = adj[i][j].id;
+					bool found = false;
+					for (uint32_t k = 0; k<adj[j_id].size(); ++k) {
+						if (adj[j_id][k].id == i) {
+							found = true;
+							if (adj[j_id][k].used()) {
+								adj[i][j].flag |= 2;
+								adj[j_id][k].flag |= 2;
+							}
+							break;
+						}
+					}
+				}
+			}
+		}
 
-	while (!(mLayers[OutputMesh]->checked() && mLayers[OutputMeshWireframe]->checked()))
-		keyboardEvent(GLFW_KEY_BACKSLASH, 0, true, 0);
-		*/
+		uint32_t linksLeft = 0;
+		for (uint32_t i = 0; i<nV_old; ++i) {
+			adj[i].erase(std::remove_if(adj[i].begin(), adj[i].end(),
+				[](const TaggedLink &l) { return (l.flag & 2) == 0; }), adj[i].end());
+			linksLeft += adj[i].size();
+		}
+
+		for (uint32_t i = 0; i<nV_old; ++i) {
+			for (uint32_t j = 0; j<adj[i].size(); ++j) {
+				if (!extract_face(i, j, 0, result))
+					continue;
+				if (result.size() >= 7) {
+					continue;
+				}
+				if (result.size() >= (size_t)stats.size()) {
+					uint32_t oldSize = stats.size();
+					stats.conservativeResize(result.size() + 1);
+					stats.tail(stats.size() - oldSize).setZero();
+				}
+				stats[result.size()]++;
+				std::vector<uint32_t> irregular = fill_face(result);
+				if (!irregular.empty())
+					irregular_faces.push_back(std::move(irregular));
+				nHoles++;
+			}
+		}
+	}
+
+	F.conservativeResize(4, nF);
+	N.conservativeResize(3, nV);
+	O.conservativeResize(3, nV);
+
+	Nf.resize(3, F.cols());
+	Nf.setZero();
+	for (uint32_t i = 0; i < F.cols(); ++i) {
+		Vector3f centroid = Vector3f::Zero(), avgNormal = Vector3f::Zero();
+		for (int j = 0; j<F.rows(); ++j) {
+			uint32_t k = F(j, i);
+			centroid += O.col(k);
+			avgNormal += N.col(k);
+		}
+		centroid /= F.rows();
+		Matrix3f cov = Matrix3f::Zero();
+		for (int j = 0; j<F.rows(); ++j) {
+			uint32_t k = F(j, i);
+			cov += (O.col(k) - centroid) * (O.col(k) - centroid).transpose();
+		}
+		Vector3f n = cov.jacobiSvd(Eigen::ComputeFullU).matrixU().col(2).normalized();
+		Nf.col(i) = n * signum(avgNormal.dot(n));
+	}
+
+	for (auto f : irregular_faces) {
+		Vector3f centroid = Vector3f::Zero(), avgNormal = Vector3f::Zero();
+		for (uint32_t i = 0; i<f.size(); ++i) {
+			uint32_t k = F(0, f[i]);
+			centroid += O.col(k);
+			avgNormal += N.col(k);
+		}
+		centroid /= f.size();
+		Matrix3f cov = Matrix3f::Zero();
+		for (uint32_t i = 0; i<f.size(); ++i) {
+			uint32_t k = F(0, f[i]);
+			cov += (O.col(k) - centroid) * (O.col(k) - centroid).transpose();
+		}
+		Vector3f n = cov.jacobiSvd(Eigen::ComputeFullU).matrixU().col(2).normalized();
+		n *= signum(avgNormal.dot(n));
+		for (uint32_t i = 0; i<f.size(); ++i)
+			Nf.col(f[i]) = n;
+	}
+}
+
+void write_obj(const std::string &filename, const MatrixXi &F,
+	const MatrixXf &V, const MatrixXf &N, const MatrixXf &Nf,
+	const MatrixXf &UV, const MatrixXf &C) {
+	std::ofstream os(filename);
+	if (os.fail())
+		throw std::runtime_error("Unable to open OBJ file \"" + filename + "\"!");
+	if (N.size() > 0 && Nf.size() > 0)
+		throw std::runtime_error("Please specify either face or vertex normals but not both!");
+
+	for (uint32_t i = 0; i<V.cols(); ++i)
+		os << "v " << V(0, i) << " " << V(1, i) << " " << V(2, i) << std::endl;
+
+	for (uint32_t i = 0; i<N.cols(); ++i)
+		os << "vn " << N(0, i) << " " << N(1, i) << " " << N(2, i) << std::endl;
+
+	for (uint32_t i = 0; i<Nf.cols(); ++i)
+		os << "vn " << Nf(0, i) << " " << Nf(1, i) << " " << Nf(2, i) << std::endl;
+
+	for (uint32_t i = 0; i<UV.cols(); ++i)
+		os << "vt " << UV(0, i) << " " << UV(1, i) << std::endl;
+
+	/* Check for irregular faces */
+	std::map<uint32_t, std::pair<uint32_t, std::map<uint32_t, uint32_t>>> irregular;
+	size_t nIrregular = 0;
+
+	for (uint32_t f = 0; f<F.cols(); ++f) {
+		if (F.rows() == 4) {
+			if (F(2, f) == F(3, f)) {
+				nIrregular++;
+				auto &value = irregular[F(2, f)];
+				value.first = f;
+				value.second[F(0, f)] = F(1, f);
+				continue;
+			}
+		}
+		os << "f ";
+		for (uint32_t j = 0; j<F.rows(); ++j) {
+			uint32_t idx = F(j, f);
+			idx += 1;
+			os << idx;
+			if (Nf.size() > 0)
+				idx = f + 1;
+			os << "//" << idx << " ";
+		}
+		os << std::endl;
+	}
+
+	for (auto item : irregular) {
+		auto face = item.second;
+		uint32_t v = face.second.begin()->first, first = v, i = 0;
+		os << "f ";
+		while (true) {
+			uint32_t idx = v + 1;
+			os << idx;
+			if (Nf.size() > 0)
+				idx = face.first + 1;
+			os << "//" << idx << " ";
+
+			v = face.second[v];
+			if (v == first || ++i == face.second.size())
+				break;
+		}
+		os << std::endl;
+	}
+
+}
+
+
+void Parametrizer::ExtractMesh() {
+	printf("extract_graph\n");
+	std::map<uint32_t, uint32_t> vertex_map;
+	extract_graph(hierarchy, adj_extracted,
+		mV_extracted, mN_extracted, vertex_map, true, true);
+	MatrixXi F_extr;
+	MatrixXf Nf_extr;
+	auto adj_new = adj_extracted;
+	extract_faces(adj_new, mV_extracted, mN_extracted, Nf_extr, F_extr,
+		hierarchy.mScale, true);
+	std::map<uint32_t, std::pair<uint32_t, std::map<uint32_t, uint32_t>>> irregular;
+	size_t nIrregular = 0;
+
+	qF.clear();
+	for (uint32_t f = 0; f<F_extr.cols(); ++f) {
+		if (F_extr.rows() == 4) {
+			if (F_extr(2, f) == F_extr(3, f)) {
+				nIrregular++;
+				auto &value = irregular[F_extr(2, f)];
+				value.first = f;
+				value.second[F_extr(0, f)] = F_extr(1, f);
+				continue;
+			}
+		}
+		Vector4i p = F_extr.col(f);
+		VectorXi px(4);
+		for (int i = 0; i < 4; ++i) {
+			px(i) = p(i);
+		}
+		qF.push_back(px);
+	}
+	for (auto item : irregular) {
+		auto face = item.second;
+		uint32_t v = face.second.begin()->first, first = v, i = 0;
+		std::vector<uint32_t> p;
+		while (true) {
+			uint32_t idx = v + 1;
+			p.push_back(idx);
+
+			v = face.second[v];
+			if (v == first || ++i == face.second.size())
+				break;
+		}
+		VectorXi px(p.size());
+		for (int i = 0; i < p.size(); ++i) {
+			px(i) = p[i];
+		}
+		qF.push_back(px);
+	}
+	qVF.resize(mV_extracted.size());
+	for (int i = 0; i < qF.size(); ++i) {
+		for (int j = 0; j < qF[i].rows(); ++j) {
+			qVF[qF[i](j)].push_back(std::make_pair(i, j));
+		}
+	}
+	for (auto& f : singularities) {
+		int face = f.first;
+		bool find_singularity = false;
+		std::pair<int, int> rec(-1, -1);
+		for (int j = 0; j < 3; ++j) {
+			int v = hierarchy.mF(j, face);
+			int qv = vertex_map[v];
+			if (qVF[qv].size() != 4) {
+				find_singularity = true;
+				rec = std::make_pair(qv, f.second);
+			}
+			for (auto& f : qVF[qv])
+				if (qF[f.first].rows() != 4)
+					find_singularity = true;
+		}
+		if (find_singularity) {
+			vertex_singularities[rec.first] = rec.second;
+		}
+	}
 }
 
 void Parametrizer::ComputeOrientationSingularities()

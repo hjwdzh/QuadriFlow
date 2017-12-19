@@ -41,10 +41,11 @@ static void render_callback(void)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 
+	auto& mF = field.hierarchy.mF;
+	auto& mV = field.hierarchy.mV[0];
+	auto& mN = field.hierarchy.mN[0];
+	auto& mVq = field.mV_extracted;
 	if (show_mesh) {
-		auto& mF = field.hierarchy.mF;
-		auto& mV = field.hierarchy.mV[0];
-		auto& mN = field.hierarchy.mN[0];
 		static GLfloat white[4] =
 		{ 1.0, 1.0, 1.0, 1.0 };
 		glMaterialfv(GL_FRONT, GL_DIFFUSE, white);
@@ -56,9 +57,32 @@ static void render_callback(void)
 			}
 		}
 		glEnd();
-		glPointSize(5.0f);
-		glDisable(GL_LIGHTING);
-		glColor3f(1.0f, 0.0f, 0.0f);
+
+	}
+	glDisable(GL_LIGHTING);
+	glPointSize(5.0f);
+	if (show_quad) {
+		glColor3f(0.0f, 1.0f, 0.0f);
+		glBegin(GL_POINTS);
+		for (auto& p : field.vertex_singularities) {
+			if (p.second == 1) {
+				Vector3f v = (mVq.col(p.first));
+				glVertex3f(v.x(), v.y(), v.z());
+			}
+		}
+		glEnd();
+		glColor3f(0.0f, 0.0f, 1.0f);
+		glBegin(GL_POINTS);
+		for (auto& p : field.vertex_singularities) {
+			if (p.second == 3) {
+				Vector3f v = (mVq.col(p.first));
+				glVertex3f(v.x(), v.y(), v.z());
+			}
+		}
+		glEnd();
+	}
+	else {
+		glColor3f(0.0f, 1.0f, 0.0f);
 		glBegin(GL_POINTS);
 		for (auto& p : field.singularities) {
 			if (p.second == 1) {
@@ -80,10 +104,7 @@ static void render_callback(void)
 			}
 		}
 		glEnd();
-		glEnable(GL_LIGHTING);
 	}
-	glDisable(GL_LIGHTING);
-
 	if (show_hierarchy) {
 		glColor3f(0, 0, 1);
 		glBegin(GL_LINES);
@@ -109,8 +130,6 @@ static void render_callback(void)
 				int j = l.id;
 				glVertex3fv(&field.mV_extracted(0, i));
 				glVertex3fv(&field.mV_extracted(0, j));
-				Vector3f p1 = field.mV_extracted.col(i);
-				Vector3f p2 = field.mV_extracted.col(j);
 			}
 		}
 		glEnd();

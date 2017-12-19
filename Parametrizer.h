@@ -24,6 +24,7 @@ public:
 	// Extract Mesh
 	void ExtractMesh();
 
+	std::map<int, int> vertex_singularities;
 	std::map<int, int> singularities;
 	// input mesh
 	MatrixXf V;
@@ -55,5 +56,8 @@ public:
 	MatrixXi mF_extracted;
 	MatrixXf mV_extracted;
 	MatrixXf mN_extracted, mNf_extracted;
+
+	std::vector<VectorXi> qF;
+	std::vector<std::vector<std::pair<int, int> > > qVF;
 };
 #endif
