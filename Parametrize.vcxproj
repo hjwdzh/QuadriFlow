@@ -42,6 +42,7 @@
     <ClInclude Include="MergeVertex.h" />
     <ClInclude Include="Optimizer.h" />
     <ClInclude Include="Parametrizer.h" />
+    <ClInclude Include="serialize.h" />
     <ClInclude Include="subdivide.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

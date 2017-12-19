@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "AdjacentMatrix.h"
-
+#include "serialize.h"
 #define RCPOVERFLOW   2.93873587705571876e-39f
 
 class Hierarchy
@@ -21,6 +21,9 @@ public:
 	enum {
 		MAX_DEPTH = 25
 	};
+
+	void SaveToFile(FILE* fp);
+	void LoadFromFile(FILE* fp);
 
 	float mScale;
 

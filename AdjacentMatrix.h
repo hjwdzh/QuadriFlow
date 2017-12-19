@@ -5,6 +5,7 @@
 #include "dedge.h"
 struct Link
 {
+	Link(){}
 	Link(int _id, float _w = 1)
 		: id(_id), weight(_w)
 	{}

@@ -147,3 +147,34 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXf &V,
 		}
 	}
 }
+
+
+void Hierarchy::SaveToFile(FILE* fp)
+{
+	Save(fp, mScale);
+	Save(fp, mF);
+	Save(fp, mE2E);
+	Save(fp, mAdj);
+	Save(fp, mV);
+	Save(fp, mN);
+	Save(fp, mA);
+	Save(fp, mToLower);
+	Save(fp, mToUpper);
+	Save(fp, mQ);
+	Save(fp, mO);
+}
+
+void Hierarchy::LoadFromFile(FILE* fp)
+{
+	Read(fp, mScale);
+	Read(fp, mF);
+	Read(fp, mE2E);
+	Read(fp, mAdj);
+	Read(fp, mV);
+	Read(fp, mN);
+	Read(fp, mA);
+	Read(fp, mToLower);
+	Read(fp, mToUpper);
+	Read(fp, mQ);
+	Read(fp, mO);
+}

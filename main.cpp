@@ -16,31 +16,14 @@ int show_field = 0;
 int show_mesh = 1;
 int show_quad = 0;
 int show_hierarchy = 0;
+int show_loop = 0;
+int show_singularity = 0;
+
 Parametrizer field;
 
-static void render_callback(void)
+static void render_mesh()
 {
-	glClearColor(0.0, 191.0 / 255.0, 1.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	GLfloat light_position[] = { 1, 1, 1, 0 };
-	glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, light_position);
-	// now you can setup view matrix (gluLookAt())
-
-	glPushMatrix();
-	glTranslated(render_translation.x, render_translation.y, render_translation.z);
-	glMultMatrixd((double*)&render_rotation);
-	double model_scale = exp(render_scale);
-	glScaled(model_scale, model_scale, model_scale);
-	if (render_wireframe) {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	}
-	else {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}
-
+	glEnable(GL_LIGHTING);
 	auto& mF = field.hierarchy.mF;
 	auto& mV = field.hierarchy.mV[0];
 	auto& mN = field.hierarchy.mN[0];
@@ -57,12 +40,21 @@ static void render_callback(void)
 			}
 		}
 		glEnd();
-
 	}
 	glDisable(GL_LIGHTING);
+}
+
+static void render_singularities()
+{
+	if (show_singularity == 0)
+		return;
+	auto& mF = field.hierarchy.mF;
+	auto& mV = field.hierarchy.mV[0];
+	auto& mN = field.hierarchy.mN[0];
+	auto& mVq = field.mV_extracted;
 	glPointSize(5.0f);
 	if (show_quad) {
-		
+
 		glColor3f(0.0f, 1.0f, 0.0f);
 		glBegin(GL_POINTS);
 		for (auto& p : field.vertex_singularities) {
@@ -106,6 +98,10 @@ static void render_callback(void)
 		}
 		glEnd();
 	}
+}
+
+void render_hierarchy()
+{
 	if (show_hierarchy) {
 		glColor3f(0, 0, 1);
 		glBegin(GL_LINES);
@@ -122,7 +118,10 @@ static void render_callback(void)
 		}
 		glEnd();
 	}
-	
+}
+
+static void render_quadmesh()
+{
 	if (show_quad) {
 		glColor3f(1, 0, 0);
 		glBegin(GL_LINES);
@@ -130,18 +129,12 @@ static void render_callback(void)
 			glVertex3fv(&field.mV_extracted(0, e.first.first));
 			glVertex3fv(&field.mV_extracted(0, e.first.second));
 		}
-		/*
-		for (int i = 0; i < field.adj_extracted.size(); ++i) {
-			for (auto& l : field.adj_extracted[i]) {
-				int j = l.id;
-				glVertex3fv(&field.mV_extracted(0, i));
-				glVertex3fv(&field.mV_extracted(0, j));
-			}
-		}
-		*/
-		glEnd();	
+		glEnd();
 	}
+}
 
+static void render_crossfield()
+{
 	if (show_field) {
 		int l = (show_hierarchy) ? level : 0;
 		auto& mV = field.hierarchy.mV[level];
@@ -167,7 +160,67 @@ static void render_callback(void)
 		}
 		glEnd();
 	}
-	glEnable(GL_LIGHTING);
+}
+
+static void render_loop() {
+	if (show_loop) {
+		glPointSize(5.0f);
+		glColor3f(0, 0, 1);
+		int singularity = -1;
+		for (int i = 0; i < field.sin_graph.size(); ++i) {
+			if (field.sin_graph[i].size() > 0) {
+				singularity = field.sin_graph[i].begin()->first;
+			}
+		}
+		glBegin(GL_POINTS);
+		for (int i = 0; i < field.sin_graph.size(); ++i) {
+			if (i != singularity && field.sin_graph[i].size() > 0) {
+				Vector3f p = field.mV_extracted.col(i);
+				glVertex3f(p.x(), p.y(), p.z());
+			}
+		}
+		glEnd();
+		if (singularity != -1) {
+			glPointSize(10.0f);
+			glColor3f(0, 1, 0);
+			glBegin(GL_POINTS);
+			Vector3f p = field.mV_extracted.col(singularity);
+			glVertex3f(p.x(), p.y(), p.z());
+			glEnd();
+		}
+	}
+}
+
+static void render_callback(void)
+{
+	glClearColor(0.0, 191.0 / 255.0, 1.0, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	GLfloat light_position[] = { 1, 1, 1, 0 };
+	glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, light_position);
+	// now you can setup view matrix (gluLookAt())
+
+	glPushMatrix();
+	glTranslated(render_translation.x, render_translation.y, render_translation.z);
+	glMultMatrixd((double*)&render_rotation);
+	double model_scale = exp(render_scale);
+	glScaled(model_scale, model_scale, model_scale);
+	if (render_wireframe) {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	}
+	else {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
+
+	render_mesh();
+	render_singularities();
+	render_hierarchy();
+	render_quadmesh();
+	render_crossfield();
+	render_loop();
+
 	glPopMatrix();
 	glutSwapBuffers();
 }
@@ -263,6 +316,21 @@ static void keyboard_callback(unsigned char key, int x, int y)
 		glutPostRedisplay();
 	}
 
+	if (key == 's') {
+		show_singularity = 1 - show_singularity;
+		glutPostRedisplay();
+	}
+
+	if (key == 'l') {
+		show_loop = 1 - show_loop;
+		glutPostRedisplay();
+	}
+
+	if (key == 'r') {
+		field.LoopFace(1);
+		glutPostRedisplay();
+	}
+
 	if (modifiers & GLUT_ACTIVE_SHIFT) {
 
 	}
@@ -286,8 +354,20 @@ int main(int argc, char** argv)
 	field.ComputeOrientationSingularities();
 
 	Optimizer::optimize_positions(field.hierarchy);
-
 	field.ExtractMesh();
+
+
+	printf("save\n");
+	FILE* fp_w = fopen("result.txt", "wb");
+	field.SaveToFile(fp_w);
+	fclose(fp_w);
+	printf("save finish\n");
+	
+	FILE* fp = fopen("result.txt", "rb");
+	field.LoadFromFile(fp);
+	fclose(fp);
+
+	field.LoopFace(0);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
 }

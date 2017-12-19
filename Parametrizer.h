@@ -4,12 +4,24 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <map>
+#include <set>
 #include "AdjacentMatrix.h"
 #include "hierarchy.h"
-
+#include "serialize.h"
 using namespace Eigen;
 
 typedef std::pair<unsigned int, unsigned int> Edge;
+typedef std::map<int, std::pair<int, int> > SingDictionary;
+struct ExpandInfo
+{
+	ExpandInfo()
+	{}
+	int current_v;
+	int singularity;
+	int step;
+	int edge_id;
+	int prev;
+};
 
 class Parametrizer
 {
@@ -25,10 +37,15 @@ public:
 
 	// Extract Mesh
 	void ExtractMesh();
-	void LoopFace();
+	void LoopFace(int mode);
+
+	void SaveToFile(FILE* fp);
+
+	void LoadFromFile(FILE* fp);
 
 	std::map<int, int> vertex_singularities;
 	std::map<int, int> singularities;
+	
 	// input mesh
 	MatrixXf V;
 	MatrixXf N;
@@ -63,9 +80,16 @@ public:
 	std::vector<VectorXi> qF;
 	std::vector<std::vector<std::pair<int, int> > > qVF;
 
+	// singularity graph
 	std::map<Edge, int> edge_idmap;
 	std::vector<Edge> qE;
 	std::vector<std::vector<int> > qVE;
+	std::vector<std::vector<int> > qEV;
 	std::vector<int> qEE;
+	std::vector<SingDictionary> sin_graph;
+
+	std::set<std::pair<int, int> > triangle_edge_pair;
+	std::vector<ExpandInfo > q;
+	int front_index;
 };
 #endif
