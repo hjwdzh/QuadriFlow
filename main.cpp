@@ -62,6 +62,7 @@ static void render_callback(void)
 	glDisable(GL_LIGHTING);
 	glPointSize(5.0f);
 	if (show_quad) {
+		
 		glColor3f(0.0f, 1.0f, 0.0f);
 		glBegin(GL_POINTS);
 		for (auto& p : field.vertex_singularities) {
@@ -88,7 +89,7 @@ static void render_callback(void)
 			if (p.second == 1) {
 				Vector3f v = (mV.col(mF(0, p.first))
 					+ mV.col(mF(1, p.first))
-					+ mV.col(mF(2, p.first))) * (1.0f / 3);
+					+ mV.col(mF(2, p.first))) / 3.0f;
 				glVertex3f(v.x(), v.y(), v.z());
 			}
 		}
@@ -99,7 +100,7 @@ static void render_callback(void)
 			if (p.second == 3) {
 				Vector3f v = (mV.col(mF(0, p.first))
 					+ mV.col(mF(1, p.first))
-					+ mV.col(mF(2, p.first))) * (1.0f / 3);
+					+ mV.col(mF(2, p.first))) / 3.0f;
 				glVertex3f(v.x(), v.y(), v.z());
 			}
 		}
@@ -125,6 +126,11 @@ static void render_callback(void)
 	if (show_quad) {
 		glColor3f(1, 0, 0);
 		glBegin(GL_LINES);
+		for (auto& e : field.edge_idmap) {
+			glVertex3fv(&field.mV_extracted(0, e.first.first));
+			glVertex3fv(&field.mV_extracted(0, e.first.second));
+		}
+		/*
 		for (int i = 0; i < field.adj_extracted.size(); ++i) {
 			for (auto& l : field.adj_extracted[i]) {
 				int j = l.id;
@@ -132,7 +138,8 @@ static void render_callback(void)
 				glVertex3fv(&field.mV_extracted(0, j));
 			}
 		}
-		glEnd();
+		*/
+		glEnd();	
 	}
 
 	if (show_field) {

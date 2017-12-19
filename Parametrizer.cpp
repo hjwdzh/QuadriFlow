@@ -181,7 +181,6 @@ void Parametrizer::ComputeVertexArea() {
 #include <map>
 #include "dset.h"
 
-typedef std::pair<uint32_t, uint32_t> Edge;
 
 void
 extract_graph(const Hierarchy &mRes,
@@ -885,6 +884,27 @@ void write_obj(const std::string &filename, const MatrixXi &F,
 
 }
 
+void Parametrizer::ComputeOrientationSingularities()
+{
+	const MatrixXf &N = hierarchy.mN[0], &Q = hierarchy.mQ[0];
+	const MatrixXi &F = hierarchy.mF;
+	singularities.clear();
+	for (int f = 0; f < F.cols(); ++f) {
+		int index = 0;
+		int abs_index = 0;
+		for (int k = 0; k < 3; ++k) {
+			int i = F(k, f), j = F(k == 2 ? 0 : (k + 1), f);
+			auto value = compat_orientation_extrinsic_index_4(Q.col(i), N.col(i), Q.col(j), N.col(j));
+			index += value.second - value.first;
+			abs_index += std::abs(value.second - value.first);
+		}
+		int index_mod = modulo(index, 4);
+		if (index_mod == 1 || index_mod == 3) {
+			singularities[f] = index_mod;
+		}
+	}
+	printf("singularities %d...\n", singularities.size());
+}
 
 void Parametrizer::ExtractMesh() {
 	printf("extract_graph\n");
@@ -917,13 +937,13 @@ void Parametrizer::ExtractMesh() {
 		}
 		qF.push_back(px);
 	}
+
 	for (auto item : irregular) {
 		auto face = item.second;
 		uint32_t v = face.second.begin()->first, first = v, i = 0;
 		std::vector<uint32_t> p;
 		while (true) {
-			uint32_t idx = v + 1;
-			p.push_back(idx);
+			p.push_back(v);
 
 			v = face.second[v];
 			if (v == first || ++i == face.second.size())
@@ -935,12 +955,101 @@ void Parametrizer::ExtractMesh() {
 		}
 		qF.push_back(px);
 	}
+
+	qE.clear();
 	qVF.resize(mV_extracted.size());
 	for (int i = 0; i < qF.size(); ++i) {
 		for (int j = 0; j < qF[i].rows(); ++j) {
-			qVF[qF[i](j)].push_back(std::make_pair(i, j));
+			int v0 = qF[i](j);
+			int v1 = qF[i]((j + 1) % qF[i].rows());
+			qVF[v0].push_back(std::make_pair(i, j));
+			Edge e(v0, v1);
+			int idx = qE.size();
+			if (edge_idmap.count(e) == 0) {
+				edge_idmap[e] = qE.size();
+				qE.push_back(e);
+			}
+			else {
+				idx = edge_idmap[e];
+			}
+			idx = qE.size();
+			e = Edge(v1, v0);
+			if (edge_idmap.count(e) == 0) {
+				edge_idmap[e] = qE.size();
+				qE.push_back(e);
+			}
+			else {
+				idx = edge_idmap[e];
+			}
+		}
+		
+		if (qF[i].rows() == 5) {
+			float max_dot = -2.0f;
+			int index = -1, opposite_index = -1;
+			for (int j = 0; j < 5; ++j) {
+				int va = qF[i]((j + 4) % qF[i].rows());
+				int v0 = qF[i](j);
+				int v1 = qF[i]((j + 1) % qF[i].rows());
+				Vector3f p = mV_extracted.col(v0) - mV_extracted.col(va);
+				Vector3f q = mV_extracted.col(v1) - mV_extracted.col(v0);
+				float dot = p.normalized().dot(q.normalized());
+				if (dot > max_dot) {
+					max_dot = dot;
+					index = j;
+				}
+			}
+			int candidate1 = qF[i]((index + 2) % 5);
+			int candidate2 = qF[i]((index + 3) % 5);
+			int current_v = qF[i](index);
+			int next_v = qF[i]((index + 1) % 5);
+			Vector3f p = (mV_extracted.col(candidate1) - mV_extracted.col(current_v)).normalized();
+			Vector3f q = (mV_extracted.col(candidate2) - mV_extracted.col(current_v)).normalized();
+			Vector3f t = (mV_extracted.col(next_v) - mV_extracted.col(current_v)).normalized();
+			Edge e(current_v, candidate2);
+			if (t.cross(p).squaredNorm() > t.cross(q).squaredNorm()) {
+				e.second = candidate1;
+			}
+			if (edge_idmap.count(e) == 0) {
+				edge_idmap[e] = qE.size();
+				qE.push_back(e);
+			}
 		}
 	}
+
+	qVE.resize(mV_extracted.cols());
+	for (int e = 0; e < qE.size(); ++e) {
+		qVE[qE[e].first].push_back(e);
+	}
+	qEE.resize(qE.size(), -1);
+	for (int i = 0; i < qE.size(); ++i) {
+		Vector3f p = mV_extracted.col(qE[i].second) - mV_extracted.col(qE[i].first);
+		p.normalize();
+		float max_dot = -2.0f;
+		for (auto e : qVE[qE[i].second]) {
+			Vector3f q = mV_extracted.col(qE[e].second) - mV_extracted.col(qE[e].first);
+			float dot = p.dot(q.normalized());
+			if (dot > max_dot) {
+				max_dot = dot;
+				qEE[i] = e;
+			}
+		}
+	}
+
+	std::map<int, int> extracted_singularities;
+	for (int i = 0; i < mV_extracted.cols(); ++i) {
+		if (qVE[i].size() % 4 != 0) {
+			extracted_singularities[i] = 1;
+		}
+	}
+
+	for (int i = 0; i < qF.size(); ++i) {
+		if (qF[i].rows() != 4) {
+			for (int j = 0; j < qF[i].rows(); ++j) {
+				extracted_singularities[qF[i](j)] = 3;
+			}
+		}
+	}
+	
 	for (auto& f : singularities) {
 		int face = f.first;
 		bool find_singularity = false;
@@ -948,38 +1057,15 @@ void Parametrizer::ExtractMesh() {
 		for (int j = 0; j < 3; ++j) {
 			int v = hierarchy.mF(j, face);
 			int qv = vertex_map[v];
-			if (qVF[qv].size() != 4) {
-				find_singularity = true;
-				rec = std::make_pair(qv, f.second);
+			if (extracted_singularities.count(qv)) {
+				vertex_singularities[qv] = f.second;
+				break;
 			}
-			for (auto& f : qVF[qv])
-				if (qF[f.first].rows() != 4)
-					find_singularity = true;
-		}
-		if (find_singularity) {
-			vertex_singularities[rec.first] = rec.second;
 		}
 	}
 }
 
-void Parametrizer::ComputeOrientationSingularities()
+void Parametrizer::LoopFace()
 {
-	const MatrixXf &N = hierarchy.mN[0], &Q = hierarchy.mQ[0];
-	const MatrixXi &F = hierarchy.mF;
-	singularities.clear();
-	for (int f = 0; f < F.cols(); ++f) {
-		int index = 0;
-		int abs_index = 0;
-		for (int k = 0; k < 3; ++k) {
-			int i = F(k, f), j = F(k == 2 ? 0 : (k + 1), f);
-			auto value = compat_orientation_extrinsic_index_4(Q.col(i), N.col(i), Q.col(j), N.col(j));
-			index += value.second - value.first;
-			abs_index += std::abs(value.second - value.first);
-		}
-		int index_mod = modulo(index, 4);
-		if (index_mod == 1 || index_mod == 3) {
-			singularities[f] = index_mod;
-		}
-	}
-	printf("singularities %d...\n", singularities.size());
+
 }

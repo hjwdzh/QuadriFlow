@@ -9,6 +9,8 @@
 
 using namespace Eigen;
 
+typedef std::pair<unsigned int, unsigned int> Edge;
+
 class Parametrizer
 {
 public:
@@ -23,6 +25,7 @@ public:
 
 	// Extract Mesh
 	void ExtractMesh();
+	void LoopFace();
 
 	std::map<int, int> vertex_singularities;
 	std::map<int, int> singularities;
@@ -59,5 +62,10 @@ public:
 
 	std::vector<VectorXi> qF;
 	std::vector<std::vector<std::pair<int, int> > > qVF;
+
+	std::map<Edge, int> edge_idmap;
+	std::vector<Edge> qE;
+	std::vector<std::vector<int> > qVE;
+	std::vector<int> qEE;
 };
 #endif
