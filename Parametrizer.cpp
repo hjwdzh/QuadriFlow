@@ -90,7 +90,7 @@ void Parametrizer::ComputeMeshStatus()
 void Parametrizer::ComputeSmoothNormal()
 {
 	/* Compute face normals */
-	MatrixXf Nf(3, F.cols());
+	Nf.resize(3, F.cols());
 	for (int f = 0; f < F.cols(); ++f) {
 		Vector3f v0 = V.col(F(0, f)),
 			v1 = V.col(F(1, f)),
@@ -914,9 +914,12 @@ void Parametrizer::ExtractMesh() {
 		mV_extracted, mN_extracted, vertex_map, true, true);
 	MatrixXi F_extr;
 	MatrixXf Nf_extr;
+
 	auto adj_new = adj_extracted;
 	extract_faces(adj_new, mV_extracted, mN_extracted, Nf_extr, F_extr,
 		hierarchy.mScale, true);
+
+	write_obj("result.obj", F_extr, mV_extracted, MatrixXf(), Nf_extr, MatrixXf(), MatrixXf());
 	std::map<uint32_t, std::pair<uint32_t, std::map<uint32_t, uint32_t>>> irregular;
 	size_t nIrregular = 0;
 
@@ -960,6 +963,8 @@ void Parametrizer::ExtractMesh() {
 	qE.clear();
 	qVF.resize(mV_extracted.size());
 	for (int i = 0; i < qF.size(); ++i) {
+		std::vector<int> cw_edge_ids;
+		std::vector<int> ccw_edge_ids;
 		for (int j = 0; j < qF[i].rows(); ++j) {
 			int v0 = qF[i](j);
 			int v1 = qF[i]((j + 1) % qF[i].rows());
@@ -969,19 +974,23 @@ void Parametrizer::ExtractMesh() {
 			if (edge_idmap.count(e) == 0) {
 				edge_idmap[e] = qE.size();
 				qE.push_back(e);
+				triangle_edge_pair.push_back(std::set<int>());
 			}
 			else {
 				idx = edge_idmap[e];
 			}
+			cw_edge_ids.push_back(idx);
 			idx = qE.size();
 			e = Edge(v1, v0);
 			if (edge_idmap.count(e) == 0) {
 				edge_idmap[e] = qE.size();
 				qE.push_back(e);
+				triangle_edge_pair.push_back(std::set<int>());
 			}
 			else {
 				idx = edge_idmap[e];
 			}
+			ccw_edge_ids.push_back(idx);
 		}
 
 		if (qF[i].rows() == 3) {
@@ -994,31 +1003,26 @@ void Parametrizer::ExtractMesh() {
 				(mV_extracted.col(v0) - mV_extracted.col(v1)).normalized());
 			double angle3 = (mV_extracted.col(v0) - mV_extracted.col(v2)).normalized().dot(
 				(mV_extracted.col(v1) - mV_extracted.col(v2)).normalized());
+
 			int edge1, edge2;
-//			if (angle1 > angle2 && angle1 > angle3) {
+			if (angle1 > angle2 && angle1 > angle3) {
 				edge1 = edge_idmap[Edge(v0, v1)];
 				edge2 = edge_idmap[Edge(v0, v2)];
-				if (edge1 > edge2) {
-					std::swap(edge1, edge2);
-				}
-				triangle_edge_pair.insert(std::make_pair(edge1, edge2));
-//			}
-//			else if (angle2 > angle1 && angle2 > angle3) {
+				triangle_edge_pair[edge1].insert(edge2);
+				triangle_edge_pair[edge2].insert(edge1);
+			}
+			else if (angle2 > angle1 && angle2 > angle3) {
 				edge1 = edge_idmap[Edge(v1, v0)];
 				edge2 = edge_idmap[Edge(v1, v2)];
-				if (edge1 > edge2) {
-					std::swap(edge1, edge2);
-				}
-				triangle_edge_pair.insert(std::make_pair(edge1, edge2));
-//			}
-//			else {
+				triangle_edge_pair[edge1].insert(edge2);
+				triangle_edge_pair[edge2].insert(edge1);
+			}
+			else {
 				edge1 = edge_idmap[Edge(v2, v0)];
 				edge2 = edge_idmap[Edge(v2, v1)];
-				if (edge1 > edge2) {
-					std::swap(edge1, edge2);
-				}
-				triangle_edge_pair.insert(std::make_pair(edge1, edge2));
-//			}
+				triangle_edge_pair[edge1].insert(edge2);
+				triangle_edge_pair[edge2].insert(edge1);
+			}
 		}
 		
 		if (qF[i].rows() == 5) {
@@ -1040,17 +1044,26 @@ void Parametrizer::ExtractMesh() {
 			int candidate2 = qF[i]((index + 3) % 5);
 			int current_v = qF[i](index);
 			int next_v = qF[i]((index + 1) % 5);
+			int prev_v = qF[i]((index + 4) % 5);
 			Vector3f p = (mV_extracted.col(candidate1) - mV_extracted.col(current_v)).normalized();
 			Vector3f q = (mV_extracted.col(candidate2) - mV_extracted.col(current_v)).normalized();
 			Vector3f t = (mV_extracted.col(next_v) - mV_extracted.col(current_v)).normalized();
 			Edge e(current_v, candidate2);
-			if (t.cross(p).squaredNorm() > t.cross(q).squaredNorm()) {
-				e.second = candidate1;
-			}
 			if (edge_idmap.count(e) == 0) {
 				edge_idmap[e] = qE.size();
 				qE.push_back(e);
+				triangle_edge_pair.push_back(std::set<int>());
 			}
+			e = Edge(e.second, e.first);
+			if (edge_idmap.count(e) == 0) {
+				edge_idmap[e] = qE.size();
+				qE.push_back(e);
+				triangle_edge_pair.push_back(std::set<int>());
+			}
+			int edge1 = edge_idmap[Edge(e.second, next_v)];
+			int edge2 = edge_idmap[e];
+			triangle_edge_pair[edge1].insert(edge2);
+			triangle_edge_pair[edge2].insert(edge1);
 		}
 	}
 
@@ -1060,22 +1073,31 @@ void Parametrizer::ExtractMesh() {
 		qVE[qE[e].first].push_back(e);
 		qEV[qE[e].second].push_back(e);
 	}
+
+	qRE.resize(qE.size(), -1);
+	for (int i = 0; i < qE.size(); ++i) {
+		Edge e(qE[i].second, qE[i].first);
+		auto it = edge_idmap.find(e);
+		if (it != edge_idmap.end()) {
+			qRE[i] = it->second;
+		}
+	}
+
 	qEE.resize(qE.size(), -1);
 	for (int i = 0; i < qE.size(); ++i) {
 		Vector3f p = mV_extracted.col(qE[i].second) - mV_extracted.col(qE[i].first);
-		int e1 = qE[i].second;
-		int e2 = qE[i].first;
-		int reverse_edge_id = (edge_idmap.count(Edge(e1, e2)) == 0) ? -1 : edge_idmap[Edge(e1, e2)];
-		p.normalize();
+		p = p.cross(Vector3f(mN_extracted.col(qE[i].second))).normalized();
+
+		int reverse_edge_id = qRE[i];
 		float max_dot = 0.0f;
 		for (auto e : qVE[qE[i].second]) {
-			int edge1 = e;
-			int edge2 = reverse_edge_id;
-			if (edge1 > edge2)
-				std::swap(edge1, edge2);
-			if (e != reverse_edge_id && triangle_edge_pair.count(Edge(edge1, edge2)) == 0) {
-				Vector3f q = mV_extracted.col(qE[e].second) - mV_extracted.col(qE[e].first);
-				float dot = fabs(p.dot(q.normalized()));
+			bool found = false;
+			if (e == reverse_edge_id)
+				found = true;
+			if (!found) {
+				Vector3f q = Vector3f(mV_extracted.col(qE[e].second) - mV_extracted.col(qE[e].first)).cross(
+					Vector3f(mN_extracted.col(qE[i].second))).normalized();
+				float dot = p.dot(q.normalized());
 				if (dot > max_dot) {
 					max_dot = dot;
 					qEE[i] = e;
@@ -1102,14 +1124,18 @@ void Parametrizer::ExtractMesh() {
 	for (auto& f : singularities) {
 		int face = f.first;
 		bool find_singularity = false;
-		std::pair<int, int> rec(-1, -1);
 		for (int j = 0; j < 3; ++j) {
 			int v = hierarchy.mF(j, face);
 			int qv = vertex_map[v];
 			if (extracted_singularities.count(qv)) {
 				vertex_singularities[qv] = f.second;
+				find_singularity = true;
 				break;
 			}
+		}
+		if (find_singularity == false) {
+			for (int k = 0; k < 3; ++k)
+				vertex_singularities[vertex_map[hierarchy.mF(k, face)]] = f.second;
 		}
 	}
 }
@@ -1124,22 +1150,15 @@ void Parametrizer::LoopFace(int mode)
 			// loop the edges
 			std::vector<Vector3f> directions;
 			std::vector<int> edge_ids;
+			int q_index = q.size();
 			for (int i = 0; i < qVE[s.first].size(); ++i) {
 				int edge_id = qVE[s.first][i];
 				Vector3f dir = mV_extracted.col(qE[edge_id].second) - mV_extracted.col(qE[edge_id].first);
 				dir.normalize();
 				bool found = false;
 				for (int j = 0; j < directions.size(); ++j) {
-					printf("%d %d %f\n", i, j, fabs((directions[j].dot(dir))));
-					if (fabs((directions[j].dot(dir))) > cos(angle_thres / 180.0*3.141592654)) {
-						found = true;
-						break;
-					}
-					int edge1 = edge_ids[j];
-					int edge2 = edge_id;
-					if (edge1 > edge2)
-						std::swap(edge1, edge2);
-					if (triangle_edge_pair.count(std::make_pair(edge1, edge2))) {
+					if (//fabs((directions[j].dot(dir))) > cos(angle_thres / 180.0*3.141592654) ||
+						triangle_edge_pair[edge_id].count(edge_ids[j])) {
 						found = true;
 						break;
 					}
@@ -1156,19 +1175,112 @@ void Parametrizer::LoopFace(int mode)
 					edge_ids.push_back(edge_id);
 				}
 			}
-			sin_graph[s.first][s.first] = std::make_pair(-1, 0);
-			break;
+			sin_graph[s.first][s.first] = std::make_pair(-1, q_index);
 		}
 		front_index = 0;
+		singularity_entry.resize(mV_extracted.cols());
 	}
 	if (mode == 0)
 		return;
+
+	auto GenEdgeStrip = [&](int qid, std::vector<int>& edges, int reverse) {
+		while (true) {
+			if (reverse == 1)
+				edges.push_back(qRE[q[qid].edge_id]);
+			else
+				edges.push_back(q[qid].edge_id);
+			qid = q[qid].prev;
+			if (qid == -1)
+				break;
+		}
+	};
+	auto TryInsert = [&](int v1, int e1, int v2, int e2, std::vector<int>& edges) {
+		bool found = singularity_entry[v1].count(std::make_pair(v2, e1)) || singularity_entry[v2].count(std::make_pair(v1, e2));
+		if (!found) {
+			for (auto& e : triangle_edge_pair[e1]) {
+				if (singularity_entry[v1].count(std::make_pair(v2, e))) {
+					found = true;
+					break;
+				}
+			}
+			for (auto& e : triangle_edge_pair[e2]) {
+				if (singularity_entry[v2].count(std::make_pair(v1, e))) {
+					found = true;
+					break;
+				}
+			}
+		}
+
+		if (!found) {
+			singularity_entry[v1].insert(std::make_pair(v2, e1));
+			for (auto& e : triangle_edge_pair[e1]) {
+				singularity_entry[v1].insert(std::make_pair(v2, e));
+			}
+			singularity_entry[v2].insert(std::make_pair(v1, e2));
+			for (auto& e : triangle_edge_pair[e2]) {
+				singularity_entry[v2].insert(std::make_pair(v1, e));
+			}
+			edge_strips.push_back(std::move(edges));
+		}
+	};
 	while (front_index < q.size()) {
 		auto& info = q[front_index];
 		int next_v = qE[info.edge_id].second;
 		int next_edge_id = qEE[info.edge_id];
-		if (!sin_graph[next_v].count(info.singularity)) {
-			sin_graph[next_v][info.singularity] = std::make_pair(info.edge_id, info.step + 1);
+		bool find_terminal = false;
+		if (!sin_graph[next_v].empty()) {
+			// generate a strip
+			for (auto& p : sin_graph[next_v]) {
+				auto& next_info = q[p.second.second];
+				int next_edge = p.second.first;
+				if (next_edge == -1 || qEE[next_edge] == qRE[info.edge_id] || qEE[info.edge_id] == qRE[next_edge]) {
+					std::vector<int> edge_id1, edge_id2;
+					GenEdgeStrip(front_index, edge_id1, 0);
+					GenEdgeStrip(p.second.second, edge_id2, 1);
+					std::reverse(edge_id1.begin(), edge_id1.end());
+					edge_id1.insert(edge_id1.end(), edge_id2.begin() + 1, edge_id2.end());
+
+					int v1 = qE[edge_id1.front()].first, e1 = edge_id1.front();
+					int v2 = qE[edge_id1.back()].second, e2 = qRE[edge_id1.back()];
+					TryInsert(v1, e1, v2, e2, edge_id1);
+					find_terminal = true;
+				}
+				else
+				if (next_info.step <= 1) {
+					// principal direction is edge_id
+					Vector3f dir = (mV_extracted.col(qE[info.edge_id].second) - mV_extracted.col(qE[info.edge_id].first)).normalized();
+					float max_dot = 2.0f;
+					int edge_entry = 0;
+					for (int i = 0; i < qVE[p.first].size(); ++i) {
+						int e = qVE[p.first][i];
+						Vector3f next_dir = (mV_extracted.col(qE[e].second) - mV_extracted.col(qE[e].first)).normalized();
+						float dot = dir.dot(next_dir);
+						if (dot < max_dot) {
+							max_dot = dot;
+							edge_entry = e;
+						}
+					}
+					std::vector<int> edge_id1, edge_id2;
+					GenEdgeStrip(front_index, edge_id1, 0);
+					GenEdgeStrip(p.second.second, edge_id2, 1);
+					std::reverse(edge_id1.begin(), edge_id1.end());
+
+					edge_id1.insert(edge_id1.end(), edge_id2.begin() + 1, edge_id2.end());
+
+					int v1 = qE[edge_id1.front()].first, e1 = edge_id1.front();
+					int v2 = qE[edge_id1.back()].second, e2 = edge_entry;
+					TryInsert(v1, e1, v2, e2, edge_id1);
+					find_terminal = true;
+				}
+			}
+		}
+		if (sin_graph[next_v].count(info.singularity) != 0) {
+			find_terminal = true;
+		}
+		else {
+			sin_graph[next_v][info.singularity] = std::make_pair(info.edge_id, q.size());
+		}
+		if (!find_terminal && next_edge_id != -1) {
 			ExpandInfo new_info;
 			new_info.current_v = next_v;
 			new_info.singularity = info.singularity;
@@ -1176,9 +1288,6 @@ void Parametrizer::LoopFace(int mode)
 			new_info.step = info.step + 1;
 			new_info.prev = front_index;
 			q.push_back(new_info);
-		}
-		else {
-			printf("loop detected: %d %d\n", info.step + 1, sin_graph[next_v][info.singularity].second);
 		}
 		front_index += 1;
 		if (mode == 1)
@@ -1191,6 +1300,7 @@ void Parametrizer::SaveToFile(FILE* fp) {
 	Save(fp, singularities);
 	Save(fp, V);
 	Save(fp, N);
+	Save(fp, Nf);
 	Save(fp, F);
 	Save(fp, V2E);
 	Save(fp, E2E);
@@ -1216,6 +1326,7 @@ void Parametrizer::SaveToFile(FILE* fp) {
 	Save(fp, qVE);
 	Save(fp, qEV);
 	Save(fp, qEE);
+	Save(fp, qRE);
 	Save(fp, sin_graph);
 	Save(fp, triangle_edge_pair);
 }
@@ -1225,6 +1336,7 @@ void Parametrizer::LoadFromFile(FILE* fp) {
 	Read(fp, singularities);
 	Read(fp, V);
 	Read(fp, N);
+	Read(fp, Nf);
 	Read(fp, F);
 	Read(fp, V2E);
 	Read(fp, E2E);
@@ -1250,6 +1362,7 @@ void Parametrizer::LoadFromFile(FILE* fp) {
 	Read(fp, qVE);
 	Read(fp, qEV);
 	Read(fp, qEE);
+	Read(fp, qRE);
 	Read(fp, sin_graph);
 	Read(fp, triangle_edge_pair);
 }

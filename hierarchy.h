@@ -39,5 +39,6 @@ public:
 	// parameters
 	std::vector<MatrixXf> mQ;
 	std::vector<MatrixXf> mO;
+	std::vector<MatrixXf> mS;
 };
 #endif

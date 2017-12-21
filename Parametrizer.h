@@ -49,6 +49,7 @@ public:
 	// input mesh
 	MatrixXf V;
 	MatrixXf N;
+	MatrixXf Nf;
 	MatrixXi F;
 
 	// data structures
@@ -85,11 +86,15 @@ public:
 	std::vector<Edge> qE;
 	std::vector<std::vector<int> > qVE;
 	std::vector<std::vector<int> > qEV;
-	std::vector<int> qEE;
+	std::vector<int> qEE, qRE;
 	std::vector<SingDictionary> sin_graph;
 
-	std::set<std::pair<int, int> > triangle_edge_pair;
+	std::vector<std::set<int> > triangle_edge_pair;
 	std::vector<ExpandInfo > q;
 	int front_index;
+
+	// singularity
+	std::vector<std::vector<int> > edge_strips;
+	std::vector<std::set<std::pair<int, int> > > singularity_entry;
 };
 #endif

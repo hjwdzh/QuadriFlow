@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 #include "glDraw.h"
-
+#include "field_math.h"
 glm::dvec3 render_translation;
 glm::dmat4 render_rotation = glm::dmat4(1.0);
 double render_scale = 0.0;
@@ -18,30 +18,116 @@ int show_quad = 0;
 int show_hierarchy = 0;
 int show_loop = 0;
 int show_singularity = 0;
+int show_color = 0;
+std::vector<Vector3f> color;
 
 Parametrizer field;
 
+Vector3f Gray2HSV(double gray)
+{
+	Vector3f res;
+	float* r = &res[0];
+	float* g = &res[1];
+	float* b = &res[2];
+	int i;
+	int h = gray * 360.0;
+	unsigned char s = 100, v = 100;
+	float RGB_min, RGB_max;
+	RGB_max = v*2.55f;
+	RGB_min = RGB_max*(100 - s) / 100.0f;
+
+	i = h / 60;
+	int difs  = h  % 60; // factorial part of h  
+
+	// RGB adjustment amount by hue   
+	float RGB_Adj  = (RGB_max  - RGB_min)*difs  / 60.0f;
+
+	switch (i) {
+	case 0:
+		*r  = RGB_max;
+		*g  = RGB_min  + RGB_Adj;
+		*b  = RGB_min;
+		break;
+	case 1:
+		*r  = RGB_max  - RGB_Adj;
+		*g  = RGB_max;
+		*b  = RGB_min;
+		break;
+	case 2:
+		*r  = RGB_min;
+		*g  = RGB_max;
+		*b  = RGB_min  + RGB_Adj;
+		break;
+	case 3:
+		*r  = RGB_min;
+		*g  = RGB_max  - RGB_Adj;
+		*b  = RGB_max;
+		break;
+	case 4:
+		*r  = RGB_min  + RGB_Adj;
+		*g  = RGB_min;
+		*b  = RGB_max;
+		break;
+    default:        // case 5:  
+		*r  = RGB_max;
+		*g  = RGB_min;
+		*b  = RGB_max  - RGB_Adj;
+		break;
+	}
+	return res / 255.0f;
+}
 static void render_mesh()
 {
-	glEnable(GL_LIGHTING);
-	auto& mF = field.hierarchy.mF;
-	auto& mV = field.hierarchy.mV[0];
-	auto& mN = field.hierarchy.mN[0];
-	auto& mVq = field.mV_extracted;
-	if (show_mesh) {
-		static GLfloat white[4] =
-		{ 1.0, 1.0, 1.0, 1.0 };
-		glMaterialfv(GL_FRONT, GL_DIFFUSE, white);
-		glBegin(GL_TRIANGLES);
-		for (int i = 0; i < mF.cols(); ++i) {
-			for (int j = 0; j < 3; ++j) {
-				glNormal3fv(&mN(0, mF(j, i)));
-				glVertex3fv(&mV(0, mF(j, i)));
+	if (show_color == 0) {
+		auto& mF = field.hierarchy.mF;
+		auto& mV = field.hierarchy.mV[0];
+		auto& mN = field.hierarchy.mN[0];
+		auto& mVq = field.mV_extracted;
+
+		printf("sstart...\n");
+		int f = 21;
+//		for (int f = 0; f < mF.cols(); ++f) {
+			printf("%d %d\n", f, mF.cols());
+			Vector3f p = mV.col(mF(0, f)) + mV.col(mF(1, f)) + mV.col(mF(2, f));
+			p *= 1.0f / 3;
+			float len = field.hierarchy.mScale * 10;
+			Vector3f q = Travel(p, field.hierarchy.mQ[0].col(mF(0, f)), len, f, field.hierarchy.mE2E, mV, mF, field.Nf);
+//		}
+		printf("finished...\n");
+		glEnable(GL_LIGHTING);
+		if (show_mesh) {
+			static GLfloat white[4] =
+			{ 1.0, 1.0, 1.0, 1.0 };
+			glMaterialfv(GL_FRONT, GL_DIFFUSE, white);
+			glBegin(GL_TRIANGLES);
+			for (int i = 0; i < mF.cols(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					glNormal3fv(&mN(0, mF(j, i)));
+					glVertex3fv(&mV(0, mF(j, i)));
+				}
 			}
+			glEnd();
 		}
-		glEnd();
+		glDisable(GL_LIGHTING);
 	}
-	glDisable(GL_LIGHTING);
+	else {
+		glDisable(GL_LIGHTING);
+		auto& mF = field.hierarchy.mF;
+		auto& mV = field.hierarchy.mV[0];
+		auto& mN = field.hierarchy.mN[0];
+		auto& mVq = field.mV_extracted;
+		if (show_mesh) {
+			glBegin(GL_TRIANGLES);
+			for (int i = 0; i < mF.cols(); ++i) {
+				for (int j = 0; j < 3; ++j) {
+					glColor3f(color[mF(j, i)].x(), color[mF(j, i)].y(), color[mF(j, i)].z());
+					glNormal3fv(&mN(0, mF(j, i)));
+					glVertex3fv(&mV(0, mF(j, i)));
+				}
+			}
+			glEnd();
+		}
+	}
 }
 
 static void render_singularities()
@@ -164,30 +250,38 @@ static void render_crossfield()
 
 static void render_loop() {
 	if (show_loop) {
-		glPointSize(5.0f);
-		glColor3f(0, 0, 1);
-		int singularity = -1;
-		for (int i = 0; i < field.sin_graph.size(); ++i) {
-			if (field.sin_graph[i].size() > 0) {
-				singularity = field.sin_graph[i].begin()->first;
+		glLineWidth(1.0f);
+		glColor3f(1, 0, 0);
+		glBegin(GL_LINES);
+		for (auto& strip : field.edge_strips) {
+			for (auto& e : strip) {
+				Vector3f p = field.mV_extracted.col(field.qE[e].first);
+				glVertex3f(p.x(), p.y(), p.z());
+				p = field.mV_extracted.col(field.qE[e].second);
+				glVertex3f(p.x(), p.y(), p.z());
 			}
 		}
+		glEnd();
+		
+		glPointSize(3.0f);
+		glColor3f(0, 0, 1);
 		glBegin(GL_POINTS);
 		for (int i = 0; i < field.sin_graph.size(); ++i) {
-			if (i != singularity && field.sin_graph[i].size() > 0) {
+			if (field.vertex_singularities.count(i) == 0 && field.sin_graph[i].size() > 0) {
 				Vector3f p = field.mV_extracted.col(i);
 				glVertex3f(p.x(), p.y(), p.z());
 			}
 		}
 		glEnd();
-		if (singularity != -1) {
-			glPointSize(10.0f);
-			glColor3f(0, 1, 0);
-			glBegin(GL_POINTS);
-			Vector3f p = field.mV_extracted.col(singularity);
+		
+		glPointSize(10.0f);
+		glColor3f(0, 1, 0);
+		glBegin(GL_POINTS);
+		for (auto& v : field.vertex_singularities) {
+			Vector3f p = field.mV_extracted.col(v.first);
 			glVertex3f(p.x(), p.y(), p.z());
-			glEnd();
 		}
+		glEnd();
 	}
 }
 
@@ -327,7 +421,22 @@ static void keyboard_callback(unsigned char key, int x, int y)
 	}
 
 	if (key == 'r') {
-		field.LoopFace(1);
+		for (int i = 0; i < 10; ++i) {
+			field.LoopFace(1);
+		}
+		glutPostRedisplay();
+	}
+
+	if (key == 'c') {
+		show_color = (show_color + 1) % 3;
+		if (color.size() != field.hierarchy.mV[0].cols()) {
+			color.resize(field.hierarchy.mV[0].cols());
+		}
+		if (show_color >= 1) {
+			for (int i = 0; i < color.size(); ++i) {
+				color[i] = Gray2HSV(field.hierarchy.mS[0](show_color - 1, i));
+			}
+		}
 		glutPostRedisplay();
 	}
 
@@ -348,26 +457,25 @@ static void keyboard_callback(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
+	/*
 	field.Load(argv[1]);
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 
+//	Optimizer::optimize_scale(field.hierarchy);
 	Optimizer::optimize_positions(field.hierarchy);
 	field.ExtractMesh();
-
-
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
 	printf("save finish\n");
-	
+	*/
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
-
-	field.LoopFace(0);
+	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
 }
