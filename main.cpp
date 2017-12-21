@@ -19,20 +19,20 @@ int show_hierarchy = 0;
 int show_loop = 0;
 int show_singularity = 0;
 int show_color = 0;
-std::vector<Vector3f> color;
+std::vector<Vector3d> color;
 
 Parametrizer field;
 
-Vector3f Gray2HSV(double gray)
+Vector3d Gray2HSV(double gray)
 {
-	Vector3f res;
-	float* r = &res[0];
-	float* g = &res[1];
-	float* b = &res[2];
+	Vector3d res;
+	double* r = &res[0];
+	double* g = &res[1];
+	double* b = &res[2];
 	int i;
 	int h = gray * 360.0;
 	unsigned char s = 100, v = 100;
-	float RGB_min, RGB_max;
+	double RGB_min, RGB_max;
 	RGB_max = v*2.55f;
 	RGB_min = RGB_max*(100 - s) / 100.0f;
 
@@ -40,7 +40,7 @@ Vector3f Gray2HSV(double gray)
 	int difs  = h  % 60; // factorial part of h  
 
 	// RGB adjustment amount by hue   
-	float RGB_Adj  = (RGB_max  - RGB_min)*difs  / 60.0f;
+	double RGB_Adj  = (RGB_max  - RGB_min)*difs  / 60.0f;
 
 	switch (i) {
 	case 0:
@@ -76,6 +76,29 @@ Vector3f Gray2HSV(double gray)
 	}
 	return res / 255.0f;
 }
+
+void render_test_travel(int f)
+{
+	auto& mF = field.hierarchy.mF;
+	auto& mV = field.hierarchy.mV[0];
+	auto& mN = field.hierarchy.mN[0];
+	auto& mVq = field.mV_extracted;
+
+	Vector3d p = mV.col(mF(0, f)) + mV.col(mF(1, f)) + mV.col(mF(2, f));
+	p *= 1.0f / 3;
+	double len = field.hierarchy.mScale * 10;
+	int f1 = f;
+	Vector3d q = Travel(p, field.hierarchy.mQ[0].col(mF(0, f)), len, f1, field.hierarchy.mE2E, mV, mF, field.Nf, field.triangle_space);
+
+	glPointSize(10.0f);
+	glBegin(GL_POINTS);
+	glColor3f(1, 0, 0);
+	glVertex3f(p.x(), p.y(), p.z());
+	glColor3f(0, 1, 0);
+	glVertex3f(q.x(), q.y(), q.z());
+	glEnd();
+}
+
 static void render_mesh()
 {
 	if (show_color == 0) {
@@ -84,16 +107,6 @@ static void render_mesh()
 		auto& mN = field.hierarchy.mN[0];
 		auto& mVq = field.mV_extracted;
 
-		printf("sstart...\n");
-		int f = 21;
-//		for (int f = 0; f < mF.cols(); ++f) {
-			printf("%d %d\n", f, mF.cols());
-			Vector3f p = mV.col(mF(0, f)) + mV.col(mF(1, f)) + mV.col(mF(2, f));
-			p *= 1.0f / 3;
-			float len = field.hierarchy.mScale * 10;
-			Vector3f q = Travel(p, field.hierarchy.mQ[0].col(mF(0, f)), len, f, field.hierarchy.mE2E, mV, mF, field.Nf);
-//		}
-		printf("finished...\n");
 		glEnable(GL_LIGHTING);
 		if (show_mesh) {
 			static GLfloat white[4] =
@@ -102,8 +115,8 @@ static void render_mesh()
 			glBegin(GL_TRIANGLES);
 			for (int i = 0; i < mF.cols(); ++i) {
 				for (int j = 0; j < 3; ++j) {
-					glNormal3fv(&mN(0, mF(j, i)));
-					glVertex3fv(&mV(0, mF(j, i)));
+					glNormal3dv(&mN(0, mF(j, i)));
+					glVertex3dv(&mV(0, mF(j, i)));
 				}
 			}
 			glEnd();
@@ -120,9 +133,9 @@ static void render_mesh()
 			glBegin(GL_TRIANGLES);
 			for (int i = 0; i < mF.cols(); ++i) {
 				for (int j = 0; j < 3; ++j) {
-					glColor3f(color[mF(j, i)].x(), color[mF(j, i)].y(), color[mF(j, i)].z());
-					glNormal3fv(&mN(0, mF(j, i)));
-					glVertex3fv(&mV(0, mF(j, i)));
+					glColor3d(color[mF(j, i)].x(), color[mF(j, i)].y(), color[mF(j, i)].z());
+					glNormal3dv(&mN(0, mF(j, i)));
+					glVertex3dv(&mV(0, mF(j, i)));
 				}
 			}
 			glEnd();
@@ -145,8 +158,8 @@ static void render_singularities()
 		glBegin(GL_POINTS);
 		for (auto& p : field.vertex_singularities) {
 			if (p.second == 1) {
-				Vector3f v = (mVq.col(p.first));
-				glVertex3f(v.x(), v.y(), v.z());
+				Vector3d v = (mVq.col(p.first));
+				glVertex3d(v.x(), v.y(), v.z());
 			}
 		}
 		glEnd();
@@ -154,8 +167,8 @@ static void render_singularities()
 		glBegin(GL_POINTS);
 		for (auto& p : field.vertex_singularities) {
 			if (p.second == 3) {
-				Vector3f v = (mVq.col(p.first));
-				glVertex3f(v.x(), v.y(), v.z());
+				Vector3d v = (mVq.col(p.first));
+				glVertex3d(v.x(), v.y(), v.z());
 			}
 		}
 		glEnd();
@@ -165,10 +178,10 @@ static void render_singularities()
 		glBegin(GL_POINTS);
 		for (auto& p : field.singularities) {
 			if (p.second == 1) {
-				Vector3f v = (mV.col(mF(0, p.first))
+				Vector3d v = (mV.col(mF(0, p.first))
 					+ mV.col(mF(1, p.first))
 					+ mV.col(mF(2, p.first))) / 3.0f;
-				glVertex3f(v.x(), v.y(), v.z());
+				glVertex3d(v.x(), v.y(), v.z());
 			}
 		}
 		glEnd();
@@ -176,10 +189,10 @@ static void render_singularities()
 		glBegin(GL_POINTS);
 		for (auto& p : field.singularities) {
 			if (p.second == 3) {
-				Vector3f v = (mV.col(mF(0, p.first))
+				Vector3d v = (mV.col(mF(0, p.first))
 					+ mV.col(mF(1, p.first))
 					+ mV.col(mF(2, p.first))) / 3.0f;
-				glVertex3f(v.x(), v.y(), v.z());
+				glVertex3d(v.x(), v.y(), v.z());
 			}
 		}
 		glEnd();
@@ -198,8 +211,8 @@ void render_hierarchy()
 		for (int i = 0; i < adj.size(); ++i) {
 			for (auto& l : adj[i]) {
 				int j = l.id;
-				glVertex3fv(&mV(0, i));
-				glVertex3fv(&mV(0, j));
+				glVertex3dv(&mV(0, i));
+				glVertex3dv(&mV(0, j));
 			}
 		}
 		glEnd();
@@ -212,8 +225,8 @@ static void render_quadmesh()
 		glColor3f(1, 0, 0);
 		glBegin(GL_LINES);
 		for (auto& e : field.edge_idmap) {
-			glVertex3fv(&field.mV_extracted(0, e.first.first));
-			glVertex3fv(&field.mV_extracted(0, e.first.second));
+			glVertex3dv(&field.mV_extracted(0, e.first.first));
+			glVertex3dv(&field.mV_extracted(0, e.first.second));
 		}
 		glEnd();
 	}
@@ -228,21 +241,21 @@ static void render_crossfield()
 		auto& mQ = field.hierarchy.mQ[level];
 		auto& adj = field.hierarchy.mAdj[level];
 		glColor3f(1, 0, 0);
-		float len = field.scale * 0.2;
+		double len = field.scale * 0.2;
 		glBegin(GL_LINES);
 		for (int i = 0; i < mQ.cols(); ++i) {
-			glm::vec3 p(mV(0, i), mV(1, i), mV(2, i));
-			glm::vec3 n(mN(0, i), mN(1, i), mN(2, i));
-			glm::vec3 tangent1 = glm::vec3(mQ(0, i), mQ(1, i), mQ(2, i)) * len;
-			glm::vec3 tangent2 = glm::normalize(glm::cross(n, tangent1)) * len;
+			glm::dvec3 p(mV(0, i), mV(1, i), mV(2, i));
+			glm::dvec3 n(mN(0, i), mN(1, i), mN(2, i));
+			glm::dvec3 tangent1 = glm::dvec3(mQ(0, i), mQ(1, i), mQ(2, i)) * len;
+			glm::dvec3 tangent2 = glm::normalize(glm::cross(n, tangent1)) * len;
 			auto l = p - tangent1;
 			auto r = p + tangent1;
 			auto u = p - tangent2;
 			auto d = p + tangent2;
-			glVertex3f(l.x, l.y, l.z);
-			glVertex3f(r.x, r.y, r.z);
-			glVertex3f(u.x, u.y, u.z);
-			glVertex3f(d.x, d.y, d.z);
+			glVertex3d(l.x, l.y, l.z);
+			glVertex3d(r.x, r.y, r.z);
+			glVertex3d(u.x, u.y, u.z);
+			glVertex3d(d.x, d.y, d.z);
 		}
 		glEnd();
 	}
@@ -255,10 +268,10 @@ static void render_loop() {
 		glBegin(GL_LINES);
 		for (auto& strip : field.edge_strips) {
 			for (auto& e : strip) {
-				Vector3f p = field.mV_extracted.col(field.qE[e].first);
-				glVertex3f(p.x(), p.y(), p.z());
+				Vector3d p = field.mV_extracted.col(field.qE[e].first);
+				glVertex3d(p.x(), p.y(), p.z());
 				p = field.mV_extracted.col(field.qE[e].second);
-				glVertex3f(p.x(), p.y(), p.z());
+				glVertex3d(p.x(), p.y(), p.z());
 			}
 		}
 		glEnd();
@@ -268,8 +281,8 @@ static void render_loop() {
 		glBegin(GL_POINTS);
 		for (int i = 0; i < field.sin_graph.size(); ++i) {
 			if (field.vertex_singularities.count(i) == 0 && field.sin_graph[i].size() > 0) {
-				Vector3f p = field.mV_extracted.col(i);
-				glVertex3f(p.x(), p.y(), p.z());
+				Vector3d p = field.mV_extracted.col(i);
+				glVertex3d(p.x(), p.y(), p.z());
 			}
 		}
 		glEnd();
@@ -278,8 +291,8 @@ static void render_loop() {
 		glColor3f(0, 1, 0);
 		glBegin(GL_POINTS);
 		for (auto& v : field.vertex_singularities) {
-			Vector3f p = field.mV_extracted.col(v.first);
-			glVertex3f(p.x(), p.y(), p.z());
+			Vector3d p = field.mV_extracted.col(v.first);
+			glVertex3d(p.x(), p.y(), p.z());
 		}
 		glEnd();
 	}
@@ -457,24 +470,25 @@ static void keyboard_callback(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
-	/*
 	field.Load(argv[1]);
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 
-//	Optimizer::optimize_scale(field.hierarchy);
+	Optimizer::optimize_scale(field.hierarchy);
 	Optimizer::optimize_positions(field.hierarchy);
 	field.ExtractMesh();
+	/*
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
 	printf("save finish\n");
-	*/
+
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
+	*/
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;

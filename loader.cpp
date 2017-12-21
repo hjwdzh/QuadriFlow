@@ -34,7 +34,7 @@ inline uint32_t str_to_uint32_t(const std::string &str) {
 	return result;
 }
 
-void load(const char* filename, MatrixXf& V, MatrixXi& F)
+void load(const char* filename, MatrixXd& V, MatrixXi& F)
 {
 	/// Vertex indices used by the OBJ format
 	struct obj_vertex {
@@ -80,9 +80,9 @@ void load(const char* filename, MatrixXf& V, MatrixXi& F)
 
 	std::ifstream is(filename);
 
-	std::vector<Vector3f>   positions;
-	//std::vector<Vector2f>   texcoords;
-	//std::vector<Vector3f>   normals;
+	std::vector<Vector3d>   positions;
+	//std::vector<Vector2d>   texcoords;
+	//std::vector<Vector3d>   normals;
 	std::vector<uint32_t>   indices;
 	std::vector<obj_vertex> vertices;
 	VertexMap vertexMap;
@@ -95,20 +95,20 @@ void load(const char* filename, MatrixXf& V, MatrixXi& F)
 		line >> prefix;
 
 		if (prefix == "v") {
-			Vector3f p;
+			Vector3d p;
 			line >> p.x() >> p.y() >> p.z();
 			positions.push_back(p);
 		}
 		else if (prefix == "vt") {
 			/*
-			Vector2f tc;
+			Vector2d tc;
 			line >> tc.x() >> tc.y();
 			texcoords.push_back(tc);
 			*/
 		}
 		else if (prefix == "vn") {
 			/*
-			Vector3f n;
+			Vector3d n;
 			line >> n.x() >> n.y() >> n.z();
 			normals.push_back(n);
 			*/

@@ -5,7 +5,7 @@
 #include <map>
 #include <vector>
 
-void merge_close(MatrixXf& V, MatrixXi& F, float threshold)
+void merge_close(MatrixXd& V, MatrixXi& F, double threshold)
 {
 	std::map<Key3f, int> vid_maps;
 	std::vector<int> vid_compress(V.cols());
@@ -20,13 +20,21 @@ void merge_close(MatrixXf& V, MatrixXi& F, float threshold)
 			vid_maps[key] = vid_compress[i];
 		}
 	}
-	printf("Compress from %d to %d...\n", V.cols(), vid_maps.size());
-	MatrixXf newV(3, vid_maps.size());
-	memcpy(newV.data(), V.data(), sizeof(float) * 3 * vid_maps.size());
+	printf("Compress Vertex from %d to %d...\n", V.cols(), vid_maps.size());
+	MatrixXd newV(3, vid_maps.size());
+	memcpy(newV.data(), V.data(), sizeof(double) * 3 * vid_maps.size());
 	V = std::move(newV);
-	for (int j = 0; j < 3; ++j) {
-		for (int i = 0; i < F.cols(); ++i) {
-			F(j, i) = vid_compress[F(j, i)];
+	int f_num = 0;
+	for (int i = 0; i < F.cols(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			F(j, f_num) = vid_compress[F(j, i)];
+		}
+		if (F(0, f_num) != F(1, f_num) && F(0, f_num) != F(2, f_num) && F(1, f_num) != F(2, f_num)) {
+			f_num++;
 		}
 	}
+	printf("Compress Face from %d to %d...\n", F.cols(), f_num);
+	MatrixXi newF(3, f_num);
+	memcpy(newF.data(), F.data(), sizeof(int) * 3 * f_num);
+	F = std::move(newF);
 }

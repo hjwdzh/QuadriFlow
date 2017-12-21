@@ -38,7 +38,7 @@ struct Key3i
 
 struct Key3f
 {
-	Key3f(float x, float y, float z, float threshold)
+	Key3f(double x, double y, double z, double threshold)
 		: key(std::make_pair(x / threshold, std::make_pair(y / threshold, z / threshold)))
 	{}
 	bool operator==(const Key3f& other) const

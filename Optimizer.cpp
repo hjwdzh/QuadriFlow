@@ -10,27 +10,27 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 	int levelIterations = 6;
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
-		const MatrixXf &N = mRes.mN[level];
-		MatrixXf &Q = mRes.mQ[level];
+		const MatrixXd &N = mRes.mN[level];
+		MatrixXd &Q = mRes.mQ[level];
 
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			for (int i = 0; i < N.cols(); ++i) {
-				const Vector3f n_i = N.col(i);
-				float weight_sum = 0.0f;
-				Vector3f sum = Q.col(i);
+				const Vector3d n_i = N.col(i);
+				double weight_sum = 0.0f;
+				Vector3d sum = Q.col(i);
 				for (auto& link : adj[i]) {
 					const int j = link.id;
-					const float weight = link.weight;
+					const double weight = link.weight;
 					if (weight == 0)
 						continue;
-					const Vector3f n_j = N.col(j);
-					Vector3f q_j = Q.col(j);
-					std::pair<Vector3f, Vector3f> value = compat_orientation_extrinsic_4(sum, n_i, q_j, n_j);
+					const Vector3d n_j = N.col(j);
+					Vector3d q_j = Q.col(j);
+					std::pair<Vector3d, Vector3d> value = compat_orientation_extrinsic_4(sum, n_i, q_j, n_j);
 					sum = value.first * weight_sum + value.second * weight;
 					sum -= n_i*n_i.dot(sum);
 					weight_sum += weight;
 
-					float norm = sum.norm();
+					double norm = sum.norm();
 					if (norm > RCPOVERFLOW)
 						sum /= norm;
 				}
@@ -41,43 +41,43 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 		}
 
 		if (level > 0) {
-			const MatrixXf &srcField = mRes.mQ[level];
+			const MatrixXd &srcField = mRes.mQ[level];
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
-			MatrixXf &destField = mRes.mQ[level - 1];
-			const MatrixXf &N = mRes.mN[level - 1];
+			MatrixXd &destField = mRes.mQ[level - 1];
+			const MatrixXd &N = mRes.mN[level - 1];
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);
 					if (dest == -1)
 						continue;
-					Vector3f q = srcField.col(i), n = N.col(dest);
+					Vector3d q = srcField.col(i), n = N.col(dest);
 					destField.col(dest) = q - n * n.dot(q);
 				}
 			}
 		}
 	}
 	for (int l = 0; l< mRes.mN.size() - 1; ++l)  {
-		const MatrixXf &N = mRes.mN[l];
-		const MatrixXf &N_next = mRes.mN[l + 1];
-		const MatrixXf &Q = mRes.mQ[l];
-		MatrixXf &Q_next = mRes.mQ[l + 1];
+		const MatrixXd &N = mRes.mN[l];
+		const MatrixXd &N_next = mRes.mN[l + 1];
+		const MatrixXd &Q = mRes.mQ[l];
+		MatrixXd &Q_next = mRes.mQ[l + 1];
 		auto& toUpper = mRes.mToUpper[l];
 		for (int i = 0; i < toUpper.cols(); ++i) {
 			Vector2i upper = toUpper.col(i);
-			Vector3f q0 = Q.col(upper[0]);
-			Vector3f n0 = N.col(upper[0]);
-			Vector3f q;
+			Vector3d q0 = Q.col(upper[0]);
+			Vector3d n0 = N.col(upper[0]);
+			Vector3d q;
 
 			if (upper[1] != -1) {
-				Vector3f q1 = Q.col(upper[1]);
-				Vector3f n1 = N.col(upper[1]);
+				Vector3d q1 = Q.col(upper[1]);
+				Vector3d n1 = N.col(upper[1]);
 				auto result = compat_orientation_extrinsic_4(q0, n0, q1, n1);
 				q = result.first + result.second;
 			}
 			else {
 				q = q0;
 			}
-			Vector3f n = N_next.col(i);
+			Vector3d n = N_next.col(i);
 			q -= n.dot(q) * n;
 			if (q.squaredNorm() > RCPOVERFLOW)
 				q.normalize();
@@ -94,37 +94,37 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 		if (level != 0)
 			continue;
 		AdjacentMatrix &adj = mRes.mAdj[level];
-		const MatrixXf &N = mRes.mN[level];
-		MatrixXf &Q = mRes.mQ[level];
-		MatrixXf &V = mRes.mV[level];
-		MatrixXf &S = mRes.mS[level];
-		MatrixXf dscale(2, mRes.mV[level].cols());
+		const MatrixXd &N = mRes.mN[level];
+		MatrixXd &Q = mRes.mQ[level];
+		MatrixXd &V = mRes.mV[level];
+		MatrixXd &S = mRes.mS[level];
+		MatrixXd dscale(2, mRes.mV[level].cols());
 		for (int iter = -1; iter < levelIterations; ++iter) {
 			for (int i = 0; i < N.cols(); ++i) {
-				const Vector3f n_i = N.col(i);
-				const Vector3f p_i = V.col(i);
-				float weight_sum[2] = { 0.0f, 0.0f };
-				Vector2f dsum(0.0f, 0.0f);
-				Vector3f q_i = Q.col(i);
-				std::vector<std::pair<float, std::pair<float, float> > > buffer[2];
+				const Vector3d n_i = N.col(i);
+				const Vector3d p_i = V.col(i);
+				double weight_sum[2] = { 0.0f, 0.0f };
+				Vector2d dsum(0.0f, 0.0f);
+				Vector3d q_i = Q.col(i);
+				std::vector<std::pair<double, std::pair<double, double> > > buffer[2];
 				for (auto& link : adj[i]) {
 					const int j = link.id;
-					const float weight = link.weight;
+					const double weight = link.weight;
 					if (weight == 0)
 						continue;
-					const Vector3f n_j = N.col(j);
-					Vector3f q_j = Q.col(j);
+					const Vector3d n_j = N.col(j);
+					Vector3d q_j = Q.col(j);
 					q_j = rotate_vector_into_plane(q_j, n_j, n_i);
 
-					const Vector3f p_j = V.col(j);
-					Vector3f A[2] = { q_i, n_i.cross(q_i) };
-					Vector3f B[2] = { q_j, n_i.cross(q_j) };
+					const Vector3d p_j = V.col(j);
+					Vector3d A[2] = { q_i, n_i.cross(q_i) };
+					Vector3d B[2] = { q_j, n_i.cross(q_j) };
 
-					float best_score = -std::numeric_limits<float>::infinity();
+					double best_score = -std::numeric_limits<double>::infinity();
 					int best_a = 0, best_b = 0;
 					for (int l = 0; l < 2; ++l) {
 						for (int k = 0; k < 2; ++k) {
-							float score = std::abs(A[l].dot(B[k]));
+							double score = std::abs(A[l].dot(B[k]));
 							if (score > best_score) {
 								best_a = l;
 								best_b = k;
@@ -136,7 +136,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 						best_a = 0;
 						best_b = 1 - best_b;
 					}
-					float sign[2] = { 1, 1 };
+					double sign[2] = { 1, 1 };
 					if (A[0].dot(B[best_b]) < 0)
 						sign[0] = -1;
 					if (A[1].dot(B[1 - best_b]) < 0)
@@ -168,7 +168,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 				if (iter == -1) {
 					for (int k = 0; k < 2; ++k) {
 						std::sort(buffer[k].rbegin(), buffer[k].rend());
-						float sum_1 = 0.0f, sum_2 = 0.0f;
+						double sum_1 = 0.0f, sum_2 = 0.0f;
 						for (int j = 0; j < buffer[k].size(); ++j) {
 							if (buffer[k][j].first < buffer[k][0].first * 0.3)
 								break;
@@ -185,10 +185,10 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 		}
 
 		if (level > 0) {
-			const MatrixXf &srcField = mRes.mS[level];
+			const MatrixXd &srcField = mRes.mS[level];
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
-			MatrixXf &destField = mRes.mS[level - 1];
-			float scale_sum = 0.0f;
+			MatrixXd &destField = mRes.mS[level - 1];
+			double scale_sum = 0.0f;
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					scale_sum += srcField(k, i);
@@ -200,15 +200,15 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 					int dest = toUpper(k, i);
 					if (dest == -1)
 						continue;
-					Vector2f q = srcField.col(i);
+					Vector2d q = srcField.col(i);
 					destField.col(dest) = q * scale_sum;
 				}
 			}
 		}
 		else {
-			MatrixXf &srcField = mRes.mS[level];
-			float maxf[2] = { -1e30, -1e30 };
-			float minf[2] = { 1e30, 1e30 };
+			MatrixXd &srcField = mRes.mS[level];
+			double maxf[2] = { -1e30, -1e30 };
+			double minf[2] = { 1e30, 1e30 };
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					maxf[k] = fmax(maxf[k], srcField(k, i));
@@ -218,7 +218,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 			printf("%f %f %f %f\n", minf[0], maxf[0], minf[1], maxf[1]);
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
-					float s = (srcField(k, i) + 5) / 10.0f;//(maxf[k] - minf[k]);
+					double s = (srcField(k, i) + 5) / 10.0f;//(maxf[k] - minf[k]);
 //					if (k == 0)
 //					printf("%f %f\n", srcField(k, i), s);
 					if (s < 0)
@@ -238,35 +238,35 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
-		const MatrixXf &N = mRes.mN[level];
-		MatrixXf &Q = mRes.mQ[level];
+		const MatrixXd &N = mRes.mN[level];
+		MatrixXd &Q = mRes.mQ[level];
 
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			AdjacentMatrix &adj = mRes.mAdj[level];
-			const MatrixXf &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
-			const float scale = mRes.mScale, inv_scale = 1.0f / scale;
-			MatrixXf &O = mRes.mO[level];
+			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
+			const double scale = mRes.mScale, inv_scale = 1.0f / scale;
+			MatrixXd &O = mRes.mO[level];
 
 			for (int i = 0; i < N.cols(); ++i) {
-				const Vector3f n_i = N.col(i), v_i = V.col(i);
-				Vector3f q_i = Q.col(i);
+				const Vector3d n_i = N.col(i), v_i = V.col(i);
+				Vector3d q_i = Q.col(i);
 
-				Vector3f sum = O.col(i);
-				float weight_sum = 0.0f;
+				Vector3d sum = O.col(i);
+				double weight_sum = 0.0f;
 
 				q_i.normalize();
 				for (auto& link : adj[i]) {
 					const int j = link.id;
-					const float weight = link.weight;
+					const double weight = link.weight;
 					if (weight == 0)
 						continue;
 
-					const Vector3f n_j = N.col(j), v_j = V.col(j);
-					Vector3f q_j = Q.col(j), o_j = O.col(j);
+					const Vector3d n_j = N.col(j), v_j = V.col(j);
+					Vector3d q_j = Q.col(j), o_j = O.col(j);
 
 					q_j.normalize();
 
-					std::pair<Vector3f, Vector3f> value = compat_position_extrinsic_4(
+					std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
 						v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j, scale, inv_scale);
 
 					sum = value.first*weight_sum + value.second*weight;
@@ -283,17 +283,17 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 		}
 
 		if (level > 0) {
-			const MatrixXf &srcField = mRes.mO[level];
+			const MatrixXd &srcField = mRes.mO[level];
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
-			MatrixXf &destField = mRes.mO[level - 1];
-			const MatrixXf &N = mRes.mN[level - 1];
-			const MatrixXf &V = mRes.mV[level - 1];
+			MatrixXd &destField = mRes.mO[level - 1];
+			const MatrixXd &N = mRes.mN[level - 1];
+			const MatrixXd &V = mRes.mV[level - 1];
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);
 					if (dest == -1)
 						continue;
-					Vector3f o = srcField.col(i), n = N.col(dest), v = V.col(dest);
+					Vector3d o = srcField.col(i), n = N.col(dest), v = V.col(dest);
 					o -= n * n.dot(o - v);
 					destField.col(dest) = o;
 				}

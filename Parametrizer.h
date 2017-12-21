@@ -47,10 +47,12 @@ public:
 	std::map<int, int> singularities;
 	
 	// input mesh
-	MatrixXf V;
-	MatrixXf N;
-	MatrixXf Nf;
+	MatrixXd V;
+	MatrixXd N;
+	MatrixXd Nf;
 	MatrixXi F;
+
+	std::vector<MatrixXd> triangle_space;
 
 	// data structures
 	VectorXi V2E;
@@ -61,11 +63,11 @@ public:
 	Hierarchy hierarchy;
 	
 	// Mesh Status;
-	float surface_area;
-	float scale;
-	float average_edge_length;
-	float max_edge_length;
-	VectorXf A;
+	double surface_area;
+	double scale;
+	double average_edge_length;
+	double max_edge_length;
+	VectorXd A;
 
 	// target mesh
 	int num_vertices;
@@ -75,8 +77,8 @@ public:
 	std::vector<std::vector<TaggedLink>> adj_extracted;
 
 	MatrixXi mF_extracted;
-	MatrixXf mV_extracted;
-	MatrixXf mN_extracted, mNf_extracted;
+	MatrixXd mV_extracted;
+	MatrixXd mN_extracted, mNf_extracted;
 
 	std::vector<VectorXi> qF;
 	std::vector<std::vector<std::pair<int, int> > > qVF;

@@ -4,6 +4,6 @@
 #include <Eigen/Core>
 using namespace Eigen;
 
-void merge_close(MatrixXf& V, MatrixXi& F, float threshold);
+void merge_close(MatrixXd& V, MatrixXi& F, double threshold);
 
 #endif

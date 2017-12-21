@@ -6,12 +6,12 @@
 struct Link
 {
 	Link(){}
-	Link(int _id, float _w = 1)
+	Link(int _id, double _w = 1)
 		: id(_id), weight(_w)
 	{}
 	inline bool operator<(const Link &link) const { return id < link.id; }
 	int id;
-	float weight;
+	double weight;
 };
 
 struct TaggedLink {

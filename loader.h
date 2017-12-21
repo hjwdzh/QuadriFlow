@@ -4,4 +4,4 @@
 
 using namespace Eigen;
 
-void load(const char* filename, MatrixXf& V, MatrixXi& F);
+void load(const char* filename, MatrixXd& V, MatrixXi& F);

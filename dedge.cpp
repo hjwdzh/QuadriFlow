@@ -7,7 +7,7 @@
 
 inline int dedge_prev(int e, int deg) { return (e % deg == 0u) ? e + (deg - 1) : e - 1; }
 
-void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
+void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
 	V2E.resize(V.cols());
@@ -113,7 +113,7 @@ void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
 
 /*
 
-void compute_direct_graph(MatrixXf& V, MatrixXi& F, VectorXi& V2E,
+void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
 	E2E.resize(F.cols() * 3);

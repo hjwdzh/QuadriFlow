@@ -9,25 +9,25 @@
 #include "AdjacentMatrix.h"
 using namespace Eigen;
 
-inline void Save(FILE* fp, MatrixXf& m) {
+inline void Save(FILE* fp, MatrixXd& m) {
 	int r = m.rows(), c = m.cols();
 	fwrite(&r, sizeof(int), 1, fp);
 	fwrite(&c, sizeof(int), 1, fp);
-	std::vector<float> buffer(r * c);
+	std::vector<double> buffer(r * c);
 	for (int i = 0; i < r; ++i) {
 		for (int j = 0; j < c; ++j) {
 			buffer[i * c + j] = m(i, j);
 		}
 	}
-	fwrite(buffer.data(), sizeof(float), r * c, fp);
+	fwrite(buffer.data(), sizeof(double), r * c, fp);
 }
 
-inline void Read(FILE* fp, MatrixXf& m) {
+inline void Read(FILE* fp, MatrixXd& m) {
 	int r, c;
 	fread(&r, sizeof(int), 1, fp);
 	fread(&c, sizeof(int), 1, fp);
-	std::vector<float> buffer(r * c);
-	fread(buffer.data(), sizeof(float), r * c, fp);
+	std::vector<double> buffer(r * c);
+	fread(buffer.data(), sizeof(double), r * c, fp);
 	m.resize(r, c);
 	for (int i = 0; i < r; ++i) {
 		for (int j = 0; j < c; ++j) {
@@ -85,21 +85,21 @@ inline void Read(FILE* fp, VectorXi& m) {
 	}
 }
 
-inline void Save(FILE* fp, VectorXf& m) {
+inline void Save(FILE* fp, VectorXd& m) {
 	int r = m.rows();
 	fwrite(&r, sizeof(int), 1, fp);
-	std::vector<int> buffer(r);
+	std::vector<double> buffer(r);
 	for (int i = 0; i < r; ++i) {
 		buffer[i] = m(i);
 	}
-	fwrite(buffer.data(), sizeof(float), r, fp);
+	fwrite(buffer.data(), sizeof(double), r, fp);
 }
 
-inline void Read(FILE* fp, VectorXf& m) {
+inline void Read(FILE* fp, VectorXd& m) {
 	int r;
 	fread(&r, sizeof(int), 1, fp);
-	std::vector<int> buffer(r);
-	fread(buffer.data(), sizeof(float), r, fp);
+	std::vector<double> buffer(r);
+	fread(buffer.data(), sizeof(double), r, fp);
 	m.resize(r);
 	for (int i = 0; i < r; ++i) {
 		m(i) = buffer[i];
@@ -122,12 +122,12 @@ inline void Read(FILE* fp, TaggedLink& p) {
 	fread(&p, sizeof(TaggedLink), 1, fp);
 }
 
-inline void Save(FILE* fp, float& p) {
-	fwrite(&p, sizeof(float), 1, fp);
+inline void Save(FILE* fp, double& p) {
+	fwrite(&p, sizeof(double), 1, fp);
 }
 
-inline void Read(FILE* fp, float& p) {
-	fread(&p, sizeof(float), 1, fp);
+inline void Read(FILE* fp, double& p) {
+	fread(&p, sizeof(double), 1, fp);
 }
 
 inline void Save(FILE* fp, int& p) {

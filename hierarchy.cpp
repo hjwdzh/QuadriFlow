@@ -12,7 +12,7 @@ Hierarchy::Hierarchy()
 	mToUpper.resize(MAX_DEPTH);
 }
 
-void Hierarchy::Initialize(float scale)
+void Hierarchy::Initialize(double scale)
 {
 	for (int i = 0; i < MAX_DEPTH; ++i) {
 		DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1],
@@ -36,28 +36,28 @@ void Hierarchy::Initialize(float scale)
 		mO[i].resize(mN[i].rows(), mN[i].cols());
 		mS[i].resize(2, mN[i].cols());
 		for (int j = 0; j < mN[i].cols(); ++j) {
-			Vector3f s, t;
+			Vector3d s, t;
 			coordinate_system(mN[i].col(j), s, t);
-			float angle = ((float)rand()) / RAND_MAX * 2 * M_PI;
-			float x = ((float)rand()) / RAND_MAX * 2 - 1.f;
-			float y = ((float)rand()) / RAND_MAX * 2 - 1.f;
+			double angle = ((double)rand()) / RAND_MAX * 2 * M_PI;
+			double x = ((double)rand()) / RAND_MAX * 2 - 1.f;
+			double y = ((double)rand()) / RAND_MAX * 2 - 1.f;
 			mQ[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
 			mO[i].col(j) = mV[i].col(j) + (s * x + t * y) * scale;
-			mS[i].col(j) = Vector2f(1.0f, 1.0f);
+			mS[i].col(j) = Vector2d(1.0f, 1.0f);
 		}
 	}
 }
 
-void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXf &V,
-	const MatrixXf &N, const VectorXf &A,
-	MatrixXf &V_p, MatrixXf &N_p, VectorXf &A_p,
+void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
+	const MatrixXd &N, const VectorXd &A,
+	MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
 	MatrixXi &to_upper, VectorXi &to_lower,
 	AdjacentMatrix& adj_p) {
 	struct Entry {
 		int i, j;
-		float order;
+		double order;
 		inline Entry() { i = j = -1; };
-		inline Entry(int i, int j, float order) : i(i), j(j), order(order) { }
+		inline Entry(int i, int j, double order) : i(i), j(j), order(order) { }
 		inline bool operator<(const Entry &e) const { return order > e.order; }
 		inline bool operator==(const Entry &e) const { return order == e.order; }
 	};
@@ -69,8 +69,8 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXf &V,
 	for (int i = 0; i < V.cols(); ++i) {
 		for (int j = 0; j < adj[i].size(); ++j) {
 			int k = adj[i][j].id;
-			float dp = N.col(i).dot(N.col(k));
-			float ratio = A[i] > A[k] ? (A[i] / A[k]) : (A[k] / A[i]);
+			double dp = N.col(i).dot(N.col(k));
+			double ratio = A[i] > A[k] ? (A[i] / A[k]) : (A[k] / A[i]);
 			entries[offset + j] = Entry(i, k, dp * ratio);
 		}
 		offset += adj[i].size();
@@ -98,15 +98,15 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXf &V,
 
 	for (int i = 0; i < nCollapsed; ++i) {
 		const Entry &e = entries[i];
-		const float area1 = A[e.i], area2 = A[e.j], surfaceArea = area1 + area2;
+		const double area1 = A[e.i], area2 = A[e.j], surfaceArea = area1 + area2;
 		if (surfaceArea > RCPOVERFLOW)
 			V_p.col(i) = (V.col(e.i) * area1 + V.col(e.j) * area2) / surfaceArea;
 		else
 			V_p.col(i) = (V.col(e.i) + V.col(e.j)) * 0.5f;
-		Vector3f normal = N.col(e.i) * area1 + N.col(e.j) * area2;
-		float norm = normal.norm();
-		N_p.col(i) = norm > RCPOVERFLOW ? Vector3f(normal / norm)
-			: Vector3f::UnitX();
+		Vector3d normal = N.col(e.i) * area1 + N.col(e.j) * area2;
+		double norm = normal.norm();
+		N_p.col(i) = norm > RCPOVERFLOW ? Vector3d(normal / norm)
+			: Vector3d::UnitX();
 		A_p[i] = surfaceArea;
 		to_upper.col(i) << e.i, e.j;
 		to_lower[e.i] = i; to_lower[e.j] = i;

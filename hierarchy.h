@@ -11,10 +11,10 @@ class Hierarchy
 {
 public:
 	Hierarchy();
-	void Initialize(float scale);
-	void DownsampleGraph(const AdjacentMatrix adj, const MatrixXf &V,
-		const MatrixXf &N, const VectorXf &A,
-		MatrixXf &V_p, MatrixXf &N_p, VectorXf &A_p,
+	void Initialize(double scale);
+	void DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
+		const MatrixXd &N, const VectorXd &A,
+		MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
 		MatrixXi &to_upper, VectorXi &to_lower,
 		AdjacentMatrix& adj_p);
 
@@ -25,20 +25,20 @@ public:
 	void SaveToFile(FILE* fp);
 	void LoadFromFile(FILE* fp);
 
-	float mScale;
+	double mScale;
 
 	MatrixXi mF;
 	VectorXi mE2E;
 	std::vector<AdjacentMatrix> mAdj;
-	std::vector<MatrixXf> mV;
-	std::vector<MatrixXf> mN;
-	std::vector<VectorXf> mA;
+	std::vector<MatrixXd> mV;
+	std::vector<MatrixXd> mN;
+	std::vector<VectorXd> mA;
 	std::vector<VectorXi> mToLower;
 	std::vector<MatrixXi> mToUpper;
 
 	// parameters
-	std::vector<MatrixXf> mQ;
-	std::vector<MatrixXf> mO;
-	std::vector<MatrixXf> mS;
+	std::vector<MatrixXd> mQ;
+	std::vector<MatrixXd> mO;
+	std::vector<MatrixXd> mS;
 };
 #endif

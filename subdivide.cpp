@@ -2,9 +2,9 @@
 #include "dedge.h"
 #include <queue>
 #include <fstream>
-void subdivide(MatrixXi &F, MatrixXf &V, VectorXi &V2E, VectorXi &E2E,
-	VectorXi &boundary, VectorXi &nonmanifold, float maxLength) {
-	typedef std::pair<float, int> Edge;
+void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E,
+	VectorXi &boundary, VectorXi &nonmanifold, double maxLength) {
+	typedef std::pair<double, int> Edge;
 
 	std::priority_queue<Edge> queue;
 
@@ -14,7 +14,7 @@ void subdivide(MatrixXi &F, MatrixXf &V, VectorXi &V2E, VectorXi &E2E,
 		int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
 		if (nonmanifold[v0] || nonmanifold[v1])
 			continue;
-		float length = (V.col(v0) - V.col(v1)).squaredNorm();
+		double length = (V.col(v0) - V.col(v1)).squaredNorm();
 		if (length > maxLength) {
 			int other = E2E[i];
 			if (other == -1 || other > i)
@@ -117,7 +117,7 @@ void subdivide(MatrixXi &F, MatrixXf &V, VectorXi &V2E, VectorXi &E2E,
 
 		auto schedule = [&](int f) {
 			for (int i = 0; i<3; ++i) {
-				float length = (V.col(F(i, f)) - V.col(F((i + 1) % 3, f))).squaredNorm();
+				double length = (V.col(F(i, f)) - V.col(F((i + 1) % 3, f))).squaredNorm();
 				if (length > maxLength)
 					queue.push(Edge(length, f * 3 + i));
 			}
