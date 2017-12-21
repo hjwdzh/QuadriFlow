@@ -1330,8 +1330,9 @@ void Parametrizer::EstimateScale() {
 		q = q - n * q.dot(n);
 		FQ.col(i) = q.normalized();
 	}
-	
 	for (int i = 0; i < mF.cols(); ++i) {
+		double step = hierarchy.mScale * 1.f;
+
 		const Vector3d &n = Nf.col(i);
 		Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
 		Vector3d q_x = FQ.col(i), q_y = n.cross(q_x);
@@ -1341,25 +1342,44 @@ void Parametrizer::EstimateScale() {
 		int f;
 		double tx, ty, len;
 
-		f = i;
-		len = hierarchy.mScale;
+		f = i; len = step;
 		TravelField(p, q_xl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_yl_unfold);
 
-		f = i;
-		len = hierarchy.mScale;
+		f = i; len = step;
 		TravelField(p, q_xr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_yr_unfold);
 
-		f = i;
-		len = hierarchy.mScale;
+		f = i; len = step;
 		TravelField(p, q_yl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_xl_unfold);
 
-		f = i;
-		len = hierarchy.mScale;
+		f = i; len = step;
 		TravelField(p, q_yr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_xr_unfold);
-
-		double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * hierarchy.mScale);
-		double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * hierarchy.mScale);
-		printf("%lf %lf\n", dSx, dSy);
+		double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * step);
+		double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
+		FS.col(i) = Vector2d(dSx, dSy);
+	}
+	
+	std::vector<double> areas(mV.cols(), 0.0);
+	for (int i = 0; i < mF.cols(); ++i) {
+		Vector3d p1 = mV.col(mF(1, i)) - mV.col(mF(0, i));
+		Vector3d p2 = mV.col(mF(2, i)) - mV.col(mF(0, i));
+		double area = p1.cross(p2).norm();
+		for (int j = 0; j < 3; ++j) {
+			auto index = compat_orientation_extrinsic_index_4(FQ.col(i), Nf.col(i), mQ.col(mF(j, i)), mN.col(mF(j, i)));
+			double scaleX = FS.col(i).x(), scaleY = FS.col(i).y();
+			if (index.first != index.second % 2) {
+				std::swap(scaleX, scaleY);
+			}
+			if (index.second >= 2) {
+				scaleX = -scaleX;
+				scaleY = -scaleY;
+			}
+			hierarchy.mK[0].col(mF(j, i)) += area * Vector2d(scaleX, scaleY);
+			areas[mF(j, i)] += area;
+		}
+	}
+	for (int i = 0; i < mV.cols(); ++i) {
+		if (areas[i] != 0)
+			hierarchy.mK[0].col(i) /= areas[i];
 	}
 }
 

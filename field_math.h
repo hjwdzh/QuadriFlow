@@ -355,6 +355,9 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 		lens[1] = (1 - coord.x() - coord.y()) / (dirs.x() + dirs.y());
 		lens[2] = -coord.x() / dirs.x();
 		int chosen_id = 0;
+		if (count >= 2) {
+			count = count;
+		}
 		for (int fid = 0; fid < 3; ++fid) {
 			if (fid + edge_id == prev_id)
 				continue;
@@ -368,6 +371,18 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 				found = true;
 			}
 		}
+		double w1 = (coord.x() + dirs.x() * max_len);
+		double w2 = (coord.y() + dirs.y() * max_len);
+		if (w1 < 0)
+			w1 = 0.0f;
+		if (w2 < 0)
+			w2 = 0.0f;
+		if (w1 + w2 > 1) {
+			double w = w1 + w2;
+			w1 /= w;
+			w2 /= w;
+		}
+
 		if (!found) {
 			printf("error...\n");
 			system("pause");
@@ -375,8 +390,8 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 		//		printf("status: %f %f %d\n", len, max_len, f);
 		if (max_len >= len) {
 			if (tx && ty) {
-				*tx = coord.x() + dirs.x() * len;
-				*ty = coord.y() + dirs.y() * len;
+				*tx = w1;
+				*ty = w2;
 			}
 			Vector3d ideal_q = FaceQFromVertices(f, *tx, *ty);
 			*dir_unfold = BestQFromGivenQ(NF.col(f), ideal_q, *dir_unfold);
@@ -387,12 +402,12 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 			len = 0;
 			return p;
 		}
-		p = V.col(F(0, f)) + t1 * (coord.x() + dirs.x() * max_len) + t2 * (coord.y() + dirs.y() * max_len);
+		p = V.col(F(0, f)) + t1 * w1 + t2 * w2;
 		len -= max_len;
 		if (next_f == -1) {
 			if (tx && ty) {
-				*tx = coord.x() + dirs.x() * max_len;
-				*ty = coord.y() + dirs.y() * max_len;
+				*tx = w1;
+				*ty = w2;
 			}
 			Vector3d ideal_q = FaceQFromVertices(f, *tx, *ty);
 			*dir_unfold = BestQFromGivenQ(NF.col(f), ideal_q, *dir_unfold);
@@ -402,7 +417,7 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 			return p;
 		}
 		pt = rotate_vector_into_plane(pt, NF.col(f), NF.col(next_f));
-		pt = BestQFromGivenQ(NF.col(next_f), QF.col(next_f), pt);
+//		pt = BestQFromGivenQ(NF.col(next_f), QF.col(next_f), pt);
 		if (dir_unfold) {
 			*dir_unfold = BestQFromGivenQ(NF.col(next_f), QF.col(next_f), *dir_unfold);
 		}

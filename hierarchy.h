@@ -40,5 +40,6 @@ public:
 	std::vector<MatrixXd> mQ;
 	std::vector<MatrixXd> mO;
 	std::vector<MatrixXd> mS;
+	std::vector<MatrixXd> mK;
 };
 #endif

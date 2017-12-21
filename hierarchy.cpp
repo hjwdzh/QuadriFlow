@@ -30,11 +30,13 @@ void Hierarchy::Initialize(double scale)
 	mQ.resize(mV.size());
 	mO.resize(mV.size());
 	mS.resize(mV.size());
+	mK.resize(mV.size());
 	mScale = scale;
 	for (size_t i = 0; i<mV.size(); ++i) {
 		mQ[i].resize(mN[i].rows(), mN[i].cols());
 		mO[i].resize(mN[i].rows(), mN[i].cols());
 		mS[i].resize(2, mN[i].cols());
+		mK[i].resize(2, mN[i].cols());
 		for (int j = 0; j < mN[i].cols(); ++j) {
 			Vector3d s, t;
 			coordinate_system(mN[i].col(j), s, t);
@@ -44,6 +46,7 @@ void Hierarchy::Initialize(double scale)
 			mQ[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
 			mO[i].col(j) = mV[i].col(j) + (s * x + t * y) * scale;
 			mS[i].col(j) = Vector2d(1.0f, 1.0f);
+			mK[i].col(j) = Vector2d(0.0, 0.0);
 		}
 	}
 }
@@ -166,6 +169,7 @@ void Hierarchy::SaveToFile(FILE* fp)
 	Save(fp, mQ);
 	Save(fp, mO);
 	Save(fp, mS);
+	Save(fp, mK);
 }
 
 void Hierarchy::LoadFromFile(FILE* fp)
@@ -182,4 +186,5 @@ void Hierarchy::LoadFromFile(FILE* fp)
 	Read(fp, mQ);
 	Read(fp, mO);
 	Read(fp, mS);
+	Read(fp, mK);
 }

@@ -86,21 +86,61 @@ void render_test_travel(int f)
 
 	Vector3d p = mV.col(mF(0, f)) + mV.col(mF(1, f)) + mV.col(mF(2, f));
 	p *= 1.0f / 3;
-	double len = field.hierarchy.mScale * 10;
-	int f1 = f;
-	Vector3d q = Travel(p, field.hierarchy.mQ[0].col(mF(0, f)), len, f1, field.hierarchy.mE2E, mV, mF, field.Nf, field.triangle_space);
 
-	glPointSize(10.0f);
+	const Vector3d &n = field.Nf.col(f);
+	Vector3d q_x = field.FQ.col(f), q_y = n.cross(q_x);
+	Vector3d q_xl = -q_x, q_xr = q_x;
+	Vector3d q_yl = -q_y, q_yr = q_y;
+	Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
+	double tx, ty, len;
+	double step = field.scale;
+	int i;
+	i = f; len = step;
+	Vector3d q1 = TravelField(p, q_xl, len, i, field.hierarchy.mE2E, mV, mF, field.Nf, field.FQ, field.hierarchy.mQ[0], mN, field.triangle_space, &tx, &ty, &q_yl_unfold);
+
+	i = f; len = step;
+	Vector3d q2 = TravelField(p, q_xr, len, i, field.hierarchy.mE2E, mV, mF, field.Nf, field.FQ, field.hierarchy.mQ[0], mN, field.triangle_space, &tx, &ty, &q_yr_unfold);
+
+	printf("scale %lf\n", (q_yr_unfold - q_yl_unfold).dot(q_x) / (2 * step));
+	glPointSize(2.0f);
 	glBegin(GL_POINTS);
 	glColor3f(1, 0, 0);
 	glVertex3f(p.x(), p.y(), p.z());
 	glColor3f(0, 1, 0);
-	glVertex3f(q.x(), q.y(), q.z());
+	glVertex3f(q1.x(), q1.y(), q1.z());
+	glVertex3f(q2.x(), q2.y(), q2.z());
 	glEnd();
+
+	Vector3d pl = p - q_x * step * 5;
+	Vector3d pr = p + q_x * step * 5;
+	Vector3d pu = p - q_y * step * 5;
+	Vector3d pd = p + q_y * step * 5;
+
+	Vector3d pul = p - q_yl_unfold * step * 5;
+	Vector3d pdl = p + q_yl_unfold * step *  5;
+	Vector3d pur = p - q_yr_unfold * step * 5;
+	Vector3d pdr = p + q_yr_unfold * step * 0.5;
+	glLineWidth(1.0f);
+	glBegin(GL_LINES);
+	glColor3f(0, 0, 1);
+	glVertex3dv(&pl.x());
+	glVertex3dv(&pr.x());
+	glColor3f(1, 0, 0);
+	glVertex3dv(&pu.x());
+	glVertex3dv(&pd.x());
+	glColor3f(0, 1, 0);
+	glVertex3dv(&pul.x());
+	glVertex3dv(&pdl.x());
+	glColor3f(1, 1, 0);
+	glVertex3dv(&pur.x());
+	glVertex3dv(&pdr.x());
+	glEnd();
+
 }
 
 static void render_mesh()
 {
+//	render_test_travel(348394);
 	if (show_color == 0) {
 		auto& mF = field.hierarchy.mF;
 		auto& mV = field.hierarchy.mV[0];
@@ -237,12 +277,14 @@ static void render_crossfield()
 	if (show_field) {
 		int l = (show_hierarchy) ? level : 0;
 		auto& mV = field.hierarchy.mV[level];
+		auto& mF = field.hierarchy.mF;
 		auto& mN = field.hierarchy.mN[level];
 		auto& mQ = field.hierarchy.mQ[level];
 		auto& adj = field.hierarchy.mAdj[level];
 		glColor3f(1, 0, 0);
-		double len = field.scale * 0.2;
+		double len = field.scale;
 		glBegin(GL_LINES);
+		/*
 		for (int i = 0; i < mQ.cols(); ++i) {
 			glm::dvec3 p(mV(0, i), mV(1, i), mV(2, i));
 			glm::dvec3 n(mN(0, i), mN(1, i), mN(2, i));
@@ -256,6 +298,20 @@ static void render_crossfield()
 			glVertex3d(r.x, r.y, r.z);
 			glVertex3d(u.x, u.y, u.z);
 			glVertex3d(d.x, d.y, d.z);
+		}*/
+		for (int i = 0; i < field.FQ.cols(); ++i) {
+			Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
+			Vector3d t1 = field.FQ.col(i);
+			Vector3d n = field.Nf.col(i);
+			Vector3d t2 = n.cross(t1);
+			auto l = p - t1 * len;
+			auto r = p + t1 * len;
+			auto u = p - t2 * len;
+			auto d = p + t2 * len;
+			glVertex3d(l.x(), l.y(), l.z());
+			glVertex3d(r.x(), r.y(), r.z());
+			glVertex3d(u.x(), u.y(), u.z());
+			glVertex3d(d.x(), d.y(), d.z());
 		}
 		glEnd();
 	}
@@ -447,7 +503,12 @@ static void keyboard_callback(unsigned char key, int x, int y)
 		}
 		if (show_color >= 1) {
 			for (int i = 0; i < color.size(); ++i) {
-				color[i] = Gray2HSV(field.hierarchy.mS[0](show_color - 1, i));
+				double t = fabs(field.hierarchy.mK[0](show_color - 1, i));
+				if (t > 3)
+					t = 1.0;
+				else
+					t /= 3.0;
+				color[i] = Gray2HSV(t);
 			}
 		}
 		glutPostRedisplay();
@@ -470,25 +531,29 @@ static void keyboard_callback(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
+	
+	/*
 	field.Load(argv[1]);
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-	field.EstimateScale();
-//	Optimizer::optimize_scale(field.hierarchy);
-	Optimizer::optimize_positions(field.hierarchy);
-	field.ExtractMesh();
-	/*
+
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
 	printf("save finish\n");
 
+	Optimizer::optimize_positions(field.hierarchy);
+	field.ExtractMesh();
+	*/
+
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
-	*/
+	field.EstimateScale();
+//	Optimizer::optimize_scale(field.hierarchy);
+	
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
