@@ -34,7 +34,7 @@ public:
 	void ComputeSmoothNormal();
 	void ComputeVertexArea();
 	void ComputeOrientationSingularities();
-
+	void EstimateScale();
 	// Extract Mesh
 	void ExtractMesh();
 	void LoopFace(int mode);
@@ -50,6 +50,8 @@ public:
 	MatrixXd V;
 	MatrixXd N;
 	MatrixXd Nf;
+	MatrixXd FS;
+	MatrixXd FQ;
 	MatrixXi F;
 
 	std::vector<MatrixXd> triangle_space;

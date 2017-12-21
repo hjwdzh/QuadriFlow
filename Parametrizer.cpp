@@ -1308,12 +1308,69 @@ void Parametrizer::LoopFace(int mode)
 	}
 }
 
+void Parametrizer::EstimateScale() {
+	auto& mF = hierarchy.mF;
+	auto& mQ = hierarchy.mQ[0];
+	auto& mN = hierarchy.mN[0];
+	auto& mV = hierarchy.mV[0];
+	FS.resize(2, mF.cols());
+	FQ.resize(3, mF.cols());
+	for (int i = 0; i < mF.cols(); ++i) {
+		const Vector3d& n = Nf.col(i);
+		const Vector3d &q_1 = mQ.col(mF(0, i)), &q_2 = mQ.col(mF(1, i)), &q_3 = mQ.col(mF(2, i));
+		const Vector3d &n_1 = mN.col(mF(0, i)), &n_2 = mN.col(mF(1, i)), &n_3 = mN.col(mF(2, i));
+		Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
+		Vector3d q_2n = rotate_vector_into_plane(q_2, n_2, n);
+		Vector3d q_3n = rotate_vector_into_plane(q_3, n_3, n);
+
+		auto p = compat_orientation_extrinsic_4(q_1n, n, q_2n, n);
+		Vector3d q = (p.first + p.second).normalized();
+		p = compat_orientation_extrinsic_4(q, n, q_3n, n);
+		q = (p.first * 2 + p.second);
+		q = q - n * q.dot(n);
+		FQ.col(i) = q.normalized();
+	}
+	
+	for (int i = 0; i < mF.cols(); ++i) {
+		const Vector3d &n = Nf.col(i);
+		Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
+		Vector3d q_x = FQ.col(i), q_y = n.cross(q_x);
+		Vector3d q_xl = -q_x, q_xr = q_x;
+		Vector3d q_yl = -q_y, q_yr = q_y;
+		Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
+		int f;
+		double tx, ty, len;
+
+		f = i;
+		len = hierarchy.mScale;
+		TravelField(p, q_xl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_yl_unfold);
+
+		f = i;
+		len = hierarchy.mScale;
+		TravelField(p, q_xr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_yr_unfold);
+
+		f = i;
+		len = hierarchy.mScale;
+		TravelField(p, q_yl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_xl_unfold);
+
+		f = i;
+		len = hierarchy.mScale;
+		TravelField(p, q_yr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx, &ty, &q_xr_unfold);
+
+		double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * hierarchy.mScale);
+		double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * hierarchy.mScale);
+		printf("%lf %lf\n", dSx, dSy);
+	}
+}
+
 void Parametrizer::SaveToFile(FILE* fp) {
 	Save(fp, vertex_singularities);
 	Save(fp, singularities);
 	Save(fp, V);
 	Save(fp, N);
 	Save(fp, Nf);
+	Save(fp, FQ);
+	Save(fp, FS);
 	Save(fp, F);
 	Save(fp, V2E);
 	Save(fp, E2E);
@@ -1351,6 +1408,8 @@ void Parametrizer::LoadFromFile(FILE* fp) {
 	Read(fp, V);
 	Read(fp, N);
 	Read(fp, Nf);
+	Read(fp, FQ);
+	Read(fp, FS);
 	Read(fp, F);
 	Read(fp, V2E);
 	Read(fp, E2E);

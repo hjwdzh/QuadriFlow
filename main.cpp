@@ -474,8 +474,8 @@ int main(int argc, char** argv)
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-
-	Optimizer::optimize_scale(field.hierarchy);
+	field.EstimateScale();
+//	Optimizer::optimize_scale(field.hierarchy);
 	Optimizer::optimize_positions(field.hierarchy);
 	field.ExtractMesh();
 	/*
