@@ -281,10 +281,10 @@ static void render_crossfield()
 		auto& mN = field.hierarchy.mN[level];
 		auto& mQ = field.hierarchy.mQ[level];
 		auto& adj = field.hierarchy.mAdj[level];
-		glColor3f(1, 0, 0);
-		double len = field.scale;
+
+		double len = field.scale * 0.2f;
 		glBegin(GL_LINES);
-		/*
+		
 		for (int i = 0; i < mQ.cols(); ++i) {
 			glm::dvec3 p(mV(0, i), mV(1, i), mV(2, i));
 			glm::dvec3 n(mN(0, i), mN(1, i), mN(2, i));
@@ -294,11 +294,14 @@ static void render_crossfield()
 			auto r = p + tangent1;
 			auto u = p - tangent2;
 			auto d = p + tangent2;
+			glColor3f(1, 0, 0);
 			glVertex3d(l.x, l.y, l.z);
 			glVertex3d(r.x, r.y, r.z);
+			glColor3f(0, 0, 1);
 			glVertex3d(u.x, u.y, u.z);
 			glVertex3d(d.x, d.y, d.z);
-		}*/
+		}
+		/*
 		for (int i = 0; i < field.FQ.cols(); ++i) {
 			Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
 			Vector3d t1 = field.FQ.col(i);
@@ -313,6 +316,7 @@ static void render_crossfield()
 			glVertex3d(u.x(), u.y(), u.z());
 			glVertex3d(d.x(), d.y(), d.z());
 		}
+		*/
 		glEnd();
 	}
 }
@@ -358,7 +362,9 @@ static void render_callback(void)
 {
 	glClearColor(0.0, 191.0 / 255.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(-1, 1, -1, 1, -1, 1);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	GLfloat light_position[] = { 1, 1, 1, 0 };
@@ -503,12 +509,13 @@ static void keyboard_callback(unsigned char key, int x, int y)
 		}
 		if (show_color >= 1) {
 			for (int i = 0; i < color.size(); ++i) {
-				double t = fabs(field.hierarchy.mK[0](show_color - 1, i));
+				double t = field.hierarchy.mS[0](show_color - 1, i);
 				if (t > 3)
-					t = 1.0;
-				else
-					t /= 3.0;
-				color[i] = Gray2HSV(t);
+					t = 3.0;
+				if (t < -3)
+					t = -3.0;
+				t = (t + 3.0) / 6.0;
+				color[i] = Vector3d(t, t, t);//Gray2HSV(t);
 			}
 		}
 		glutPostRedisplay();
@@ -531,28 +538,28 @@ static void keyboard_callback(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
-	
 	/*
 	field.Load(argv[1]);
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 
+	Optimizer::optimize_positions(field.hierarchy);
+	field.ExtractMesh();
+
+	field.EstimateScale();
+
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
 	printf("save finish\n");
-
-	Optimizer::optimize_positions(field.hierarchy);
-	field.ExtractMesh();
 	*/
-
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
-	field.EstimateScale();
-//	Optimizer::optimize_scale(field.hierarchy);
+
+	Optimizer::optimize_scale(field.hierarchy);
 	
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);

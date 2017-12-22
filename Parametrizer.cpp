@@ -1381,6 +1381,22 @@ void Parametrizer::EstimateScale() {
 		if (areas[i] != 0)
 			hierarchy.mK[0].col(i) /= areas[i];
 	}
+	for (int l = 0; l< hierarchy.mK.size() - 1; ++l)  {
+		const MatrixXd &K = hierarchy.mK[l];
+		MatrixXd &K_next = hierarchy.mK[l + 1];
+		auto& toUpper = hierarchy.mToUpper[l];
+		for (int i = 0; i < toUpper.cols(); ++i) {
+			Vector2i upper = toUpper.col(i);
+			Vector2d k0 = K.col(upper[0]);
+
+			if (upper[1] != -1) {
+				Vector2d k1 = K.col(upper[1]);
+				k0 = 0.5 * (k0 + k1);
+			}
+
+			K_next.col(i) = k0;
+		}
+	}
 }
 
 void Parametrizer::SaveToFile(FILE* fp) {
