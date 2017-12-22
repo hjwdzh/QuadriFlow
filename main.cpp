@@ -538,14 +538,11 @@ static void keyboard_callback(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
-	/*
+	
 	field.Load(argv[1]);
 	field.Initialize();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-
-	Optimizer::optimize_positions(field.hierarchy);
-	field.ExtractMesh();
 
 	field.EstimateScale();
 
@@ -554,13 +551,19 @@ int main(int argc, char** argv)
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
 	printf("save finish\n");
-	*/
+	
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
 
 	Optimizer::optimize_scale(field.hierarchy);
 	
+	Optimizer::optimize_positions(field.hierarchy, 0);
+
+	field.ComputePositionSingularities();
+
+	field.ExtractMesh();
+
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;

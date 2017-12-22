@@ -114,7 +114,6 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 	std::vector<Eigen::Triplet<double> > lhsTriplets;
 
 	lhsTriplets.reserve(F.cols() * 6);
-	std::vector<double> scales;
 	std::vector<std::map<int, double> > entries(V.cols() * 2);
 	for (int i = 0; i < F.cols(); ++i) {
 		for (int j = 0; j < 3; ++j) {
@@ -149,8 +148,6 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 			double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.1), 10));
 			double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.1), 10));
 
-			scales.push_back(scale_x);
-			scales.push_back(scale_y);
 			auto it = entries[v1_x].find(v2_x);
 			if (it == entries[v1_x].end()) {
 				entries[v1_x][v2_x] = -scale_x;
@@ -166,14 +163,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 			}
 		}
 	}
-	std::sort(scales.begin(), scales.end());
 
-/*	for (int i = 0; i < 20; ++i) {
-		printf("%lf ", scales[scales.size() / 20 * i]);
-	}
-	printf("\n");
-	system("pause");
-*/
 	Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
 	VectorXd rhs(V.cols() * 2);
 	rhs.setZero();
@@ -194,33 +184,29 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 	printf("finish...\n");
 	
 	VectorXd result = solver.solve(rhs);
-	double minS = 1e30, maxS = -1e30;
 
-	std::vector<double> scale;
 	for (int i = 0; i < V.cols(); ++i) {
-		minS = fmin(result(i * 2), minS);
-		minS = fmin(result(i * 2 + 1), minS);
-		maxS = fmax(result(i * 2), maxS);
-		maxS = fmax(result(i * 2 + 1), maxS);
-		scale.push_back(result(i * 2));
-		scale.push_back(result(i * 2 + 1));
-		S(0, i) = result(i * 2);
-		S(1, i) = result(i * 2 + 1);
+		S(0, i) = exp(result(i * 2));
+		S(1, i) = exp(result(i * 2 + 1));
 	}
-	std::sort(scale.begin(), scale.end());
-	for (int i = 0; i < 20; ++i) {
-		printf("%lf ", exp(scale[scale.size() / 20 * i]));
-	}
-	printf("\n%d %lf %lf\n\n", V.cols() * 2, minS, maxS);
 
-	for (int i = 0; i < entries.size(); ++i) {
-		for (auto& rec : entries[i]) {
-//			printf("%d %d %lf %lf\n", i, rec.first, rec.second, result(i) - result(rec.first));
+	for (int l = 0; l< mRes.mS.size() - 1; ++l)  {
+		const MatrixXd &S = mRes.mS[l];
+		MatrixXd &S_next = mRes.mS[l + 1];
+		auto& toUpper = mRes.mToUpper[l];
+		for (int i = 0; i < toUpper.cols(); ++i) {
+			Vector2i upper = toUpper.col(i);
+			Vector2d q0 = S.col(upper[0]);
+
+			if (upper[1] != -1) {
+				q0 = (q0 + S.col(upper[1])) * 0.5;
+			}
+			S_next.col(i) = q0;
 		}
 	}
 }
 
-void Optimizer::optimize_positions(Hierarchy &mRes)
+void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 {
 	int levelIterations = 6;
 
@@ -228,14 +214,21 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
 		MatrixXd &Q = mRes.mQ[level];
-
+		MatrixXd &S = mRes.mS[level];
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			AdjacentMatrix &adj = mRes.mAdj[level];
 			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
-			const double scale = mRes.mScale, inv_scale = 1.0f / scale;
 			MatrixXd &O = mRes.mO[level];
 
 			for (int i = 0; i < N.cols(); ++i) {
+				double scale_x = mRes.mScale;
+				double scale_y = mRes.mScale;
+				if (with_scale) {
+					scale_x *= S(0, i);
+					scale_y *= S(1, i);
+				}
+				double inv_scale_x = 1.0f / scale_x;
+				double inv_scale_y = 1.0f / scale_y;
 				const Vector3d n_i = N.col(i), v_i = V.col(i);
 				Vector3d q_i = Q.col(i);
 
@@ -248,6 +241,14 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 					const double weight = link.weight;
 					if (weight == 0)
 						continue;
+					double scale_x_1 = mRes.mScale;
+					double scale_y_1 = mRes.mScale;
+					if (with_scale) {
+						scale_x_1 *= S(0, j);
+						scale_y_1 *= S(1, j);
+					}
+					double inv_scale_x_1 = 1.0f / scale_x_1;
+					double inv_scale_y_1 = 1.0f / scale_y_1;
 
 					const Vector3d n_j = N.col(j), v_j = V.col(j);
 					Vector3d q_j = Q.col(j), o_j = O.col(j);
@@ -255,7 +256,9 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 					q_j.normalize();
 
 					std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
-						v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j, scale, inv_scale);
+						v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j,
+						scale_x, scale_y, inv_scale_x, inv_scale_y,
+						scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
 
 					sum = value.first*weight_sum + value.second*weight;
 					weight_sum += weight;
@@ -265,7 +268,7 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 				}
 
 				if (weight_sum > 0) {
-					O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale, inv_scale);
+					O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale_x, scale_y, inv_scale_x, inv_scale_y);
 				}
 			}
 		}
@@ -289,4 +292,7 @@ void Optimizer::optimize_positions(Hierarchy &mRes)
 		}
 	}
 }
+
+
+
 

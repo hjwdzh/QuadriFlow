@@ -236,7 +236,8 @@ bool remove_unnecessary_edges) {
 			std::pair<Vector2i, Vector2i> shift = compat_position(
 				V.col(i), N.col(i), Q_rot.first, O.col(i),
 				V.col(j), N.col(j), Q_rot.second, O.col(j),
-				scale, inv_scale, &error);
+				scale, scale, inv_scale, inv_scale,
+				scale, scale, inv_scale, inv_scale, &error);
 
 			Vector2i absDiff = (shift.first - shift.second).cwiseAbs();
 
@@ -878,6 +879,7 @@ void write_obj(const std::string &filename, const MatrixXi &F,
 		os << std::endl;
 	}
 
+	printf("irregular faces: %d\n", irregular.size());
 	for (auto item : irregular) {
 		auto face = item.second;
 		uint32_t v = face.second.begin()->first, first = v, i = 0;
@@ -918,6 +920,71 @@ void Parametrizer::ComputeOrientationSingularities()
 		}
 	}
 	printf("singularities %d...\n", singularities.size());
+}
+
+void Parametrizer::ComputePositionSingularities(int with_scale)
+{
+	const MatrixXd &V = hierarchy.mV[0], &N = hierarchy.mN[0], &Q = hierarchy.mQ[0], &O = hierarchy.mO[0];
+	const MatrixXi &F = hierarchy.mF;
+
+	std::map<int, Vector2i> pos_sing;
+	pos_sing.clear();
+
+
+	for (int f = 0; f < F.cols(); ++f) {
+		Vector2i index = Vector2i::Zero();
+		uint32_t i0 = F(0, f), i1 = F(1, f), i2 = F(2, f);
+
+		Vector3d q[3] = { Q.col(i0).normalized(), Q.col(i1).normalized(), Q.col(i2).normalized() };
+		Vector3d n[3] = { N.col(i0), N.col(i1), N.col(i2) };
+		Vector3d o[3] = { O.col(i0), O.col(i1), O.col(i2) };
+		Vector3d v[3] = { V.col(i0), V.col(i1), V.col(i2) };
+
+		int best[3];
+		double best_dp = -std::numeric_limits<double>::infinity();
+		for (int i = 0; i<4; ++i) {
+			Vector3d v0 = rotate90_by(q[0], n[0], i);
+			for (int j = 0; j<4; ++j) {
+				Vector3d v1 = rotate90_by(q[1], n[1], j);
+				for (int k = 0; k<4; ++k) {
+					Vector3d v2 = rotate90_by(q[2], n[2], k);
+					double dp = std::min(std::min(v0.dot(v1), v1.dot(v2)), v2.dot(v0));
+					if (dp > best_dp) {
+						best_dp = dp;
+						best[0] = i; best[1] = j; best[2] = k;
+					}
+				}
+			}
+		}
+		for (int k = 0; k<3; ++k)
+			q[k] = rotate90_by(q[k], n[k], best[k]);
+
+		for (int k = 0; k<3; ++k) {
+			int kn = k == 2 ? 0 : (k + 1);
+			double scale_x = hierarchy.mScale, scale_y = hierarchy.mScale, scale_x_1 = hierarchy.mScale, scale_y_1 = hierarchy.mScale;
+			if (with_scale) {
+				scale_x *= hierarchy.mS[0](0, F(k, f));
+				scale_y *= hierarchy.mS[0](1, F(k, f));
+				scale_x_1 *= hierarchy.mS[0](0, F(kn, f));
+				scale_y_1 *= hierarchy.mS[0](1, F(kn, f));
+			}
+			double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y, inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
+			std::pair<Vector2i, Vector2i> value =
+				compat_position_extrinsic_index_4(
+				v[k], n[k], q[k], o[k],
+				v[kn], n[kn], q[kn], o[kn],
+				scale_x, scale_y, inv_scale_x, inv_scale_y,
+				scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
+
+			index += value.first - value.second;
+		}
+
+		if (index != Vector2i::Zero()) {
+			pos_sing[f] = rshift90(index, best[0]);
+		}
+	}
+
+	printf("position singularities %d...\n", pos_sing.size());
 }
 
 void Parametrizer::ExtractMesh() {

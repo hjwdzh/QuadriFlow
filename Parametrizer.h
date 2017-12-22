@@ -34,6 +34,7 @@ public:
 	void ComputeSmoothNormal();
 	void ComputeVertexArea();
 	void ComputeOrientationSingularities();
+	void ComputePositionSingularities(int with_scale = 0);
 	void EstimateScale();
 	// Extract Mesh
 	void ExtractMesh();

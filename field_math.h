@@ -16,6 +16,19 @@ inline int modulo(int a, int b) {
 	return (r < 0) ? r + b : r;
 }
 
+inline Vector3d rotate90_by(const Vector3d &q, const Vector3d &n, int amount) {
+	return ((amount & 1) ? (n.cross(q)) : q) * (amount < 2 ? 1.0f : -1.0f);
+}
+
+inline Vector2i rshift90(Vector2i shift, int amount) {
+	if (amount & 1)
+		shift = Vector2i(-shift.y(), shift.x());
+	if (amount >= 2)
+		shift = -shift;
+	return shift;
+}
+
+
 inline std::pair<int, int>
 compat_orientation_extrinsic_index_4(const Vector3d &q0, const Vector3d &n0,
 const Vector3d &q1, const Vector3d &n1) {
@@ -92,31 +105,32 @@ inline Vector3d middle_point(const Vector3d &p0, const Vector3d &n0, const Vecto
 
 inline Vector3d position_floor_4(const Vector3d &o, const Vector3d &q,
 	const Vector3d &n, const Vector3d &p,
-	double scale, double inv_scale) {
+	double scale_x, double scale_y, double inv_scale_x, double inv_scale_y) {
 	Vector3d t = n.cross(q);
 	Vector3d d = p - o;
 	return o +
-		q * std::floor(q.dot(d) * inv_scale) * scale +
-		t * std::floor(t.dot(d) * inv_scale) * scale;
+		q * std::floor(q.dot(d) * inv_scale_x) * scale_x +
+		t * std::floor(t.dot(d) * inv_scale_y) * scale_y;
 }
 
 inline std::pair<Vector3d, Vector3d> compat_position_extrinsic_4(
 	const Vector3d &p0, const Vector3d &n0, const Vector3d &q0, const Vector3d &o0,
 	const Vector3d &p1, const Vector3d &n1, const Vector3d &q1, const Vector3d &o1,
-	double scale, double inv_scale) {
+	double scale_x, double scale_y, double inv_scale_x, double inv_scale_y,
+	double scale_x_1, double scale_y_1, double inv_scale_x_1, double inv_scale_y_1) {
 
 	Vector3d t0 = n0.cross(q0), t1 = n1.cross(q1);
 	Vector3d middle = middle_point(p0, n0, p1, n1);
-	Vector3d o0p = position_floor_4(o0, q0, n0, middle, scale, inv_scale);
-	Vector3d o1p = position_floor_4(o1, q1, n1, middle, scale, inv_scale);
+	Vector3d o0p = position_floor_4(o0, q0, n0, middle, scale_x, scale_y, inv_scale_x, inv_scale_y);
+	Vector3d o1p = position_floor_4(o1, q1, n1, middle, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
 
 	double best_cost = std::numeric_limits<double>::infinity();
 	int best_i = -1, best_j = -1;
 
 	for (int i = 0; i<4; ++i) {
-		Vector3d o0t = o0p + (q0 * (i & 1) + t0 * ((i & 2) >> 1)) * scale;
+		Vector3d o0t = o0p + (q0 * (i & 1) * scale_x + t0 * ((i & 2) >> 1) * scale_y);
 		for (int j = 0; j<4; ++j) {
-			Vector3d o1t = o1p + (q1 * (j & 1) + t1 * ((j & 2) >> 1)) * scale;
+			Vector3d o1t = o1p + (q1 * (j & 1) * scale_x_1 + t1 * ((j & 2) >> 1) * scale_y_1);
 			double cost = (o0t - o1t).squaredNorm();
 
 			if (cost < best_cost) {
@@ -128,46 +142,47 @@ inline std::pair<Vector3d, Vector3d> compat_position_extrinsic_4(
 	}
 
 	return std::make_pair(
-		o0p + (q0 * (best_i & 1) + t0 * ((best_i & 2) >> 1)) * scale,
-		o1p + (q1 * (best_j & 1) + t1 * ((best_j & 2) >> 1)) * scale);
+		o0p + (q0 * (best_i & 1) * scale_x + t0 * ((best_i & 2) >> 1) * scale_y),
+		o1p + (q1 * (best_j & 1) * scale_x_1 + t1 * ((best_j & 2) >> 1) * scale_y_1));
 }
 
 inline Vector3d position_round_4(const Vector3d &o, const Vector3d &q,
 	const Vector3d &n, const Vector3d &p,
-	double scale, double inv_scale) {
+	double scale_x, double scale_y, double inv_scale_x, double inv_scale_y) {
 	Vector3d t = n.cross(q);
 	Vector3d d = p - o;
 	return o +
-		q * std::round(q.dot(d) * inv_scale) * scale +
-		t * std::round(t.dot(d) * inv_scale) * scale;
+		q * std::round(q.dot(d) * inv_scale_x) * scale_x +
+		t * std::round(t.dot(d) * inv_scale_y) * scale_y;
 }
 
 inline Vector2i position_floor_index_4(const Vector3d &o, const Vector3d &q,
 	const Vector3d &n, const Vector3d &p,
-	double /* unused */, double inv_scale) {
+	double /* unused */, double /* unused */, double inv_scale_x, double inv_scale_y) {
 	Vector3d t = n.cross(q);
 	Vector3d d = p - o;
 	return Vector2i(
-		(int)std::floor(q.dot(d) * inv_scale),
-		(int)std::floor(t.dot(d) * inv_scale));
+		(int)std::floor(q.dot(d) * inv_scale_x),
+		(int)std::floor(t.dot(d) * inv_scale_y));
 }
 
 inline std::pair<Vector2i, Vector2i> compat_position_extrinsic_index_4(
 	const Vector3d &p0, const Vector3d &n0, const Vector3d &q0, const Vector3d &o0,
 	const Vector3d &p1, const Vector3d &n1, const Vector3d &q1, const Vector3d &o1,
-	double scale, double inv_scale, double* error) {
+	double scale_x, double scale_y, double inv_scale_x, double inv_scale_y,
+	double scale_x_1, double scale_y_1, double inv_scale_x_1, double inv_scale_y_1, double* error) {
 	Vector3d t0 = n0.cross(q0), t1 = n1.cross(q1);
 	Vector3d middle = middle_point(p0, n0, p1, n1);
-	Vector2i o0p = position_floor_index_4(o0, q0, n0, middle, scale, inv_scale);
-	Vector2i o1p = position_floor_index_4(o1, q1, n1, middle, scale, inv_scale);
+	Vector2i o0p = position_floor_index_4(o0, q0, n0, middle, scale_x, scale_y, inv_scale_x, inv_scale_y);
+	Vector2i o1p = position_floor_index_4(o1, q1, n1, middle, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
 
 	double best_cost = std::numeric_limits<double>::infinity();
 	int best_i = -1, best_j = -1;
 
 	for (int i = 0; i<4; ++i) {
-		Vector3d o0t = o0 + (q0 * ((i & 1) + o0p[0]) + t0 * (((i & 2) >> 1) + o0p[1])) * scale;
+		Vector3d o0t = o0 + (q0 * ((i & 1) + o0p[0]) * scale_x + t0 * (((i & 2) >> 1) + o0p[1]) * scale_y);
 		for (int j = 0; j<4; ++j) {
-			Vector3d o1t = o1 + (q1 * ((j & 1) + o1p[0]) + t1 * (((j & 2) >> 1) + o1p[1])) * scale;
+			Vector3d o1t = o1 + (q1 * ((j & 1) + o1p[0]) * scale_x_1 + t1 * (((j & 2) >> 1) + o1p[1]) * scale_y_1);
 			double cost = (o0t - o1t).squaredNorm();
 
 			if (cost < best_cost) {
