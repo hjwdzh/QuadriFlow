@@ -100,10 +100,12 @@
     <LinkIncremental>true</LinkIncremental>
     <IncludePath>D:\Recon3D\thirdparty\freeglut\include;D:\Recon3D\thirdparty\Eigen;D:\Recon3D\thirdparty\glm;$(IncludePath)</IncludePath>
     <LibraryPath>D:\Recon3D\thirdparty\freeglut\lib\x64;$(LibraryPath)</LibraryPath>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>D:\Recon3D\thirdparty\freeglut\include;D:\Recon3D\thirdparty\Eigen;D:\Recon3D\thirdparty\glm;$(IncludePath)</IncludePath>
     <LibraryPath>D:\Recon3D\thirdparty\freeglut\lib\x64;$(LibraryPath)</LibraryPath>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

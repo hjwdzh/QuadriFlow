@@ -125,10 +125,8 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 			Vector3d n_1 = N.col(v1);
 			Vector3d n_2 = N.col(v2);
 			Vector3d q_1_y = n_1.cross(q_1);
-			Vector3d q_2_y = n_2.cross(q_2);
 			auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
 			int v1_x = v1 * 2, v1_y = v1 * 2 + 1, v2_x = v2 * 2, v2_y = v2 * 2 + 1;
-			double sign = 1;
 
 			double dx = diff.dot(q_1);
 			double dy = diff.dot(q_1_y);
@@ -138,13 +136,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 
 			if (index.first % 2 != index.second % 2) {
 				std::swap(v2_x, v2_y);
-				std::swap(q_2, q_2_y);
 			}
-			if (index.second >= 2) {
-				q_2 = -q_2;
-				q_2_y = -q_2_y;
-			}
-			
 			double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.1), 10));
 			double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.1), 10));
 
@@ -175,14 +167,11 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 		}
 	}
 	A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-	printf("start LU solver...\n");
 	Eigen::SparseLU< Eigen::SparseMatrix<double> > solver;
 	solver.analyzePattern(A);
 
 	solver.factorize(A);
 
-	printf("finish...\n");
-	
 	VectorXd result = solver.solve(rhs);
 
 	for (int i = 0; i < V.cols(); ++i) {
