@@ -153,7 +153,18 @@ public:
 	std::set<DEdge> singular_edges;
 	std::vector<std::list<int> > edge_neighbors;
 
+	std::vector<Vector3i> constraints_index;
+	std::vector<Vector3i> constraints_sign;
+	std::vector<std::pair<Vector2i, int> > variables;
+	std::vector<std::pair<int, int> > parentss;
+	std::vector<Vector4i> edge_to_constraints;
+
+	void ComputeMaxFlow();
 	void MergeVertices(int v);
+	void BuildIntegerConstraints();
 	void UpdateMesh();
+
+	std::set<DEdge> cuts;
+
 };
 #endif

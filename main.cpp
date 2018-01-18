@@ -21,6 +21,7 @@ int show_singularity = 0;
 int show_color = 0;
 int show_index = 0;
 int show_v = -1;
+int show_cuts;
 int select_mode = 0;
 int show_f;
 std::vector<Vector3d> color;
@@ -79,6 +80,19 @@ Vector3d Gray2HSV(double gray)
 		break;
 	}
 	return res / 255.0f;
+}
+
+void render_cuts() {
+	if (show_cuts == 0)
+		return;
+	auto& V = field.hierarchy.mV[0];
+	glColor3f(1, 0, 0);
+	glBegin(GL_LINES);
+	for (auto& p : field.cuts) {
+		glVertex3dv(&V(0, p.x));
+		glVertex3dv(&V(0, p.y));
+	}
+	glEnd();
 }
 
 void render_test_travel(int f)
@@ -498,7 +512,7 @@ static void render_callback(void)
 	render_quadmesh();
 	render_crossfield();
 	render_loop();
-
+	render_cuts();
 	glPopMatrix();
 	glutSwapBuffers();
 }
@@ -614,6 +628,11 @@ static void keyboard_callback(unsigned char key, int x, int y)
 		glutPostRedisplay();
 	}
 
+	if (key == 'u') {
+		show_cuts = 1 - show_cuts;
+		glutPostRedisplay();
+	}
+
 	if (key == 'c') {
 		if (show_v != -1) {
 			field.MergeVertices(show_v);
@@ -703,11 +722,12 @@ static void keyboard_callback(unsigned char key, int x, int y)
 	}
 }
 
+extern void max_flow_main();
 int main(int argc, char** argv)
 {
 	int with_scale = 1;
 	int t1, t2;
-	/*
+	
 	field.Load(argv[1]);
 	
 	printf("Initialize...\n");
@@ -737,7 +757,7 @@ int main(int argc, char** argv)
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
-	*/
+	
 	printf("load...\n");
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);

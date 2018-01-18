@@ -25,6 +25,7 @@
     <ClCompile Include="hierarchy.cpp" />
     <ClCompile Include="loader.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mcmf.cpp" />
     <ClCompile Include="MergeVertex.cpp" />
     <ClCompile Include="Optimizer.cpp" />
     <ClCompile Include="Parametrizer.cpp" />
@@ -39,6 +40,7 @@
     <ClInclude Include="glDraw.h" />
     <ClInclude Include="hierarchy.h" />
     <ClInclude Include="loader.h" />
+    <ClInclude Include="mcmf.h" />
     <ClInclude Include="MergeVertex.h" />
     <ClInclude Include="Optimizer.h" />
     <ClInclude Include="Parametrizer.h" />

@@ -6,7 +6,7 @@
 #include "dedge.h"
 #include "AdjacentMatrix.h"
 #include "field_math.h"
-
+#include "mcmf.h"
 #include <fstream>
 #include <queue>
 #include <list>
@@ -1601,7 +1601,8 @@ int get_parents(std::vector<std::pair<int, int> >& parents, int j) {
 	if (j == parents[j].first)
 		return j;
 	int k = get_parents(parents, parents[j].first);
-//	parents[j] = k;
+	parents[j].second = (parents[j].second + parents[parents[j].first].second) % 4;
+	parents[j].first = k;
 	return k;
 }
 
@@ -1805,17 +1806,18 @@ void Parametrizer::UpdateMesh()
 					diff2 = rshift90(-diff2, (rank2.first + 4 - rank2.second) % 4);
 				if (diff1[0] * diff2[1] - diff1[1] * diff2[0] < 0) {
 					shift_edges += 1;
-					printf("<%d %d> => <%d %d>\n", diff1[0], diff1[1], diff2[0], diff2[1]);
+//					printf("<%d %d> => <%d %d>\n", diff1[0], diff1[1], diff2[0], diff2[1]);
 				}
 			}
-			if (shift_edges > 0)
-				printf("################# shift edges %d #####################\n", i);
+			if (shift_edges > 0) {
+//				printf("################# shift edges %d #####################\n", i);
+			}
 		}
 		int v1 = shrink_compact_indices[get_parents(shrink_parents, colors[F(0, i)])];
 		int v2 = shrink_compact_indices[get_parents(shrink_parents, colors[F(1, i)])];
 		int v3 = shrink_compact_indices[get_parents(shrink_parents, colors[F(2, i)])];
 		if (v1 != v2 && v2 != v3 && v3 != v1 && shift_edges == 1) {
-			printf("shifts %d\n", shift_edges);
+//			printf("shifts %d\n", shift_edges);
 //			mF_extracted2.push_back(Vector3i(v1, v2, v3));
 		}
 	}
@@ -1959,7 +1961,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	};
 
 	printf("compute hash map\n");
-	int t1 = GetTickCount();
+	int t1 = GetTickCount(), t2 = t1;
 	std::vector<int> edge_hash_map(edge_values.size() * 2, -2);
 	for (int f = 0; f < F.cols(); ++f) {
 		if (singularities.count(f)) {
@@ -1996,39 +1998,53 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		return (diff1[0] * diff2[1] - diff1[1] * diff2[0] >= 0);
 	};
 	auto CheckSanity = [&](int sing){
+		printf("Check Sanity\n");
 		int pos_sings = 0;
 		for (int ff = 0; ff < F.cols(); ++ff) {
 			//			if (singularities.count(ff))
 			//				continue;
-			auto diff1 = edge_diff[edge_ids[DEdge(F(0, ff), F(1, ff))]];
-			auto diff2 = edge_diff[edge_ids[DEdge(F(1, ff), F(2, ff))]];
-			auto diff3 = edge_diff[edge_ids[DEdge(F(2, ff), F(0, ff))]];
-			auto index1 = compat_orientation_extrinsic_index_4(Q.col(F(0, ff)), N.col(F(0, ff)), Q.col(F(1, ff)), N.col(F(1, ff)));
-			auto index2 = compat_orientation_extrinsic_index_4(Q.col(F(0, ff)), N.col(F(0, ff)), Q.col(F(2, ff)), N.col(F(2, ff)));
-			int rank1 = (index1.first - index1.second + 4) % 4;
-			int rank2 = (index2.first - index2.second + 4) % 4;
-			if (F(1, ff) < F(0, ff)) {
-				diff1 = rshift90(-diff1, rank1);
-			}
-			if (F(2, ff) < F(1, ff)) {
-				diff2 = rshift90(-diff2, rank2);
-			}
-			else {
-				diff2 = rshift90(diff2, rank1);
-			}
-			if (F(0, ff) < F(2, ff)) {
-				diff3 = -diff3;
-			}
-			else {
-				diff3 = rshift90(diff3, rank2);
-			}
-			auto diff = diff1 + diff2 + diff3;
-			if (diff != Vector2i::Zero() && singularities.count(ff) == 0) {
-				if (pos_sing.count(ff) == 0) {
-					printf("additional %d !\n", ff);
-					printf("%d %d %d\n", F(0, ff), F(1, ff), F(2, ff));
+			for (int j = 0; j < 3; ++j) {
+				int v0 = F(j, ff);
+				int v1 = F((j + 1) % 3, ff);
+				int v2 = F((j + 2) % 3, ff);
+				auto diff1 = edge_diff[edge_ids[DEdge(v0, v1)]];
+				auto diff2 = edge_diff[edge_ids[DEdge(v1, v2)]];
+				auto diff3 = edge_diff[edge_ids[DEdge(v2, v0)]];
+				auto index1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+				auto index2 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
+				int rank1 = (index1.first - index1.second + 4) % 4;
+				int rank2 = (index2.first - index2.second + 4) % 4;
+				if (v1 < v0) {
+					diff1 = rshift90(-diff1, rank1);
 				}
-				pos_sings += 1;
+				if (v2 < v1) {
+					diff2 = rshift90(-diff2, rank2);
+				}
+				else {
+					diff2 = rshift90(diff2, rank1);
+				}
+				if (v0 < v2) {
+					diff3 = -diff3;
+				}
+				else {
+					diff3 = rshift90(diff3, rank2);
+				}
+				auto diff = diff1 + diff2 + diff3;
+
+				if (singularities.count(ff)) {
+//					printf("%d (%d): <%d %d  %d %d  %d %d>\n", ff, singularities[ff],
+						//					shrink_compact_indices[get_parents(shrink_parents, colors[F(0, ff)])],
+						//					shrink_compact_indices[get_parents(shrink_parents, colors[F(1, ff)])],
+						//					shrink_compact_indices[get_parents(shrink_parents, colors[F(2, ff)])],
+//						diff1[0], diff1[1], diff2[0], diff2[1], diff3[0], diff3[1]);
+				}
+				if (diff != Vector2i::Zero() && singularities.count(ff) == 0) {
+					if (pos_sing.count(ff) == 0) {
+						printf("additional %d !\n", ff);
+						printf("%d %d %d\n", F(0, ff), F(1, ff), F(2, ff));
+					}
+					pos_sings += 1;
+				}
 			}
 		}
 		int shift_edges = 0;
@@ -2053,10 +2069,52 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		}
 		printf("\nsingularity: %d    shift edges: %d    pos sing: %d\n", sing, shift_edges, pos_sings);
 	};
+	auto CollapseVertex = [&](int v1, int v2) {
+		Vector2i diff1 = edge_diff[edge_ids[DEdge(v1, v2)]];
+		auto rank1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(v2), N.col(v2));
+		if (v1 > v2)
+			diff1 = rshift90(-diff1, (rank1.first + 4 - rank1.second) % 4);
+		std::map<int, int> parents;
+		std::queue<int> q;
+		q.push(v1);
+		parents[v1] = 0;
+		while (!q.empty()) {
+			int v1 = q.front();
+			q.pop();
+			for (auto& link : adj[v1]) {
+				auto& diff_v1 = edge_diff[edge_ids[DEdge(v1, link.id)]];
+				if (diff_v1[0] == 0 && diff_v1[1] == 0) {
+					if (!parents.count(link.id)) {
+						auto index = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(link.id), N.col(link.id));
+						q.push(link.id);
+						parents[link.id] = (parents[v1] + index.second - index.first + 4) % 4;
+					}
+				}
+			}
+		}
+		for (auto v1 : parents) {
+			for (auto& link : adj[v1.first]) {
+				Vector2i& diff_v1 = edge_diff[edge_ids[DEdge(v1.first, link.id)]];
+				auto rank2 = compat_orientation_extrinsic_index_4(Q.col(v1.first), N.col(v1.first), Q.col(link.id), N.col(link.id));
+				auto diff2 = rshift90(diff1, v1.second);
+				if (link.id < v1.first)
+					diff_v1 = rshift90(-diff_v1, (rank2.first + 4 - rank2.second) % 4);
+				diff_v1 -= diff2;
+				if (link.id < v1.first)
+					diff_v1 = rshift90(-diff_v1, (rank2.second - rank2.first + 4) % 4);
+			}
+		}
+
+	};
+	CheckSanity(0);
+	system("pause");
+	printf("Build Integer Constraints...\n");
+	BuildIntegerConstraints();
+	CheckSanity(0);
+	system("pause");
+	/*
 	int sing = 0;
 	for (int f = 0; f < F.cols(); ++f) {
-		if (singularities.count(f))
-			continue;
 		if (pos_sing.count(f) == 0)
 			continue;
 		int v0 = F(0, f);
@@ -2072,7 +2130,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			sign[2] = -1;
 		int eID0 = edge_ids[e0], eID1 = edge_ids[e1], eID2 = edge_ids[e2];
 		Vector2i diff = (sign[0] * edge_diff[eID0] + sign[1] * TransformRank(edge_diff[eID1], eID1, eID0) + sign[2] * TransformRank(edge_diff[eID2], eID2, eID0));
-		if (diff == Vector2i::Zero())
+		if (diff == Vector2i::Zero())// && singularities.count(f) == 0 || (abs(diff[0]) <= 1 && abs(diff[1]) <= 1 && singularities.count(f)))
 			continue;
 		int min_len = 0x7fffffff;
 		int min_sign = 1;
@@ -2172,9 +2230,43 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 						new_info.direction = n;
 						q.push_back(new_info);
 						if (edge_hash[n] >= 0) {
+							edge_diff[next_edge] += new_diff;
 							int f = edge_hash[n];
-							int v3 = F(0, f) + F(1, f) + F(2, f) - edge_values[next_edge].x - edge_values[next_edge].y;
+							int v0 = F(0, f);
+							int v1 = F(1, f);
+							int v2 = F(2, f);
+							auto index1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+							auto index2 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
+							auto diff1 = edge_diff[edge_ids[DEdge(v0, v1)]];
+							auto diff2 = edge_diff[edge_ids[DEdge(v1, v2)]];
+							auto diff3 = edge_diff[edge_ids[DEdge(v2, v0)]];
+							int rank1 = (index1.first - index1.second + 4) % 4;
+							int rank2 = (index2.first - index2.second + 4) % 4;
+							if (v1 < v0) {
+								diff1 = rshift90(-diff1, rank1);
+							}
+							if (v2 < v1) {
+								diff2 = rshift90(-diff2, rank2);
+							}
+							else {
+								diff2 = rshift90(diff2, rank1);
+							}
+							if (v0 < v2) {
+								diff3 = -diff3;
+							}
+							else {
+								diff3 = rshift90(diff3, rank2);
+							}
 
+
+							bool flag = false;
+							int k1 = abs(diff1[0]) + abs(diff1[1]);
+							int k2 = abs(diff2[0]) + abs(diff2[1]);
+							int k3 = abs(diff3[0]) + abs(diff3[1]);
+							if (k1 == 0 || k2 == 0 || k3 == 0)
+								flag = true;
+
+							int v3 = F(0, f) + F(1, f) + F(2, f) - v0 - v1;
 							Vector2i diff;
 							if (v3 > edge_values[next_edge].x) {
 								diff = edge_diff[next_edge];
@@ -2184,14 +2276,11 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 								diff = rshift90(-edge_diff[next_edge], (index.second - index.first + 4) % 4);
 							}
 							int sign = potential_diff[0] * diff[1] - potential_diff[1] * diff[0];
-							int v1, v2;
-							if (v3 == F(0, f))
-								v1 = F(1, f), v2 = F(2, f);
-							else if (v3 == F(1, f))
-								v1 = F(2, f), v2 = F(0, f);
-							else
-								v1 = F(0, f), v2 = F(1, f);
-							if (v1 == edge_values[next_edge].x && sign >= 0 || v1 == edge_values[next_edge].y && sign <= 0) {
+							if (!(v1 < v0 && sign >= 0 || v1 > v0 && sign <= 0)) {
+								flag = false;
+							}
+							edge_diff[next_edge] -= new_diff;
+							if (flag) {
 								found = true;
 								TraceBack(q.size() - 1);
 								break;
@@ -2213,44 +2302,9 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		}
 		sing += 1;
 	}
+	printf("sing...\n");
+	system("pause");
 
-	auto CollapseVertex = [&](int v1, int v2) {
-		Vector2i diff1 = edge_diff[edge_ids[DEdge(v1, v2)]];
-		auto rank1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(v2), N.col(v2));
-		if (v1 > v2)
-			diff1 = rshift90(-diff1, (rank1.first + 4 - rank1.second) % 4);
-		std::map<int, int> parents;
-		std::queue<int> q;
-		q.push(v1);
-		parents[v1] = 0;
-		while (!q.empty()) {
-			int v1 = q.front();
-			q.pop();
-			for (auto& link : adj[v1]) {
-				auto& diff_v1 = edge_diff[edge_ids[DEdge(v1, link.id)]];
-				if (diff_v1[0] == 0 && diff_v1[1] == 0) {
-					if (!parents.count(link.id)) {
-						auto index = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(link.id), N.col(link.id));
-						q.push(link.id);
-						parents[link.id] = (parents[v1] + index.second - index.first + 4) % 4;
-					}
-				}
-			}
-		}
-		for (auto v1 : parents) {
-			for (auto& link : adj[v1.first]) {
-				Vector2i& diff_v1 = edge_diff[edge_ids[DEdge(v1.first, link.id)]];
-				auto rank2 = compat_orientation_extrinsic_index_4(Q.col(v1.first), N.col(v1.first), Q.col(link.id), N.col(link.id));
-				auto diff2 = rshift90(diff1, v1.second);
-				if (link.id < v1.first)
-					diff_v1 = rshift90(-diff_v1, (rank2.first + 4 - rank2.second) % 4);
-				diff_v1 -= diff2;
-				if (link.id < v1.first)
-					diff_v1 = rshift90(-diff_v1, (rank2.second - rank2.first + 4) % 4);
-			}
-		}
-
-	};
 	for (int i = 0; i < F.cols(); ++i) {
 		if (singularities.count(i))
 			continue;
@@ -2292,10 +2346,10 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			CollapseVertex(v1, v2);
 		}
 	}
-	CheckSanity(0);
+//	CheckSanity(0);
 	int t2 = GetTickCount();
 	printf("Trace Map use %lf seconds\n", (t2 - t1) * 1e-3);
-	
+	*/
 	std::vector<Eigen::Triplet<double> > lhsTriplets;
 	t1 = GetTickCount();
 	lhsTriplets.reserve(F.cols() * 6);
@@ -2398,11 +2452,96 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
 
 	printf("quad edge num: %d\n", edge_values.size());
-
 	std::vector<int> compact_parents(parents.size(), -1);
 	int num_v;
+	int count = 0;
+	while (true) {
+		std::vector<int> singularity_pos(V.cols(), 0);
+		for (auto& f : singularities) {
+			for (int i = 0; i < 3; ++i) {
+				singularity_pos[get_parents(parents, F(i, f.first))] = 1;
+			}
+		}
+		for (auto& p : cuts) {
+			singularity_pos[get_parents(parents, p.x)] = 1;
+			singularity_pos[get_parents(parents, p.y)] = 1;
+		}
+
+		count += 1;
+		bool update = false;
+		num_v = 0;
+		for (int i = 0; i < parents.size(); ++i) {
+			if (parents[i].first == i) {
+				compact_parents[i] = num_v++;
+			}
+		}
+		colors.resize(parents.size());
+		for (int i = 0; i < parents.size(); ++i) {
+			colors[i] = compact_parents[get_parents(parents, i)];
+		}
+		printf("count %d\n", count);
+		std::vector<std::vector<int> > neighbor_lists[4];
+		for (int j = 0; j < 4; ++j)
+			neighbor_lists[j].resize(num_v);
+		Vector2i diffs[4] = { Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1) };
+		for (int i = 0; i < edge_to_constraints.size(); ++i) {
+			if (cuts.count(edge_values[i]) == 0) {
+				if (singularity_pos[get_parents(parents, edge_values[i].x)] || singularity_pos[get_parents(parents, edge_values[i].y)])
+					continue;
+				auto& edge_c = edge_to_constraints[i];
+				int v0 = edge_c[0];
+				int v1 = edge_c[2];
+
+				int orientp0 = (get_parents_orient(parentss, v0) + edge_c[1]) % 4;
+				int orientp1 = (get_parents_orient(parentss, v1) + edge_c[3]) % 4;
+				int p1 = get_parents(parents, edge_values[i].x);
+				int p2 = get_parents(parents, edge_values[i].y);
+				if (p1 == p2)
+					continue;
+
+				auto diff = rshift90(edge_diff[i], orientp0);
+				for (int j = 0; j < 4; ++j) {
+					if (diffs[j] == diff)
+						neighbor_lists[j][compact_parents[p1]].push_back(p2);
+					if (diffs[j] == -diff)
+						neighbor_lists[j][compact_parents[p2]].push_back(p1);
+				}
+			}
+		}
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < neighbor_lists[i].size(); ++j) {
+				for (int k = 0; k < neighbor_lists[i][j].size(); ++k) {
+					for (int l = k + 1; l < neighbor_lists[i][j].size(); ++l) {
+						int p1 = get_parents(parents, neighbor_lists[i][j][k]);
+						if (p1 != neighbor_lists[i][j][k])
+							continue;
+						int p2 = get_parents(parents, neighbor_lists[i][j][l]);
+						if (p2 != neighbor_lists[i][j][l])
+							continue;
+						if (p1 == p2)
+							continue;
+						if (ranks[p1] > ranks[p2]) {
+							ranks[p1] += ranks[p2];
+							parents[p2] = std::make_pair(p1, 0);
+							update = true;
+						}
+						else {
+							ranks[p2] += ranks[p1];
+							parents[p1] = std::make_pair(p2, 0);
+							update = true;
+						}
+					}
+				}
+			}
+		}
+		if (!update)
+			break;
+	}
+
+
+	/*
 	int ttt = 0;
-	for (int thres = 1; thres <= 2; ++thres) {
+	for (int thres = 1; thres <= 0; ++thres) {
 		bool update = true;
 		while (update) {
 			num_v = 0;
@@ -2481,7 +2620,8 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			}
 		}
 	}
-	CheckSanity(0);
+//	CheckSanity(0);
+	*/
 
 	O_compact.resize(num_v, Vector3d::Zero());
 	counter.resize(num_v, 0);
@@ -2776,7 +2916,15 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		t += 1;
 	}
 
+	for (auto& f : singularities) {
+		printf("sing: %d %d %d %d\n", f.first,
+			shrink_compact_indices[get_parents(shrink_parents, colors[F(0, f.first)])],
+			shrink_compact_indices[get_parents(shrink_parents, colors[F(1, f.first)])],
+			shrink_compact_indices[get_parents(shrink_parents, colors[F(2, f.first)])]);
+	}
+
 	UpdateMesh();
+	CheckSanity(0);
 	return;
 	mE_extracted.clear();
 	mO_extracted.resize(compact_num_v, Vector3d(0, 0, 0));
@@ -2811,4 +2959,366 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	std::swap(singular_patches, singular_patches_buf);
 	mE_extracted.insert(mE_extracted.end(), edges.begin(), edges.end());
 	printf("%d %d\n", mO_extracted.size(), mE_extracted.size());
+
+}
+
+void Parametrizer::BuildIntegerConstraints()
+{
+	auto& F = hierarchy.mF;
+	auto& Q = hierarchy.mQ[0];
+	auto& N = hierarchy.mN[0];
+	std::vector<Vector2i> sign_indices;
+	edge_to_constraints.resize(edge_ids.size(), Vector4i(-1,-1,-1,-1));
+	for (int i = 0; i < F.cols(); ++i) {
+		int v0 = F(0, i);
+		int v1 = F(1, i);
+		int v2 = F(2, i);
+		DEdge e0(v0, v1), e1(v1, v2), e2(v2, v0);
+		int eid[3] = { edge_ids[e0], edge_ids[e1], edge_ids[e2] };
+		Vector2i vid[3];
+		for (int i = 0; i < 3; ++i) {
+			vid[i] = Vector2i(eid[i] * 2 + 1, eid[i] * 2 + 2);
+		}
+		auto index1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+		auto index2 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
+		int rank1 = (index1.first - index1.second + 4) % 4;
+		int rank2 = (index2.first - index2.second + 4) % 4;
+		int orients[3] = { 0 };
+		if (v1 < v0) {
+			vid[0] = -rshift90(vid[0], rank1);
+			orients[0] = (rank1 + 2) % 4;
+		}
+		if (v2 < v1) {
+			vid[1] = -rshift90(vid[1], rank2);
+			orients[1] = (rank2 + 2) % 4;
+		}
+		else {
+			vid[1] = rshift90(vid[1], rank1);
+			orients[1] = rank1;
+		}
+		if (v2 < v0) {
+			vid[2] = rshift90(vid[2], rank2);
+			orients[2] = rank2;
+		}
+		else {
+			vid[2] = -vid[2];
+			orients[2] = 2;
+		}
+
+		edge_to_constraints[eid[0]][(v0 > v1) * 2] = i;
+		edge_to_constraints[eid[0]][(v0 > v1) * 2 + 1] = orients[0];
+		edge_to_constraints[eid[1]][(v1 > v2) * 2] = i;
+		edge_to_constraints[eid[1]][(v1 > v2) * 2 + 1] = orients[1];
+		edge_to_constraints[eid[2]][(v2 > v0) * 2] = i;
+		edge_to_constraints[eid[2]][(v2 > v0) * 2 + 1] = orients[2];
+
+		for (int k = 0; k < 3; ++k) {
+			sign_indices.push_back(vid[k]);
+		}
+	}
+	parentss.resize(F.cols());
+	std::vector<int> ranks(F.cols(), 1);
+	for (int i = 0; i < parentss.size(); ++i)
+		parentss[i] = std::make_pair(i, 0);
+	for (int i = 0; i < edge_to_constraints.size(); ++i) {
+		auto& edge_c = edge_to_constraints[i];
+		int v0 = edge_c[0];
+		int v1 = edge_c[2];
+		int orient1 = edge_c[1];
+		int orient0 = (edge_c[3] + 2) % 4;
+
+		int p0 = get_parents(parentss, v0);
+		int p1 = get_parents(parentss, v1);
+		int orientp0 = get_parents_orient(parentss, v0);
+		int orientp1 = get_parents_orient(parentss, v1);
+
+		if (p0 == p1) {
+			continue;
+		}
+		if (ranks[p1] < ranks[p0]) {
+			ranks[p0] += ranks[p1];
+			parentss[p1].first = p0;
+			parentss[p1].second = (orient1 - orient0 + orientp0 - orientp1 + 8) % 4;
+		}
+		else {
+			ranks[p1] += ranks[p0];
+			parentss[p0].first = p1;
+			parentss[p0].second = (orient0 - orient1 + orientp1 - orientp0 + 8) % 4;
+		}
+	}
+
+	std::vector<Vector3i> sing_diff;
+	std::vector<std::map<int, std::pair<int, int> > > sing_maps;
+	for (int i = 0; i < sign_indices.size(); i += 3) {
+		int f = i / 3;
+		int orient = get_parents_orient(parentss, f);		
+		for (int j = 0; j < 3; ++j) {
+			int v1 = F(j, f);
+			int v2 = F((j + 1) % 3, f);
+			int eid = edge_ids[DEdge(v1, v2)];
+			sign_indices[i + j] = rshift90(sign_indices[i + j], orient);
+		}
+		for (int j = 0; j < 2; ++j) {
+			Vector3i sign, ind;
+			for (int k = 0; k < 3; ++k) {
+				ind[k] = abs(sign_indices[i + k][j]);
+				sign[k] = sign_indices[i + k][j] / ind[k];
+				ind[k] -= 1;
+			}
+			constraints_index.push_back(ind);
+			constraints_sign.push_back(sign);
+		}
+		if (singularities.count(f)) {
+			int orient_base = singularities[f];
+			Vector3i diffs;
+			for (int j = 0; j < 3; ++j) {
+				auto sign_index = rshift90(sign_indices[i + j], orient_base);
+				int total_diff = 0;
+				for (int k = 0; k < 2; ++k) {
+					auto ind = constraints_index[f * 2 + k];
+					auto sign = constraints_sign[f * 2 + k];
+					ind[j] = abs(sign_index[k]);
+					sign[j] = sign_index[k] / abs(sign_index[k]);
+					ind[j] -= 1;
+					int diff1 = edge_diff[ind[0] / 2][ind[0] % 2];
+					int diff2 = edge_diff[ind[1] / 2][ind[1] % 2];
+					int diff3 = edge_diff[ind[2] / 2][ind[2] % 2];
+					int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
+					total_diff += diff;
+				}
+				diffs[j] = total_diff;
+			}
+			sing_diff.push_back(diffs);
+		}
+	}
+
+	int total_flow = 0;
+	for (int i = 0; i < constraints_index.size(); ++i) {
+		if (singularities.count(i / 2)) {
+			continue;
+		}
+		auto index = constraints_index[i];
+		auto sign = constraints_sign[i];
+		int diff1 = edge_diff[index[0] / 2][index[0] % 2];
+		int diff2 = edge_diff[index[1] / 2][index[1] % 2];
+		int diff3 = edge_diff[index[2] / 2][index[2] % 2];
+		int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
+		total_flow += diff;
+	}
+	sing_maps.resize(sing_diff.size() + 1);
+	sing_maps[0][total_flow] = std::make_pair(0, 0);
+	for (int i = 0; i < sing_diff.size(); ++i) {
+		auto& prev = sing_maps[i];
+		auto& next = sing_maps[i + 1];
+		for (auto& p : prev) {
+			for (int j = 0; j < 3; ++j) {
+				int v = p.first + sing_diff[i][j];
+				int t = p.second.first + abs(sing_diff[i][j]);
+				auto it = next.find(v);
+				if (it == next.end())
+					next[v] = std::make_pair(t, j);
+				else
+					if (t < it->second.first)
+						it->second = std::make_pair(t, j);
+			}
+		}
+	}
+	if (sing_maps.back().count(0) == 0) {
+		printf("No Zero map!\n");
+		exit(0);
+	}
+	std::vector<int> sing_selection;
+	int target_flow = 0;
+	for (int i = sing_diff.size(); i > 0; i--) {
+		auto p = sing_maps[i][target_flow];
+		target_flow -= sing_diff[i - 1][p.second];
+		sing_selection.push_back(p.second);
+	}
+	std::reverse(sing_selection.begin(), sing_selection.end());
+	int sing_count = 0;
+	for (auto& f : singularities) {
+		int select = sing_selection[sing_count++];
+		auto& index1 = constraints_index[f.first * 2];
+		auto& index2 = constraints_index[f.first * 2 + 1];
+		auto& sign1 = constraints_sign[f.first * 2];
+		auto& sign2 = constraints_sign[f.first * 2 + 1];
+		auto diff = Vector2i(sign1[select] * (index1[select] + 1),
+			sign2[select] * (index2[select] + 1));
+		diff = rshift90(diff, f.second);
+		index1[select] = abs(diff[0]);
+		sign1[select] = diff[0] / abs(diff[0]);
+		index1[select] -= 1;
+		index2[select] = abs(diff[1]);
+		sign2[select] = diff[1] / abs(diff[1]);
+		index2[select] -= 1;
+	}
+	total_flow = 0;
+
+	variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
+	for (int i = 0; i < constraints_index.size(); ++i) {
+		auto index = constraints_index[i];
+		auto sign = constraints_sign[i];
+		int diff1 = edge_diff[index[0] / 2][index[0] % 2];
+		int diff2 = edge_diff[index[1] / 2][index[1] % 2];
+		int diff3 = edge_diff[index[2] / 2][index[2] % 2];
+		int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
+		total_flow += diff;
+		if (diff != 0 && pos_sing.count(i / 2) == 0 && singularities.count(i / 2) == 0) {
+			printf("FAIL!\n");
+			system("pause");
+		}
+		for (int j = 0; j < 3; ++j) {
+			auto& p = variables[index[j]].first;
+			if (sign[j] > 0)
+				p[0] = i;
+			else
+				p[1] = i;
+			variables[index[j]].second += sign[j];
+		}
+	}
+	cuts.clear();
+	for (int i = 0; i < variables.size(); ++i) {
+		if (variables[i].second != 0) {
+			cuts.insert(edge_values[i / 2]);
+		}
+	}
+
+	ComputeMaxFlow();
+}
+
+void Parametrizer::ComputeMaxFlow()
+{
+	//"p min 6 8
+	//c min-cost flow problem with 6 nodes and 8 arcs
+	//n 1 10
+	//c supply of 10 at node 1
+	//n 6 -10
+	//c demand of 10 at node 6
+	//c arc list follows
+	//c arc has <tail> <head> <capacity l.b.> <capacity u.b> <cost>
+	//a 1 2 0 4 1
+	//a 1 3 0 8 5
+	//a 2 3 0 5 0
+	//a 3 5 0 10 1
+	//a 5 4 0 8 0
+	//a 5 6 0 8 9
+	//a 4 2 0 8 1
+	//a 4 6 0 8 1"
+	auto& Q = hierarchy.mQ[0];
+	auto& N = hierarchy.mN[0];
+	auto& V = hierarchy.mV[0];
+	int num_nodes = constraints_index.size() + 2;
+	std::vector<std::pair<Vector2i, int> > arcs;
+	std::vector<std::pair<int, int> > arc_ids;
+	for (int i = 0; i < variables.size(); ++i) {
+		if (variables[i].second == 0) {
+			int current_v = edge_diff[i / 2][i % 2];
+			int v1 = edge_values[i / 2].x;
+			int v2 = edge_values[i / 2].y;
+			arcs.push_back(std::make_pair(variables[i].first, current_v));
+			Vector3d q = Q.col(v1);
+			Vector3d d = V.col(v2) - V.col(v1);
+			Vector3d n = N.col(v1);
+			double t = 0;
+			if (i % 2 == 0)
+				t = q.dot(d);
+			else
+				t = d.dot(n.cross(d));
+			arc_ids.push_back(std::make_pair(i, t > 0 ? 1 : -1));
+		}
+	}
+	int supply = 0;
+	for (int i = 0; i < constraints_index.size(); ++i) {
+		int diff = 0;
+		for (int j = 0; j < 3; ++j) {
+			int ind = constraints_index[i][j];
+			diff += constraints_sign[i][j] * edge_diff[ind / 2][ind % 2];
+		}
+		if (diff > 0) {
+			arcs.push_back(std::make_pair(Vector2i(-1, i), diff));
+			supply += diff;
+		}
+		else {
+			arcs.push_back(std::make_pair(Vector2i(i, constraints_index.size()), -diff));
+		}
+	}
+	std::vector<std::map<int, std::pair<int, int> > > graph(constraints_index.size() + 2);
+	std::map<Edge, std::pair<int, int> > edge_to_variable;
+	for (int i = 0; i < arcs.size(); ++i) {
+		int v1 = arcs[i].first[0] + 1;
+		int v2 = arcs[i].first[1] + 1;
+		int c = arcs[i].second;
+		if (v1 == 0 || v2 == constraints_index.size() + 1) {
+			graph[v1][v2] = std::make_pair(c, 0);
+			graph[v2][v1] = std::make_pair(0, 0);
+		}
+		else {
+			int t = arc_ids[i].second;
+			graph[v1][v2] = std::make_pair(std::max(0, c + (t == -1 ? 1 : 1)), 0);
+			graph[v2][v1] = std::make_pair(std::max(0, -c + (t == 1 ? 1 : 1)), 0);
+			edge_to_variable[Edge(v1, v2)] = std::make_pair(arc_ids[i].first, -1);
+			edge_to_variable[Edge(v2, v1)] = std::make_pair(arc_ids[i].first, 1);
+		}
+	}
+
+	int total_flow = 0;
+	while (true) {
+		std::vector<int> visited(graph.size(), 0);
+		std::vector<std::pair<int, int> > q;
+		q.push_back(std::make_pair(0, -1));
+		visited[0] = 1;
+		int front = 0;
+		bool found = false;
+		while (front < q.size() && !found) {
+			for (auto& p : graph[q[front].first]) {
+				if (visited[p.first] == 0 && p.second.first - p.second.second > 0) {
+					visited[p.first] = 1;
+					q.push_back(std::make_pair(p.first, front));
+					if (p.first == constraints_index.size() + 1) {
+						found = true;
+						break;
+					}
+				}
+			}
+			front += 1;
+		}
+		if (found) {
+			int flows = 0x7fffffff;
+			int r = q.size() - 1;
+			while (q[r].second != -1) {
+				int v2 = q[r].first;
+				int v1 = q[q[r].second].first;
+				auto& p = graph[v1][v2];
+				flows = std::min(flows, p.first - p.second);
+				r = q[r].second;
+			}
+			r = q.size() - 1;
+			while (q[r].second != -1) {
+				int v2 = q[r].first;
+				int v1 = q[q[r].second].first;
+				graph[v1][v2].second += flows;
+				graph[v2][v1].second -= flows;
+				r = q[r].second;
+			}
+			total_flow += flows;
+		}
+		else
+			break;
+	}
+	printf("supply and flow: %d %d\n", supply, total_flow);
+
+	for (int i = 1; i < graph.size() - 1; ++i) {
+		for (auto& p : graph[i]) {
+			if (p.first >= 1 && p.first < graph.size() - 1) {
+				int flow = p.second.second;
+				if (flow > 0) {
+					auto q = edge_to_variable[Edge(i, p.first)];
+					edge_diff[q.first / 2][q.first % 2] += q.second * flow;
+					if (std::abs(edge_diff[q.first / 2][q.first % 2]) > 1) {
+						printf("FAIL!\n");
+					}
+				}
+			}
+		}
+	}
 }
