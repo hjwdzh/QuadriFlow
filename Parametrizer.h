@@ -159,12 +159,16 @@ public:
 	std::vector<std::pair<int, int> > parentss;
 	std::vector<Vector4i> edge_to_constraints;
 
+	std::vector<Vector2i> param;
+	Vector2i min_param, max_param;
 	void ComputeMaxFlow();
 	void MergeVertices(int v);
 	void BuildIntegerConstraints();
 	void UpdateMesh();
-
+	void FixFlip();
 	std::set<DEdge> cuts;
+
+	std::vector<int> vdist;
 
 };
 #endif

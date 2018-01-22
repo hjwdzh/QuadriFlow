@@ -165,21 +165,7 @@ static void render_mesh()
 		auto& mN = field.hierarchy.mN[0];
 		auto& mVq = field.mV_extracted;
 
-		static std::vector<Vector3d> color_pts;
-		if (color_pts.size() == 0) {
-			int max_color = 0;
-			for (int i = 0; i < field.colors.size(); ++i) {
-				if (max_color < field.colors[i])
-					max_color = field.colors[i];
-			}
-			color_pts.resize(max_color + 1);
-			for (auto& p : color_pts) {
-				p = Vector3d(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
-			}
-		}
 		glDisable(GL_LIGHTING);
-		std::vector<int> interest_pts = { 11738, 897, 26514, 899, 898, 10977 };
-		std::set<int> interest(interest_pts.begin(), interest_pts.end());
 		if (show_mesh) {
 //			static GLfloat white[4] =
 //			{ 1.0, 1.0, 1.0, 1.0 };
@@ -188,19 +174,10 @@ static void render_mesh()
 			for (int i = 0; i < mF.cols(); ++i) {
 				for (int j = 0; j < 3; ++j) {
 					int ind = field.colors[mF(j, i)];
-					Vector3d c = color_pts[ind];
-					if (field.singular_patches_buf.count(ind) && false) {
-						c = Vector3d(1, 0, 0);
-					}
-					else {
-						if (interest.count(mF(j, i))) {
-							c = Vector3d(1, 0, 0);
-						}
-						else if (mF(j, i) == 11042)
-							c = Vector3d(0, 1, 0);
-						else
-							c = Vector3d(1, 1, 1);
-					}
+					Vector2i diff = field.param[mF(j, i)];
+					Vector3d c(1,1,1);
+//					c[0] = (diff[0] - field.min_param[0]) / (0.0 + field.max_param[0] - field.min_param[0]);
+//					c[1] = (diff[1] - field.min_param[1]) / (0.0 + field.max_param[1] - field.min_param[1]);
 					glColor3f(c[0], c[1], c[2]);
 					glNormal3dv(&mN(0, mF(j, i)));
 					glVertex3dv(&mV(0, mF(j, i)));
@@ -497,7 +474,7 @@ static void render_callback(void)
 	glPushMatrix();
 	glTranslated(render_translation.x, render_translation.y, render_translation.z);
 	double model_scale = exp(render_scale);
-	glScaled(model_scale, model_scale, 1);
+	glScaled(model_scale, model_scale, 0.9);
 	glMultMatrixd((double*)&render_rotation);
 	if (render_wireframe) {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
