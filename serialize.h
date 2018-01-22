@@ -9,6 +9,16 @@
 #include "AdjacentMatrix.h"
 using namespace Eigen;
 
+inline void Read(FILE* fp, Vector2i& m) {
+	fread(&m[0], sizeof(int), 1, fp);
+	fread(&m[1], sizeof(int), 1, fp);
+}
+
+inline void Save(FILE* fp, Vector2i& m) {
+	fwrite(&m[0], sizeof(int), 1, fp);
+	fwrite(&m[1], sizeof(int), 1, fp);
+}
+
 inline void Save(FILE* fp, MatrixXd& m) {
 	int r = m.rows(), c = m.cols();
 	fwrite(&r, sizeof(int), 1, fp);

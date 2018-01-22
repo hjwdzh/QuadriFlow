@@ -35,6 +35,7 @@
     <ClInclude Include="AdjacentMatrix.h" />
     <ClInclude Include="CompareKey.h" />
     <ClInclude Include="dedge.h" />
+    <ClInclude Include="DisajointTree.h" />
     <ClInclude Include="dset.h" />
     <ClInclude Include="field_math.h" />
     <ClInclude Include="glDraw.h" />
