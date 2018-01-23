@@ -568,7 +568,7 @@ int main(int argc, char** argv)
 {
 	int with_scale = 1;
 	int t1, t2;
-	
+	/*
 	field.Load(argv[1]);
 	
 	printf("Initialize...\n");
@@ -599,7 +599,7 @@ int main(int argc, char** argv)
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
-	
+	*/
 	printf("load...\n");
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
