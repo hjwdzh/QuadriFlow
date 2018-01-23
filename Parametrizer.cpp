@@ -2432,6 +2432,12 @@ void Parametrizer::FixFlipAdvance()
 	auto sanity = [&](int count) {
 		printf("check sanity %d:\n", count);
 		// parent_edge, tree, vertices_to_edge, edge_to_faces
+		for (int i = 0; i < edge_to_faces.size(); ++i) {
+			int count = (edge_to_faces[i].size());
+			if (count == 1) {
+				printf("interesting edges!\n");
+			}
+		}
 		for (int i = 0; i < parent_edge.size(); ++i) {
 			if (parent_edge[i].first == i) {
 				int nx = tree.Parent(edge_values[i].x);
@@ -2593,8 +2599,6 @@ void Parametrizer::FixFlipAdvance()
 		if (v1 == v2)
 			return;
 		if (fixed_edges.count(DEdge(v1, v2)))
-			return;
-		if (fixed_vertices[v1] && fixed_vertices[v2])
 			return;
 		std::set<int> collapsed_faces;
 
@@ -2823,10 +2827,6 @@ void Parametrizer::FixFlipAdvance()
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (edge_diff[i] == Vector2i::Zero()) {
 			collapse(tree.Parent(edge_values[i].x), tree.Parent(edge_values[i].y));
-			if (i > 24453) {
-				count = i;
-//				sanity(i);
-			}
 		}
 	}
 	sanity(100);
