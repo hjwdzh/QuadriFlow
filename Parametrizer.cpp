@@ -2417,14 +2417,16 @@ void Parametrizer::FixFlipAdvance()
 	for (int i = 0; i < parent_edge.size(); ++i) {
 		parent_edge[i] = std::make_pair(i, 0);
 	}
-	std::vector<std::map<int, int > > vertices_to_edges(V.cols());
+	std::vector<std::map<int, std::list<int> > > vertices_to_edges(V.cols());
 	for (int i = 0; i < F.cols(); ++i) {
 		for (int j = 0; j < 3; ++j) {
 			int v0 = F(j, i);
 			int v1 = F((j + 1) % 3, i);
 			int eid = edge_ids[DEdge(v0, v1)];
 			int orient = (disajoint_orient_tree.Orient(i) + edge_to_constraints[eid][1] + (v0 > v1) * 2) % 4;
-			vertices_to_edges[v0].insert(std::make_pair(v1, edge_ids[DEdge(v0, v1)]));
+			std::list<int> l;
+			l.push_back(edge_ids[DEdge(v0, v1)]);
+			vertices_to_edges[v0].insert(std::make_pair(v1, l));
 		}
 	}
 	auto sanity = [&](int count) {
@@ -2444,16 +2446,18 @@ void Parametrizer::FixFlipAdvance()
 					printf("vertex index not root!\n");
 					system("pause");
 				}
-				if (get_parents(parent_edge, l.second) != l.second) {
-					printf("%d %d %d\n", i, tree.Parent(i), l.second);
-					printf("(%d %d): <%d %d> ==> <%d %d>\n", l.second, get_parents(parent_edge, l.second), edge_values[l.second].x, edge_values[l.second].y,
-						edge_values[get_parents(parent_edge, l.second)].x, edge_values[get_parents(parent_edge, l.second)].y);
-					printf("edge index not root!\n");
-					system("pause");
-				}
-				if (tree.Parent(edge_values[l.second].x) == tree.Parent(edge_values[l.second].y)) {
-					printf("zero edge length!\n");
-					system("pause");
+				for (auto& li : l.second) {
+					if (get_parents(parent_edge, li) != li) {
+						printf("%d %d %d\n", i, tree.Parent(i), li);
+						printf("(%d %d): <%d %d> ==> <%d %d>\n", li, get_parents(parent_edge, li), edge_values[li].x, edge_values[li].y,
+							edge_values[get_parents(parent_edge, li)].x, edge_values[get_parents(parent_edge, li)].y);
+						printf("edge index not root!\n");
+						system("pause");
+					}
+					if (tree.Parent(edge_values[li].x) == tree.Parent(edge_values[li].y)) {
+						printf("zero edge length!\n");
+						system("pause");
+					}
 				}
 			}
 		}
@@ -2522,32 +2526,33 @@ void Parametrizer::FixFlipAdvance()
 		if (fixed_vertices[v1] && fixed_vertices[v2])
 			return;
 		std::set<int> collapsed_faces;
-		int collapsed_edge = vertices_to_edges[v1][v2];
+		int collapsed_edge = vertices_to_edges[v1][v2].front();
 		std::swap(collapsed_faces, edge_to_faces[collapsed_edge]);
 		for (auto& l : vertices_to_edges[v1]) {
 			auto it0 = vertices_to_edges[l.first].find(v1);
-			std::pair<int, int > rec = *it0;
+			std::pair<int, list<int> > rec = *it0;
 			rec.first = v2;
 			vertices_to_edges[l.first].erase(it0);
 			if (l.first == v2)
 				continue;
 			auto it = vertices_to_edges[v2].find(l.first);
 			if (it != vertices_to_edges[v2].end()) {
-				edge_to_faces[it->second].insert(edge_to_faces[l.second].begin(), edge_to_faces[l.second].end());
-				edge_to_faces[l.second].clear();
+				// todo list
+				edge_to_faces[it->second.front()].insert(edge_to_faces[l.second.front()].begin(), edge_to_faces[l.second.front()].end());
+				edge_to_faces[l.second.front()].clear();
 				int orient = 0;
-				auto diff1 = edge_diff[it->second];
-				auto diff2 = edge_diff[l.second];
+				auto diff1 = edge_diff[it->second.front()];
+				auto diff2 = edge_diff[l.second.front()];
 				while (orient < 4 && rshift90(diff1, orient) != diff2)
 					orient += 1;
 				if (orient == 4) {
-					printf("edge fail to collapse %d %d %d %d\n", edge_values[it->second].x, edge_values[it->second].y,
-						edge_values[l.second].x, edge_values[l.second].y);
+					printf("edge fail to collapse %d %d %d %d\n", edge_values[it->second.front()].x, edge_values[it->second.front()].y,
+						edge_values[l.second.front()].x, edge_values[l.second.front()].y);
 					printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0], diff2[1]);
 					printf("no orient solution!\n");
 					system("pause");
 				} else
-					parent_edge[l.second] = std::make_pair(it->second, orient);
+					parent_edge[l.second.front()] = std::make_pair(it->second.front(), orient);
 			}
 			else {
 				vertices_to_edges[v2][l.first] = l.second;
@@ -2578,7 +2583,7 @@ void Parametrizer::FixFlipAdvance()
 
 	auto ExtractEdgeSet = [&](int v1, int v2, std::vector<std::pair<int, int> >& edge_orient) {
 		std::map<int, int> edge_set;
-		edge_orient.push_back(std::make_pair(vertices_to_edges[v1][v2], 0));
+		edge_orient.push_back(std::make_pair(vertices_to_edges[v1][v2].front(), 0));
 		edge_set[edge_orient.front().first] = 0;
 		int front = 0;
 		while (front < edge_orient.size()) {
@@ -2625,7 +2630,7 @@ void Parametrizer::FixFlipAdvance()
 //		printf("move %d %d\n", v1, v2);
 		std::vector<std::pair<int, int> > edge_orient;
 		ExtractEdgeSet(v1, v2, edge_orient);
-		Vector2i diff = edge_diff[vertices_to_edges[v1][v2]];
+		Vector2i diff = edge_diff[vertices_to_edges[v1][v2].front()];
 		for (auto& p : edge_orient) {
 			edge_diff[p.first] -= rshift90(diff, p.second);
 		}
@@ -2646,7 +2651,7 @@ void Parametrizer::FixFlipAdvance()
 		if (edge_orient.size() == 0) {
 			return false;
 		}
-		Vector2i diff = edge_diff[vertices_to_edges[v1][v2]];
+		Vector2i diff = edge_diff[vertices_to_edges[v1][v2].front()];
 		// check distance
 		for (auto& p : edge_orient) {
 			auto new_diff = edge_diff[p.first] - rshift90(diff, p.second);
