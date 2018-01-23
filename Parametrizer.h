@@ -31,6 +31,9 @@ struct DEdge
 	bool operator==(const DEdge& e) const {
 		return x == e.x && y == e.y;
 	}
+	bool operator!=(const DEdge& e) const {
+		return x != e.x || y != e.y;
+	}
 	int x, y;
 };
 struct ExpandInfo

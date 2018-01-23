@@ -2432,6 +2432,30 @@ void Parametrizer::FixFlipAdvance()
 	auto sanity = [&](int count) {
 		printf("check sanity %d:\n", count);
 		// parent_edge, tree, vertices_to_edge, edge_to_faces
+		for (int i = 0; i < parent_edge.size(); ++i) {
+			if (parent_edge[i].first == i) {
+				int nx = tree.Parent(edge_values[i].x);
+				int ny = tree.Parent(edge_values[i].y);
+				if (nx == ny)
+					continue;
+				auto& l1 = vertices_to_edges[nx][ny];
+				auto& l2 = vertices_to_edges[ny][nx];
+				if (std::find(l1.begin(), l1.end(), i) == l1.end()
+					|| std::find(l2.begin(), l2.end(), i) == l2.end()) {
+					printf("edge not indexed in vertices (%d %d) %d %d\n",
+						nx, ny, edge_values[i].x, edge_values[i].y);
+					for (auto& m : l1) {
+						printf("<%d %d>  ", edge_values[m].x, edge_values[m].y);
+					}
+					printf("\n");
+					for (auto& m : l2) {
+						printf("<%d %d>  ", edge_values[m].x, edge_values[m].y);
+					}
+					printf("\n");
+					system("pause");
+				}
+			}
+		}
 		for (int i = 0; i < V.cols(); ++i) {
 			if (tree.Parent(i) != i && vertices_to_edges[i].size()) {
 				printf("child edge list not empty!\n");
@@ -2518,68 +2542,6 @@ void Parametrizer::FixFlipAdvance()
 		printf("total minus area: %d\n", total_area);
 		printf("finish...\n");
 	};
-	auto collapse = [&](int v1, int v2) {
-		if (v1 == v2)
-			return;
-		if (fixed_edges.count(DEdge(v1, v2)))
-			return;
-		if (fixed_vertices[v1] && fixed_vertices[v2])
-			return;
-		std::set<int> collapsed_faces;
-		int collapsed_edge = vertices_to_edges[v1][v2].front();
-		std::swap(collapsed_faces, edge_to_faces[collapsed_edge]);
-		for (auto& l : vertices_to_edges[v1]) {
-			auto it0 = vertices_to_edges[l.first].find(v1);
-			std::pair<int, list<int> > rec = *it0;
-			rec.first = v2;
-			vertices_to_edges[l.first].erase(it0);
-			if (l.first == v2)
-				continue;
-			auto it = vertices_to_edges[v2].find(l.first);
-			if (it != vertices_to_edges[v2].end()) {
-				// todo list
-				edge_to_faces[it->second.front()].insert(edge_to_faces[l.second.front()].begin(), edge_to_faces[l.second.front()].end());
-				edge_to_faces[l.second.front()].clear();
-				int orient = 0;
-				auto diff1 = edge_diff[it->second.front()];
-				auto diff2 = edge_diff[l.second.front()];
-				while (orient < 4 && rshift90(diff1, orient) != diff2)
-					orient += 1;
-				if (orient == 4) {
-					printf("edge fail to collapse %d %d %d %d\n", edge_values[it->second.front()].x, edge_values[it->second.front()].y,
-						edge_values[l.second.front()].x, edge_values[l.second.front()].y);
-					printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0], diff2[1]);
-					printf("no orient solution!\n");
-					system("pause");
-				} else
-					parent_edge[l.second.front()] = std::make_pair(it->second.front(), orient);
-			}
-			else {
-				vertices_to_edges[v2][l.first] = l.second;
-				vertices_to_edges[l.first].insert(rec);
-			}
-			if (fixed_edges.count(DEdge(l.first, v1))) {
-				fixed_edges.erase(DEdge(l.first, v1));
-				fixed_edges.insert(DEdge(l.first, v2));
-			}
-			if (fixed_vertices[v1]) {
-				fixed_vertices[v2] = 1;
-			}
-		}
-		for (auto& f : collapsed_faces) {
-			for (int j = 0; j < 3; ++j) {
-				int v0 = tree.Parent(F(j, f));
-				int v1 = tree.Parent(F((j + 1) % 3, f));
-				if (v0 != v1) {
-					int eid = edge_ids[DEdge(F(j, f), F((j + 1) % 3, f))];
-					int peid = get_parents(parent_edge, eid);
-					edge_to_faces[peid].erase(f);
-				}
-			}
-		}
-		tree.MergeFromTo(v1, v2);
-		vertices_to_edges[v1].clear();
-	};
 
 	auto ExtractEdgeSet = [&](int v1, int v2, std::vector<std::pair<int, int> >& edge_orient) {
 		std::map<int, int> edge_set;
@@ -2613,6 +2575,7 @@ void Parametrizer::FixFlipAdvance()
 				if (flag) {
 					edge_orient.push_back(std::make_pair(next_pid, (-orient1 + 6 + orient0 + current_orient) % 4));
 					edge_set[next_pid] = (-orient1 + 6 + orient0 + current_orient) % 4;
+					break;
 				}
 				else {
 					if (edge_set[next_pid] != (-orient1 + 6 + orient0 + current_orient) % 4) {
@@ -2624,6 +2587,140 @@ void Parametrizer::FixFlipAdvance()
 			}
 			front++;
 		}
+	};
+
+	auto collapse = [&](int v1, int v2) {
+		if (v1 == v2)
+			return;
+		if (fixed_edges.count(DEdge(v1, v2)))
+			return;
+		if (fixed_vertices[v1] && fixed_vertices[v2])
+			return;
+		std::set<int> collapsed_faces;
+
+		for (auto& collapsed_edge : vertices_to_edges[v1][v2]) {
+			collapsed_faces.insert(edge_to_faces[collapsed_edge].begin(), edge_to_faces[collapsed_edge].end());
+			edge_to_faces[collapsed_edge].clear();
+		}
+
+		for (auto& l : vertices_to_edges[v1]) {
+			auto it0 = vertices_to_edges[l.first].find(v1);
+			std::pair<int, list<int> > rec = *it0;
+			rec.first = v2;
+			vertices_to_edges[l.first].erase(it0);
+			if (l.first == v2) {
+				continue;
+			}
+			auto it = vertices_to_edges[v2].find(l.first);
+			if (it != vertices_to_edges[v2].end()) {
+				for (auto& li : l.second) {
+					it->second.push_back(li);
+					vertices_to_edges[l.first][v2].push_back(li);
+				}
+			}
+			else {
+				vertices_to_edges[v2][l.first] = l.second;
+				vertices_to_edges[l.first].insert(rec);
+			}
+			if (fixed_edges.count(DEdge(l.first, v1))) {
+				fixed_edges.erase(DEdge(l.first, v1));
+				fixed_edges.insert(DEdge(l.first, v2));
+			}
+			if (fixed_vertices[v1]) {
+				fixed_vertices[v2] = 1;
+			}
+		}
+		tree.MergeFromTo(v1, v2);
+		std::set<int> modified_faces;
+		for (auto& f : collapsed_faces) {
+			for (int j = 0; j < 3; ++j) {
+				int vv0 = tree.Parent(F(j, f));
+				int vv1 = tree.Parent(F((j + 1) % 3, f));
+				if (vv0 != vv1) {
+					int eid = edge_ids[DEdge(F(j, f), F((j + 1) % 3, f))];
+					int peid = get_parents(parent_edge, eid);
+					while (true) {
+						bool update = false;
+						for (auto& nf : edge_to_faces[peid]) {
+							for (int nj = 0; nj < 3; ++nj) {
+								int nv0 = tree.Parent(F(nj, nf));
+								int nv1 = tree.Parent(F((nj + 1) % 3, nf));
+								if (nv0 != nv1) {
+									int neid = edge_ids[DEdge(F(nj, nf), F((nj + 1) % 3, nf))];
+									int npeid = get_parents(parent_edge, neid);
+									if (npeid != peid && DEdge(nv0, nv1) == DEdge(vv0, vv1)) {
+										modified_faces.insert(nf);
+										update = true;
+										int orient = 0;
+										auto diff1 = edge_diff[peid];
+										auto diff2 = edge_diff[npeid];
+										while (orient < 4 && rshift90(diff1, orient) != diff2)
+											orient += 1;
+										if (orient == 4) {
+											printf("v %d %d %d %d\n", F(j, f), F((j + 1) % 3, f),
+												F(nj, nf), F((nj + 1) % 3, nf));
+											printf("edge fail to collapse %d %d %d %d\n", edge_values[peid].x, edge_values[peid].y,
+												edge_values[npeid].x, edge_values[npeid].y);
+											printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0], diff2[1]);
+											printf("no orient solution!\n");
+											system("pause");
+										}
+										else {
+											parent_edge[npeid] = std::make_pair(peid, orient);
+										}
+										edge_to_faces[peid].insert(edge_to_faces[npeid].begin(), edge_to_faces[npeid].end());
+										edge_to_faces[peid].erase(nf);
+										edge_to_faces[npeid].clear();
+										auto& l1 = vertices_to_edges[nv0][nv1];
+										auto it = std::find(l1.begin(), l1.end(), npeid);
+										if (it != l1.end())
+											l1.erase(it);
+										else {
+											for (int i = 0; i < vertices_to_edges.size(); ++i) {
+												for (auto& j : vertices_to_edges[i]) {
+													auto& l = j.second;
+													if (std::find(l.begin(), l.end(), get_parents(parent_edge, edge_ids[DEdge(70, 9620)])) != l.end()) {
+														printf("found in <%d %d>\n", i, j.first);
+													}
+												}
+											}
+											printf("not found1 %d %d!\n", nv0, nv1);
+											system("pause");
+										}
+										auto& l2 = vertices_to_edges[nv1][nv0];
+										it = std::find(l2.begin(), l2.end(), npeid);
+										if (it != l2.end())
+											l2.erase(it);
+										else {
+											printf("not found2 %d %d!\n", nv1, nv0);
+											system("pause");
+										}
+										break;
+									}
+								}
+							}
+							if (update) {
+								break;
+							}
+						}
+						if (!update)
+							break;
+					}
+				}
+			}
+		}
+		for (auto& f : collapsed_faces) {
+			if (v1 == 23957 && v2 == 16341) {
+				printf("check modified face %d\n", f);
+			}
+			for (int i = 0; i < 3; ++i) {
+				int vv0 = F(i, f);
+				int vv1 = F((i + 1) % 3, f);
+				int peid = get_parents(parent_edge, edge_ids[DEdge(vv0, vv1)]);
+				edge_to_faces[peid].erase(f);
+			}
+		}
+		vertices_to_edges[v1].clear();
 	};
 
 	auto MoveTo = [&](int v1, int v2) {
@@ -2712,15 +2809,18 @@ void Parametrizer::FixFlipAdvance()
 		else
 			return false;
 	};
-
+	int count = 0;
 	sanity(-1);
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (edge_diff[i] == Vector2i::Zero()) {
 			collapse(tree.Parent(edge_values[i].x), tree.Parent(edge_values[i].y));
+			if (i > 24453) {
+				count = i;
+//				sanity(i);
+			}
 		}
 	}
 	sanity(100);
-	
 	while (true) {
 		bool update = false;
 		int counter = 0;
@@ -2749,7 +2849,7 @@ void Parametrizer::FixFlipAdvance()
 		if (!update)
 			break;
 	}
-	
+	sanity(10000);
 	fixed.resize(V.cols(), 0);
 	for (int i = 0; i < V.cols(); ++i) {
 //		if (fixed_vertices[tree.Parent(i)])
