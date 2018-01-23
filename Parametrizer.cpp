@@ -1490,7 +1490,8 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	printf("Build Integer Constraints...\n");
 	BuildIntegerConstraints();
 	ComputeMaxFlow();
-	FixFlip();
+	printf("Fix flip advance...\n");
+	FixFlipAdvance();
 
 	SanityCheckDiff(0);
 
@@ -1532,9 +1533,17 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			count += 1;
 			flipped.push_back(Vector3i(disajoint_tree.Index(F(0, i)),
 				disajoint_tree.Index(F(1, i)),
-				disajoint_tree.Index(F(0, i))));
+				disajoint_tree.Index(F(2, i))));
 		}
 	}
+
+	std::vector<int> fixed_compact(num_v, 0);
+	for (int i = 0; i < fixed.size(); ++i) {
+		if (fixed[i] == 1)
+			fixed_compact[disajoint_tree.Index(i)] = 1;
+	}
+	std::swap(fixed, fixed_compact);
+
 	printf("flipped %d\n", count);
 	SanityCheckDiff(0);
 }
@@ -2097,7 +2106,6 @@ void Parametrizer::FixFlip()
 	std::vector<int> face_area;
 	std::vector<Vector2i> diffs;
 	std::vector<std::vector<std::pair<int, int> > > vertices(num_v);
-	std::map<Edge, Vector2i> fixed_edges;
 	std::set<int> fixed_vertices;
 	for (auto& p : cuts) {
 		int p1 = tree.Index(p.x);
@@ -2167,16 +2175,6 @@ void Parametrizer::FixFlip()
 		}
 	}
 
-	for (int i = 0; i < faces.size(); ++i) {
-		for (int j = 0; j < 3; ++j) {
-			int v1 = faces[i][j];
-			int v2 = faces[i][(j + 1) % 3];
-			if (fixed_vertices.count(v1) && fixed_vertices.count(v2)) {
-				fixed_edges[Edge(i, j)] = diffs[i * 3 + j];
-			}
-		}
-	}
-
 	std::vector<std::pair<int, int> > shrink_parents(num_v);
 	for (int i = 0; i < num_v; ++i) {
 		shrink_parents[i] = std::make_pair(i, 0);
@@ -2241,11 +2239,6 @@ void Parametrizer::FixFlip()
 					Vector2i diff1 = diffs[vertices[v1][j].first * 3 + vertices[v1][j].second];
 					Vector2i diff2 = -diffs[vertices[v1][j].first * 3 + (2 + vertices[v1][j].second) % 3];
 					int area = diff1[0] * diff2[1] - diff1[1] * diff2[0];
-					if (area != face_area[vertices[v1][j].first]) {
-						printf("face has problem %d\n", vertices[v1][j].first);
-						printf("FAIL!\n");
-						system("pause");
-					}
 					if (area < 0)
 						total_area_0 -= area;
 					diff1 -= diff_select;
@@ -2267,23 +2260,6 @@ void Parametrizer::FixFlip()
 			if (collapse_v1 == -1) {
 			}
 			else {
-				bool collapse_fixed_edges = false;
-				for (int j = 0; j < vertices[collapse_v1].size(); ++j) {
-					int id = vertices[collapse_v1][j].first * 3 + vertices[collapse_v1][j].second;
-					Vector2i p = diffs[id];
-					if (j % 2 == 0)
-						p -= collapse_diff;
-					else
-						p += collapse_diff;
-					if (p == Vector2i::Zero()) {
-						if (fixed_vertices.count(faces[vertices[collapse_v1][j].first][(vertices[collapse_v1][j].second + 1 - j % 2) % 3])) {
-							collapse_fixed_edges = true;
-							break;
-						}
-					}
-				}
-				if (collapse_fixed_edges)
-					continue;
 				update = true;
 				// collapse vertices from v1 to v2
 				// change edge diff
@@ -2349,9 +2325,9 @@ void Parametrizer::FixFlip()
 					vertices[i].resize(index);
 				}
 			}
-//			printf("test f %d\n", f0);
-//			SanityCheckFlip(f0, faces, diffs, fixed_vertices, shrink_parents, tree, vertices, face_area);
-//			printf("test finish!\n");
+			printf("test f %d\n", f0);
+			SanityCheckFlip(f0, faces, diffs, fixed_vertices, shrink_parents, tree, vertices, face_area);
+			printf("test finish!\n");
 		}
 		printf("Minus area: %d\n", minus_area);
 	}
@@ -2411,5 +2387,373 @@ void Parametrizer::FixFlip()
 				edge_diff[eid] = rshift90(diff_e[j], (4 - orient) % 4);
 			}
 		}
+	}
+
+	fixed.resize(V.cols(), 0);
+	for (int i = 0; i < V.cols(); ++i) {
+		if (fixed_vertices.count(tree.Index(i))) {
+			fixed[i] = 1;
+		}
+	}
+}
+
+void Parametrizer::FixFlipAdvance()
+{
+	auto& V = hierarchy.mV[0];
+	auto& F = hierarchy.mF;
+	std::set<DEdge> fixed_edges(cuts.begin(), cuts.end());
+	std::vector<int> fixed_vertices(V.cols());
+	for (auto& e : fixed_edges) {
+		fixed_vertices[e.x] = 1;
+		fixed_vertices[e.y] = 1;
+	}
+	std::vector<std::pair<int, int> > parent_edge(edge_ids.size());
+	std::vector<std::set<int> > edge_to_faces(edge_ids.size());
+	for (int i = 0; i < edge_to_constraints.size(); ++i) {
+		edge_to_faces[i].insert(edge_to_constraints[i][0]);
+		edge_to_faces[i].insert(edge_to_constraints[i][2]);
+	}
+	DisajointTree tree(V.cols());
+	for (int i = 0; i < parent_edge.size(); ++i) {
+		parent_edge[i] = std::make_pair(i, 0);
+	}
+	std::vector<std::map<int, int > > vertices_to_edges(V.cols());
+	for (int i = 0; i < F.cols(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			int v0 = F(j, i);
+			int v1 = F((j + 1) % 3, i);
+			int eid = edge_ids[DEdge(v0, v1)];
+			int orient = (disajoint_orient_tree.Orient(i) + edge_to_constraints[eid][1] + (v0 > v1) * 2) % 4;
+			vertices_to_edges[v0].insert(std::make_pair(v1, edge_ids[DEdge(v0, v1)]));
+		}
+	}
+	auto sanity = [&](int count) {
+		printf("check sanity %d:\n", count);
+		// parent_edge, tree, vertices_to_edge, edge_to_faces
+		for (int i = 0; i < V.cols(); ++i) {
+			if (tree.Parent(i) != i && vertices_to_edges[i].size()) {
+				printf("child edge list not empty!\n");
+				system("pause");
+			}
+			for (auto& l : vertices_to_edges[i]) {
+				if (l.first == i) {
+					printf("self index! %d %d\n", l.first, i);
+					system("pause");
+				}
+				if (tree.Parent(l.first) != l.first) {
+					printf("vertex index not root!\n");
+					system("pause");
+				}
+				if (get_parents(parent_edge, l.second) != l.second) {
+					printf("%d %d %d\n", i, tree.Parent(i), l.second);
+					printf("(%d %d): <%d %d> ==> <%d %d>\n", l.second, get_parents(parent_edge, l.second), edge_values[l.second].x, edge_values[l.second].y,
+						edge_values[get_parents(parent_edge, l.second)].x, edge_values[get_parents(parent_edge, l.second)].y);
+					printf("edge index not root!\n");
+					system("pause");
+				}
+				if (tree.Parent(edge_values[l.second].x) == tree.Parent(edge_values[l.second].y)) {
+					printf("zero edge length!\n");
+					system("pause");
+				}
+			}
+		}
+		std::vector<std::vector<int> > faces_from_edge(F.cols());
+		for (int i = 0; i < edge_to_faces.size(); ++i) {
+			for (auto& f : edge_to_faces[i]) {
+				faces_from_edge[f].push_back(i);
+			}
+		}
+		for (int f = 0; f < F.cols(); ++f) {
+			std::vector<int> l;
+			for (int j = 0; j < 3; ++j) {
+				int v1 = tree.Parent(F(j, f));
+				int v2 = tree.Parent(F((j + 1) % 3, f));
+				if (v1 == v2) {
+					l.clear();
+					break;
+				}
+				int pid = get_parents(parent_edge, edge_ids[DEdge(F(j, f), F((j + 1) % 3, f))]);
+				l.push_back(pid);
+			}
+			std::sort(l.begin(), l.end());
+			if (l.size() != faces_from_edge[f].size()) {
+				printf("inconsistent edge-face connection! -1 %d %d\n", l.size(), faces_from_edge[f].size());
+				printf("face %d %d %d %d\n", f, tree.Parent(F(0, f)), tree.Parent(F(1, f)), tree.Parent(F(2, f)));
+				printf("face origin %d %d %d\n", F(0, f), F(1, f), F(2, f));
+				system("pause");
+			}
+			for (int i = 0; i < l.size(); ++i) {
+				if (l[i] != faces_from_edge[f][i]) {
+					printf("inconsistent edge-face connection! %d\n", f);
+					system("pause");
+				}
+			}
+		}
+		// check diff
+		int total_area = 0;
+		for (int i = 0; i < F.cols(); ++i) {
+			Vector2i diff[3];
+			for (int j = 0; j < 3; ++j) {
+				int v0 = F(j, i);
+				int v1 = F((j + 1) % 3, i);
+				int eid = edge_ids[DEdge(v0, v1)];
+				int orient = (disajoint_orient_tree.Orient(i) + edge_to_constraints[eid][(v0 > v1) * 2 + 1]) % 4;
+				int pid = get_parents(parent_edge, eid);
+				int parent_orient = get_parents_orient(parent_edge, eid);
+				diff[j] = rshift90(edge_diff[pid], (orient + parent_orient) % 4);
+			}
+			Vector2i total = diff[0] + diff[1] + diff[2];
+			if (total != Vector2i::Zero()) {
+				printf("zero face constraint violated\n");
+				system("pause");
+			}
+			int area = -diff[0][0] * diff[2][1] + diff[0][1] * diff[2][0];
+			if (area < 0)
+				total_area -= area;
+		}
+		printf("total minus area: %d\n", total_area);
+		printf("finish...\n");
+	};
+	auto collapse = [&](int v1, int v2) {
+		if (v1 == v2)
+			return;
+		if (fixed_edges.count(DEdge(v1, v2)))
+			return;
+		if (fixed_vertices[v1] && fixed_vertices[v2])
+			return;
+		std::set<int> collapsed_faces;
+		int collapsed_edge = vertices_to_edges[v1][v2];
+		std::swap(collapsed_faces, edge_to_faces[collapsed_edge]);
+		for (auto& l : vertices_to_edges[v1]) {
+			auto it0 = vertices_to_edges[l.first].find(v1);
+			std::pair<int, int > rec = *it0;
+			rec.first = v2;
+			vertices_to_edges[l.first].erase(it0);
+			if (l.first == v2)
+				continue;
+			auto it = vertices_to_edges[v2].find(l.first);
+			if (it != vertices_to_edges[v2].end()) {
+				edge_to_faces[it->second].insert(edge_to_faces[l.second].begin(), edge_to_faces[l.second].end());
+				edge_to_faces[l.second].clear();
+				int orient = 0;
+				auto diff1 = edge_diff[it->second];
+				auto diff2 = edge_diff[l.second];
+				while (orient < 4 && rshift90(diff1, orient) != diff2)
+					orient += 1;
+				if (orient == 4) {
+					printf("edge fail to collapse %d %d %d %d\n", edge_values[it->second].x, edge_values[it->second].y,
+						edge_values[l.second].x, edge_values[l.second].y);
+					printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0], diff2[1]);
+					printf("no orient solution!\n");
+					system("pause");
+				} else
+					parent_edge[l.second] = std::make_pair(it->second, orient);
+			}
+			else {
+				vertices_to_edges[v2][l.first] = l.second;
+				vertices_to_edges[l.first].insert(rec);
+			}
+			if (fixed_edges.count(DEdge(l.first, v1))) {
+				fixed_edges.erase(DEdge(l.first, v1));
+				fixed_edges.insert(DEdge(l.first, v2));
+			}
+			if (fixed_vertices[v1]) {
+				fixed_vertices[v2] = 1;
+			}
+		}
+		for (auto& f : collapsed_faces) {
+			for (int j = 0; j < 3; ++j) {
+				int v0 = tree.Parent(F(j, f));
+				int v1 = tree.Parent(F((j + 1) % 3, f));
+				if (v0 != v1) {
+					int eid = edge_ids[DEdge(F(j, f), F((j + 1) % 3, f))];
+					int peid = get_parents(parent_edge, eid);
+					edge_to_faces[peid].erase(f);
+				}
+			}
+		}
+		tree.MergeFromTo(v1, v2);
+		vertices_to_edges[v1].clear();
+	};
+
+	auto ExtractEdgeSet = [&](int v1, int v2, std::vector<std::pair<int, int> >& edge_orient) {
+		std::map<int, int> edge_set;
+		edge_orient.push_back(std::make_pair(vertices_to_edges[v1][v2], 0));
+		edge_set[edge_orient.front().first] = 0;
+		int front = 0;
+		while (front < edge_orient.size()) {
+			int e = edge_orient[front].first;
+			int current_orient = edge_orient[front].second;
+			for (auto& f : edge_to_faces[e]) {
+				int orient0 = 0, orient1 = 0, next_pid = 0;
+				bool flag = false;
+				for (int j = 0; j < 3; ++j) {
+					int vv0 = F(j, f);
+					int vv1 = F((j + 1) % 3, f);
+					int eid = edge_ids[DEdge(vv0, vv1)];
+					int pid = get_parents(parent_edge, eid);
+					if (pid == e) {
+						orient0 = (get_parents_orient(parent_edge, eid) + disajoint_orient_tree.Orient(f) + edge_to_constraints[eid][(vv0 > vv1) * 2 + 1]) % 4;
+					}
+					else {
+						if (tree.Parent(vv0) == tree.Parent(v1) || tree.Parent(vv1) == tree.Parent(v1)) {
+							orient1 = (get_parents_orient(parent_edge, eid) + disajoint_orient_tree.Orient(f) + edge_to_constraints[eid][(vv0 > vv1) * 2 + 1]) % 4;
+							next_pid = pid;
+							if (edge_set.count(pid) == 0) {
+								flag = true;
+							}
+						}
+					}
+				}
+				if (flag) {
+					edge_orient.push_back(std::make_pair(next_pid, (-orient1 + 6 + orient0 + current_orient) % 4));
+					edge_set[next_pid] = (-orient1 + 6 + orient0 + current_orient) % 4;
+				}
+				else {
+					if (edge_set[next_pid] != (-orient1 + 6 + orient0 + current_orient) % 4) {
+						edge_orient.clear();
+						fixed_vertices[v1] = 1;
+						return;
+					}
+				}
+			}
+			front++;
+		}
+	};
+
+	auto MoveTo = [&](int v1, int v2) {
+//		printf("move %d %d\n", v1, v2);
+		std::vector<std::pair<int, int> > edge_orient;
+		ExtractEdgeSet(v1, v2, edge_orient);
+		Vector2i diff = edge_diff[vertices_to_edges[v1][v2]];
+		for (auto& p : edge_orient) {
+			edge_diff[p.first] -= rshift90(diff, p.second);
+		}
+		for (auto& p : edge_orient) {
+			if (edge_diff[p.first] == Vector2i::Zero()) {
+				collapse(tree.Parent(edge_values[p.first].x), v2);
+				collapse(tree.Parent(edge_values[p.first].y), v2);
+			}
+		}
+	};
+
+	auto CheckMove = [&](int v1, int v2) {
+		if (fixed_vertices[v1]) {
+			return false;
+		}
+		std::vector<std::pair<int, int> > edge_orient;
+		ExtractEdgeSet(v1, v2, edge_orient);
+		if (edge_orient.size() == 0) {
+			return false;
+		}
+		Vector2i diff = edge_diff[vertices_to_edges[v1][v2]];
+		// check distance
+		for (auto& p : edge_orient) {
+			auto new_diff = edge_diff[p.first] - rshift90(diff, p.second);
+			if (abs(new_diff[0]) > 1 || abs(new_diff[1]) > 1) {
+				return false;
+			}
+		}
+
+		// check face area
+		std::set<int> modified_faces;
+		for (auto& e : edge_orient) {
+			for (auto& f : edge_to_faces[e.first])
+				modified_faces.insert(f);
+		}
+		int original_face_area = 0, current_face_area = 0;
+		for (auto& f : modified_faces) {
+			int vert0 = F(0, f);
+			int vert1 = F(1, f);
+			int vert2 = F(2, f);
+			int eid0 = edge_ids[DEdge(vert0, vert1)];
+			int eid1 = edge_ids[DEdge(vert2, vert0)];
+			int orient0 = (disajoint_orient_tree.Orient(f) + edge_to_constraints[eid0][(vert0 > vert1) * 2 + 1]) % 4;
+			int orient1 = (disajoint_orient_tree.Orient(f) + edge_to_constraints[eid1][(vert2 > vert0) * 2 + 1]) % 4;
+			Vector2i diff1 = rshift90(edge_diff[eid0], orient0);
+			Vector2i diff2 = rshift90(edge_diff[eid1], orient1);
+			int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
+			if (area < 0)
+				original_face_area -= area;
+		}
+
+		// apply modify
+		for (auto& p : edge_orient) {
+			edge_diff[p.first] -= rshift90(diff, p.second);
+		}
+
+		for (auto& f : modified_faces) {
+			int vert0 = F(0, f);
+			int vert1 = F(1, f);
+			int vert2 = F(2, f);
+			int eid0 = edge_ids[DEdge(vert0, vert1)];
+			int pid0 = get_parents(parent_edge, eid0);
+			int eid1 = edge_ids[DEdge(vert2, vert0)];
+			int pid1 = get_parents(parent_edge, eid1);
+			int orient0 = (get_parents_orient(parent_edge, eid0) + disajoint_orient_tree.Orient(f) + edge_to_constraints[eid0][(vert0 > vert1) * 2 + 1]) % 4;
+			int orient1 = (get_parents_orient(parent_edge, eid1) + disajoint_orient_tree.Orient(f) + edge_to_constraints[eid1][(vert2 > vert0) * 2 + 1]) % 4;
+			Vector2i diff1 = rshift90(edge_diff[pid0], orient0);
+			Vector2i diff2 = rshift90(edge_diff[pid1], orient1);
+			int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
+			if (area < 0)
+				current_face_area -= area;
+		}
+		// reverse modify
+		for (auto& p : edge_orient) {
+			edge_diff[p.first] += rshift90(diff, p.second);
+		}
+		if (current_face_area < original_face_area)
+			return true;
+		else
+			return false;
+	};
+
+	sanity(-1);
+	for (int i = 0; i < edge_diff.size(); ++i) {
+		if (edge_diff[i] == Vector2i::Zero()) {
+			collapse(tree.Parent(edge_values[i].x), tree.Parent(edge_values[i].y));
+		}
+	}
+	sanity(100);
+	
+	while (true) {
+		bool update = false;
+		int counter = 0;
+		for (int i = 0; i < parent_edge.size(); ++i) {
+			if (i == parent_edge[i].first) {
+				if (fixed_edges.count(edge_values[i]))
+					continue;
+				int p1 = tree.Parent(edge_values[i].x);
+				int p2 = tree.Parent(edge_values[i].y);
+				if (p1 == p2)
+					continue;
+				if (CheckMove(p1, p2)) {
+					MoveTo(p1, p2);
+					update = true;
+				}
+				else if (CheckMove(p2, p1)) {
+					MoveTo(p2, p1);
+					update = true;
+				}
+			}
+			if (i > counter + 100) {
+				counter = i;
+//				sanity(i);
+			}
+		}
+		if (!update)
+			break;
+	}
+	
+	fixed.resize(V.cols(), 0);
+	for (int i = 0; i < V.cols(); ++i) {
+//		if (fixed_vertices[tree.Parent(i)])
+//			fixed[i] = 1;
+	}
+
+	for (int i = 0; i < parent_edge.size(); ++i) {
+		int orient = get_parents_orient(parent_edge, i);
+		int p = get_parents(parent_edge, i);
+		edge_diff[i] = rshift90(edge_diff[p], orient);
 	}
 }

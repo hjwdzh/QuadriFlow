@@ -24,6 +24,14 @@ public:
 	int Index(int x) {
 		return indices[x];
 	}
+	void MergeFromTo(int x, int y) {
+		int px = Parent(x);
+		int py = Parent(y);
+		if (px == py)
+			return;
+		rank[py] += rank[px];
+		parent[px] = py;
+	}
 	void Merge(int x, int y) {
 		int px = Parent(x);
 		int py = Parent(y);
@@ -92,6 +100,22 @@ public:
 	int Index(int x) {
 		return indices[x];
 	}
+	void MergeFromTo(int v0, int v1, int orient0, int orient1) {
+		int p0 = Parent(v0);
+		int p1 = Parent(v1);
+		if (p0 == p1)
+			return;
+		int orientp0 = Orient(v0);
+		int orientp1 = Orient(v1);
+
+		if (p0 == p1) {
+			return;
+		}
+		rank[p1] += rank[p0];
+		parent[p0].first = p1;
+		parent[p0].second = (orient0 - orient1 + orientp1 - orientp0 + 8) % 4;
+	}
+
 	void Merge(int v0, int v1, int orient0, int orient1) {
 		int p0 = Parent(v0);
 		int p1 = Parent(v1);

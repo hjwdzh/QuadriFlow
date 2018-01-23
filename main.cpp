@@ -279,6 +279,7 @@ static void render_quadmesh()
 		auto& O = field.O_compact;
 		auto& ED = field.edge_diff;
 		auto& EV = field.edge_values;
+		
 		glPointSize(3.0);
 		glColor3f(1, 0, 0);
 		glBegin(GL_POINTS);
@@ -298,11 +299,15 @@ static void render_quadmesh()
 			}
 			else
 				continue;
+			if (field.fixed[field.disajoint_tree.Index(EV[i].x)] &&
+				field.fixed[field.disajoint_tree.Index(EV[i].y)]) {
+				glColor3f(0, 1, 0);
+			}
 			glVertex3dv(&O[field.disajoint_tree.Index(EV[i].x)][0]);
 			glVertex3dv(&O[field.disajoint_tree.Index(EV[i].y)][0]);
 		}
 		glEnd();
-
+		
 		glColor3f(0.5, 0.5, 0.5);
 		glBegin(GL_TRIANGLES);
 		for (auto& p : field.flipped) {
@@ -563,7 +568,7 @@ int main(int argc, char** argv)
 {
 	int with_scale = 1;
 	int t1, t2;
-	/*
+	
 	field.Load(argv[1]);
 	
 	printf("Initialize...\n");
@@ -594,7 +599,7 @@ int main(int argc, char** argv)
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
-	*/
+	
 	printf("load...\n");
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);

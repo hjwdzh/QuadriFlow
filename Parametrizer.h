@@ -65,6 +65,7 @@ public:
 	void BuildIntegerConstraints();
 	void ComputePosition(int with_scale = 0);
 	void FixFlip();
+	void FixFlipAdvance();
 	void SanityCheckFlip(int f0, std::vector<Vector3i>& faces,
 		std::vector<Vector2i>& diffs, std::set<int> fixed_vertices, std::vector<std::pair<int, int> >& shrink_parents,
 		DisajointTree& tree, std::vector<std::vector<std::pair<int, int> > >& vertices, std::vector<int>& face_area);
@@ -127,5 +128,8 @@ public:
 
 	std::set<DEdge> cuts;
 	std::vector<Vector3i> flipped;
+
+	// fixed_vertices
+	std::vector<int> fixed;
 };
 #endif
