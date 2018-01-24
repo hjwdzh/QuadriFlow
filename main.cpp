@@ -314,9 +314,9 @@ static void render_quadmesh()
 		glEnd();
 		
 		glColor3f(0.5, 0.5, 0.5);
-		glBegin(GL_QUADS);
-		for (auto& p : field.F_compact) {
-			for (int j = 0; j < 4; ++j) {
+		glBegin(GL_TRIANGLES);
+		for (auto& p : field.flipped) {
+			for (int j = 0; j < 3; ++j) {
 				glVertex3dv(&O[p[j]][0]);
 			}
 		}

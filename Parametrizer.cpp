@@ -57,7 +57,7 @@ void Parametrizer::Initialize()
 {
 	ComputeMeshStatus();
 
-	num_vertices = V.cols();
+	num_vertices = V.cols() / 4;
 	num_faces = num_vertices;
 	scale = sqrt(surface_area / num_faces);
 	printf("scale %lf\n", scale);
@@ -3055,9 +3055,14 @@ void Parametrizer::FixFlipComplete()
 		auto diff1 = rshift90(edge_diff[eids[i][0]], orients[i][0]);
 		auto diff2 = rshift90(-edge_diff[eids[i][2]], orients[i][2]);
 		int area = diff1[0] * diff2[1] - diff1[1] * diff2[0];
-		if (area < 0)
-			total_area += area;
+		if (area < 0) {
+			total_area -= area;
+			std::set<int> visited;
+			visited.insert(i);
+			std::queue<int> q;
+			q.push(i);
+		}
 	}
-	printf("total area %d\n", total_area);
+	printf("total face: %d, total area %d\n", F.cols(), total_area);
 	system("pause");
 }
