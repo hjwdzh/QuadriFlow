@@ -69,6 +69,7 @@ public:
 	void ComputePosition(int with_scale = 0);
 	void FixFlip();
 	void FixFlipAdvance();
+	void FixFlipComplete();
 	void SanityCheckFlip(int f0, std::vector<Vector3i>& faces,
 		std::vector<Vector2i>& diffs, std::set<int> fixed_vertices, std::vector<std::pair<int, int> >& shrink_parents,
 		DisajointTree& tree, std::vector<std::vector<std::pair<int, int> > >& vertices, std::vector<int>& face_area);
@@ -79,6 +80,7 @@ public:
 	// File IO
 	void SaveToFile(FILE* fp);
 	void LoadFromFile(FILE* fp);
+	void ExtractMesh(const char* obj_name);
 
 	std::map<int, int> singularities;
 	std::map<int, Vector2i> pos_sing;
@@ -119,6 +121,8 @@ public:
 
 	int compact_num_v;
 	std::vector<Vector3d> O_compact;
+	std::vector<Vector4i> F_compact;
+	std::vector<int> bad_vertices;
 	std::vector<double> counter;
 	std::vector<Vector2i> edge_diff;
 	std::map<DEdge, int> edge_ids;
@@ -134,5 +138,6 @@ public:
 
 	// fixed_vertices
 	std::vector<int> fixed;
+	std::set<DEdge> fixed_cuts;
 };
 #endif

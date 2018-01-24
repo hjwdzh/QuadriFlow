@@ -299,19 +299,24 @@ static void render_quadmesh()
 			}
 			else
 				continue;
-			if (field.fixed[field.disajoint_tree.Index(EV[i].x)] &&
-				field.fixed[field.disajoint_tree.Index(EV[i].y)]) {
+			if (field.fixed_cuts.count(
+				DEdge(field.disajoint_tree.Index(EV[i].x),
+				field.disajoint_tree.Index(EV[i].y)))) {
 				glColor3f(0, 1, 0);
 			}
+/*			if (field.fixed[field.disajoint_tree.Index(EV[i].x)] &&
+				field.fixed[field.disajoint_tree.Index(EV[i].y)]) {
+				glColor3f(0, 1, 0);
+			}*/
 			glVertex3dv(&O[field.disajoint_tree.Index(EV[i].x)][0]);
 			glVertex3dv(&O[field.disajoint_tree.Index(EV[i].y)][0]);
 		}
 		glEnd();
 		
 		glColor3f(0.5, 0.5, 0.5);
-		glBegin(GL_TRIANGLES);
-		for (auto& p : field.flipped) {
-			for (int j = 0; j < 3; ++j) {
+		glBegin(GL_QUADS);
+		for (auto& p : field.F_compact) {
+			for (int j = 0; j < 4; ++j) {
 				glVertex3dv(&O[p[j]][0]);
 			}
 		}
@@ -611,6 +616,7 @@ int main(int argc, char** argv)
 	t2 = GetTickCount();
 	printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
 
+	field.ExtractMesh("result.obj");
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
