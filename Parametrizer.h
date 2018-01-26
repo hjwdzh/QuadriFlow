@@ -127,7 +127,6 @@ public:
 	std::vector<Vector2i> edge_diff;
 	std::vector<DEdge> edge_values;
 	std::vector<Vector3i> face_edgeIds;
-	std::vector<int> face_orients;
 	std::vector<Vector3i> face_edgeOrients;
 
 

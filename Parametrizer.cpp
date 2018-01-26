@@ -1750,7 +1750,7 @@ void Parametrizer::BuildIntegerConstraints()
 			Vector3i diffs;
 			Vector3i orient_diffs;
 			for (int j = 0; j < 3; ++j) {
-				int eid = face_edgeIds[f][(j+1)%3];
+				int eid = face_edgeIds[f][(j + 1) % 3];
 				int v0 = edge_to_constraints[eid][0];
 				int v1 = edge_to_constraints[eid][2];
 				int orientp0 = disajoint_orient_tree.Orient(v0) + edge_to_constraints[eid][1];
@@ -1820,7 +1820,7 @@ void Parametrizer::BuildIntegerConstraints()
 	}
 	if (sing_maps.back().count(0) == 0) {
 		printf("No Zero map!\n");
-//		exit(0);
+		//		exit(0);
 	}
 	std::vector<int> sing_selection;
 	int target_flow = 0;
@@ -1844,7 +1844,7 @@ void Parametrizer::BuildIntegerConstraints()
 		auto& index2 = constraints_index[f.first * 2 + 1];
 		auto& sign1 = constraints_sign[f.first * 2];
 		auto& sign2 = constraints_sign[f.first * 2 + 1];
-		
+
 		int eid0;
 		for (int i = 0; i < 3; ++i) {
 			auto diff = Vector2i(sign1[i] * (index1[i] + 1),
@@ -1905,9 +1905,11 @@ void Parametrizer::BuildIntegerConstraints()
 		}
 	}
 
-	face_orients.resize(F.cols());
-	for (int i = 0; i < face_orients.size(); ++i)
-		face_orients[i] = disajoint_orient_tree.Orient(i);
+	for (int i = 0; i < face_edgeOrients.size(); ++i) {
+		for (int j = 0; j < 3; ++j) {
+			face_edgeOrients[i][j] = (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
+		}
+	}
 }
 
 void Parametrizer::ComputeMaxFlow()
@@ -2087,7 +2089,7 @@ void Parametrizer::FixFlipAdvance()
 			int v0 = F(j, i);
 			int v1 = F((j + 1) % 3, i);
 			int eid = face_edgeIds[i][j];//edge_ids[DEdge(v0, v1)];
-			int orient = (face_orients[i] + face_edgeOrients[i][j]) % 4;
+			int orient = face_edgeOrients[i][j];
 			std::list<int> l;
 			l.push_back(eid);
 			vertices_to_edges[v0].insert(std::make_pair(v1, l));
@@ -2210,7 +2212,7 @@ void Parametrizer::FixFlipAdvance()
 				int v0 = F(j, i);
 				int v1 = F((j + 1) % 3, i);
 				int eid = face_edgeIds[i][j];
-				int orient = (face_orients[i] + face_edgeOrients[i][j]) % 4;
+				int orient = face_edgeOrients[i][j];
 				int pid = get_parents(parent_edge, eid);
 				pids[j] = pid;
 				int parent_orient = get_parents_orient(parent_edge, eid);
@@ -2259,7 +2261,7 @@ void Parametrizer::FixFlipAdvance()
 				int v1 = F((i + 1) % 3, f);
 				int eid = face_edgeIds[f][i];
 				int pid = get_parents(parent_edge, eid);
-				orient[i] = (get_parents_orient(parent_edge, eid) + face_orients[f] + face_edgeOrients[f][i]) % 4;
+				orient[i] = (get_parents_orient(parent_edge, eid) + face_edgeOrients[f][i]) % 4;
 				eids[i] = pid;
 				Vector2i diff = edge_diff[pid];
 				if (edge_set.count(pid))
@@ -2467,8 +2469,8 @@ void Parametrizer::FixFlipAdvance()
 			int pid0 = get_parents(parent_edge, eid0);
 			int eid1 = face_edgeIds[f][2];
 			int pid1 = get_parents(parent_edge, eid1);
-			int orient0 = (get_parents_orient(parent_edge, eid0) + face_orients[f] + face_edgeOrients[f][0]) % 4;
-			int orient1 = (get_parents_orient(parent_edge, eid1) + face_orients[f] + face_edgeOrients[f][2]) % 4;
+			int orient0 = (get_parents_orient(parent_edge, eid0) + face_edgeOrients[f][0]) % 4;
+			int orient1 = (get_parents_orient(parent_edge, eid1) + face_edgeOrients[f][2]) % 4;
 			Vector2i diff1 = rshift90(edge_diff[pid0], orient0);
 			Vector2i diff2 = rshift90(edge_diff[pid1], orient1);
 			int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
@@ -2489,8 +2491,8 @@ void Parametrizer::FixFlipAdvance()
 			int pid0 = get_parents(parent_edge, eid0);
 			int eid1 = face_edgeIds[f][2];
 			int pid1 = get_parents(parent_edge, eid1);
-			int orient0 = (get_parents_orient(parent_edge, eid0) + face_orients[f] + face_edgeOrients[f][0]) % 4;
-			int orient1 = (get_parents_orient(parent_edge, eid1) + face_orients[f] + face_edgeOrients[f][2]) % 4;
+			int orient0 = (get_parents_orient(parent_edge, eid0) + face_edgeOrients[f][0]) % 4;
+			int orient1 = (get_parents_orient(parent_edge, eid1) + face_edgeOrients[f][2]) % 4;
 			Vector2i diff1 = rshift90(edge_diff[pid0], orient0);
 			Vector2i diff2 = rshift90(edge_diff[pid1], orient1);
 			int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
@@ -2566,7 +2568,7 @@ void Parametrizer::FixFlipAdvance()
 			int e = face_edgeIds[i][j];
 			int p = get_parents(parent_edge, e);
 			eid[j] = p;
-			orient[j] = (get_parents_orient(parent_edge, e) + face_orients[i] + face_edgeOrients[i][j]) % 4;
+			orient[j] = (get_parents_orient(parent_edge, e) + face_edgeOrients[i][j]) % 4;
 			diff[j] = edge_diff[p];
 		}
 		Vector2i d1 = rshift90(diff[0], orient[0]);
