@@ -74,6 +74,7 @@ public:
 	void FixFlipAdvance();
 	void SubdivideLongEdge();
 
+	void WriteTestData();
 	// sanity check
 	void SanityCheckDiff(int sing);
 
@@ -117,7 +118,6 @@ public:
 
 	//just for test
 	DisajointTree disajoint_tree;
-	DisajointOrientTree disajoint_orient_tree;
 
 	int compact_num_v;
 	std::vector<Vector3d> O_compact;
@@ -127,11 +127,13 @@ public:
 	std::vector<Vector2i> edge_diff;
 	std::vector<DEdge> edge_values;
 	std::vector<Vector3i> face_edgeIds;
+	std::vector<int> face_orients;
+	std::vector<Vector3i> face_edgeOrients;
+
 
 	std::vector<Vector3i> constraints_index;
 	std::vector<Vector3i> constraints_sign;
 	std::vector<std::pair<Vector2i, int> > variables;
-	std::vector<Vector4i> edge_to_constraints;
 
 	std::set<DEdge> cuts;
 	std::vector<Vector3i> flipped;
