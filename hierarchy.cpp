@@ -1,22 +1,27 @@
 #include "hierarchy.h"
 #include "field_math.h"
 #include <fstream>
-
+#include "tbb_common.h"
+#include "pss/parallel_stable_sort.h"
+#include "pcg32/pcg32.h"
 Hierarchy::Hierarchy()
 {
 	mAdj.resize(MAX_DEPTH + 1);
 	mV.resize(MAX_DEPTH + 1);
 	mN.resize(MAX_DEPTH + 1);
 	mA.resize(MAX_DEPTH + 1);
+	mPhases.resize(MAX_DEPTH + 1);
 	mToLower.resize(MAX_DEPTH);
 	mToUpper.resize(MAX_DEPTH);
 }
 
 void Hierarchy::Initialize(double scale)
 {
+	generate_graph_coloring_deterministic(mAdj[0], mV[0].cols(), mPhases[0]);
 	for (int i = 0; i < MAX_DEPTH; ++i) {
 		DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1],
 			mToUpper[i], mToLower[i], mAdj[i + 1]);
+		generate_graph_coloring_deterministic(mAdj[i + 1], mV[i + 1].cols(), mPhases[i + 1]);
 		if (mV[i + 1].cols() == 1) {
 			mAdj.resize(i + 2);
 			mV.resize(i + 2);
@@ -32,7 +37,8 @@ void Hierarchy::Initialize(double scale)
 	mS.resize(mV.size());
 	mK.resize(mV.size());
 	mScale = scale;
-	for (size_t i = 0; i<mV.size(); ++i) {
+#pragma omp parallel for
+	for (int i = 0; i<mV.size(); ++i) {
 		mQ[i].resize(mN[i].rows(), mN[i].cols());
 		mO[i].resize(mN[i].rows(), mN[i].cols());
 		mS[i].resize(2, mN[i].cols());
@@ -51,6 +57,123 @@ void Hierarchy::Initialize(double scale)
 	}
 }
 
+void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
+	std::vector<std::vector<int> > &phases) {
+	struct ColorData {
+		uint8_t nColors;
+		uint32_t nNodes[256];
+		ColorData() : nColors(0) { }
+	};
+
+	const uint8_t INVALID_COLOR = 0xFF;
+	phases.clear();
+
+	/* Generate a permutation */
+	std::vector<uint32_t> perm(size);
+	std::vector<tbb::spin_mutex> mutex(size);
+	for (uint32_t i = 0; i<size; ++i)
+		perm[i] = i;
+
+	tbb::parallel_for(
+		tbb::blocked_range<uint32_t>(0u, size, GRAIN_SIZE),
+		[&](const tbb::blocked_range<uint32_t> &range) {
+		pcg32 rng;
+		rng.advance(range.begin());
+		for (uint32_t i = range.begin(); i != range.end(); ++i) {
+			uint32_t j = i, k =
+				rng.nextUInt(size - i) + i;
+			if (j == k)
+				continue;
+			if (j > k)
+				std::swap(j, k);
+			tbb::spin_mutex::scoped_lock l0(mutex[j]);
+			tbb::spin_mutex::scoped_lock l1(mutex[k]);
+			std::swap(perm[j], perm[k]);
+		}
+	}
+	);
+
+	std::vector<uint8_t> color(size, INVALID_COLOR);
+	ColorData colorData = tbb::parallel_reduce(
+		tbb::blocked_range<uint32_t>(0u, size, GRAIN_SIZE),
+		ColorData(),
+		[&](const tbb::blocked_range<uint32_t> &range, ColorData colorData) -> ColorData {
+		std::vector<uint32_t> neighborhood;
+		bool possible_colors[256];
+
+		for (uint32_t pidx = range.begin(); pidx != range.end(); ++pidx) {
+			uint32_t i = perm[pidx];
+
+			neighborhood.clear();
+			neighborhood.push_back(i);
+//			for (const Link *link = adj[i]; link != adj[i + 1]; ++link)
+			for (auto& link : adj[i])
+				neighborhood.push_back(link.id);
+			std::sort(neighborhood.begin(), neighborhood.end());
+			for (uint32_t j : neighborhood)
+				mutex[j].lock();
+
+			std::fill(possible_colors, possible_colors + colorData.nColors, true);
+
+//			for (const Link *link = adj[i]; link != adj[i + 1]; ++link) {
+			for (auto& link : adj[i]) {
+				uint8_t c = color[link.id];
+				if (c != INVALID_COLOR) {
+					while (c >= colorData.nColors) {
+						possible_colors[colorData.nColors] = true;
+						colorData.nNodes[colorData.nColors] = 0;
+						colorData.nColors++;
+					}
+					possible_colors[c] = false;
+				}
+			}
+
+			uint8_t chosen_color = INVALID_COLOR;
+			for (uint8_t j = 0; j<colorData.nColors; ++j) {
+				if (possible_colors[j]) {
+					chosen_color = j;
+					break;
+				}
+			}
+			if (chosen_color == INVALID_COLOR) {
+				if (colorData.nColors == INVALID_COLOR - 1)
+					throw std::runtime_error("Ran out of colors during graph coloring! "
+					"The input mesh is very likely corrupt.");
+				colorData.nNodes[colorData.nColors] = 1;
+				color[i] = colorData.nColors++;
+			}
+			else {
+				colorData.nNodes[chosen_color]++;
+				color[i] = chosen_color;
+			}
+
+			for (uint32_t j : neighborhood)
+				mutex[j].unlock();
+		}
+		return colorData;
+	},
+		[](ColorData c1, ColorData c2) -> ColorData {
+		ColorData result;
+		result.nColors = max(c1.nColors, c2.nColors);
+		memset(result.nNodes, 0, sizeof(uint32_t) * result.nColors);
+		for (uint8_t i = 0; i<c1.nColors; ++i)
+			result.nNodes[i] += c1.nNodes[i];
+		for (uint8_t i = 0; i<c2.nColors; ++i)
+			result.nNodes[i] += c2.nNodes[i];
+		return result;
+	}
+	);
+
+	phases.resize(colorData.nColors);
+	for (int i = 0; i<colorData.nColors; ++i)
+		phases[i].reserve(colorData.nNodes[i]);
+
+	for (uint32_t i = 0; i<size; ++i)
+		phases[color[i]].push_back(i);
+
+}
+
+
 void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 	const MatrixXd &N, const VectorXd &A,
 	MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
@@ -64,22 +187,32 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 		inline bool operator<(const Entry &e) const { return order > e.order; }
 		inline bool operator==(const Entry &e) const { return order == e.order; }
 	};
+
 	int nLinks = 0;
 	for (auto& adj_i : adj)
 		nLinks += adj_i.size();
 	std::vector<Entry> entries(nLinks);
-	int offset = 0;
-	for (int i = 0; i < V.cols(); ++i) {
-		for (int j = 0; j < adj[i].size(); ++j) {
-			int k = adj[i][j].id;
-			double dp = N.col(i).dot(N.col(k));
-			double ratio = A[i] > A[k] ? (A[i] / A[k]) : (A[k] / A[i]);
-			entries[offset + j] = Entry(i, k, dp * ratio);
-		}
-		offset += adj[i].size();
+	std::vector<int> bases(adj.size());
+	for (int i = 1; i < bases.size(); ++i) {
+		bases[i] = bases[i - 1] + adj[i - 1].size();
 	}
 
-	std::stable_sort(entries.begin(), entries.end());
+#pragma omp parallel for
+	for (int i = 0; i < V.cols(); ++i) {
+		int num = adj[i].size();
+		int base = bases[i];
+		auto& ad = adj[i];
+		auto entry_it = entries.begin() + base;
+		for (auto it = ad.begin(); it != ad.end(); ++it, ++entry_it) {
+			int k = it->id;
+			double dp = N.col(i).dot(N.col(k));
+			double ratio = A[i] > A[k] ? (A[i] / A[k]) : (A[k] / A[i]);
+			*entry_it = Entry(i, k, dp * ratio);
+		}
+	}
+
+	pss::parallel_stable_sort(entries.begin(), entries.end(), std::less<Entry>());
+
 	std::vector<bool> mergeFlag(V.cols(), false);
 
 	int nCollapsed = 0;
@@ -99,6 +232,7 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 	to_upper.resize(2, vertexCount);
 	to_lower.resize(V.cols());
 
+#pragma omp parallel for
 	for (int i = 0; i < nCollapsed; ++i) {
 		const Entry &e = entries[i];
 		const double area1 = A[e.i], area2 = A[e.j], surfaceArea = area1 + area2;
@@ -115,7 +249,7 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 		to_lower[e.i] = i; to_lower[e.j] = i;
 	}
 
-	offset = nCollapsed;
+	int offset = nCollapsed;
 
 	for (int i = 0; i < V.cols(); ++i) {
 		if (!mergeFlag[i]) {
@@ -127,27 +261,44 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 			to_lower[i] = idx;
 		}
 	}
-	
+
 	adj_p.resize(V_p.cols());
+	std::vector<int> capacity(V_p.cols());
+	std::vector<std::vector<Link> > scratches(V_p.cols());
+#pragma omp parallel for
 	for (int i = 0; i < V_p.cols(); ++i) {
-		std::vector<Link> scratch;
+		int t = 0;
+		for (int j = 0; j < 2; ++j) {
+			int upper = to_upper(j, i);
+			if (upper == -1)
+				continue;
+			t += adj[upper].size();
+		}
+		scratches[i].reserve(t);
+		adj_p[i].reserve(t);
+	}
+#pragma omp parallel for
+	for (int i = 0; i < V_p.cols(); ++i) {
+		auto& scratch = scratches[i];
 		for (int j = 0; j<2; ++j) {
 			int upper = to_upper(j, i);
 			if (upper == -1)
 				continue;
-			for (auto& link : adj[upper])
+			auto& ad = adj[upper];
+			for (auto& link : ad)
 				scratch.push_back(Link(to_lower[link.id], link.weight));
 		}
 		std::sort(scratch.begin(), scratch.end());
 		int id = -1;
+		auto& ad = adj_p[i];
 		for (auto& link : scratch) {
 			if (link.id != i) {
 				if (id != link.id) {
-					adj_p[i].push_back(link);
+					ad.push_back(link);
 					id = link.id;
 				}
 				else {
-					adj_p[i].back().weight += link.weight;
+					ad.back().weight += link.weight;
 				}
 			}
 		}

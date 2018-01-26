@@ -13,31 +13,36 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
 		MatrixXd &Q = mRes.mQ[level];
-
+		auto& phases = mRes.mPhases[level];
 		for (int iter = 0; iter < levelIterations; ++iter) {
-			for (int i = 0; i < N.cols(); ++i) {
-				const Vector3d n_i = N.col(i);
-				double weight_sum = 0.0f;
-				Vector3d sum = Q.col(i);
-				for (auto& link : adj[i]) {
-					const int j = link.id;
-					const double weight = link.weight;
-					if (weight == 0)
-						continue;
-					const Vector3d n_j = N.col(j);
-					Vector3d q_j = Q.col(j);
-					std::pair<Vector3d, Vector3d> value = compat_orientation_extrinsic_4(sum, n_i, q_j, n_j);
-					sum = value.first * weight_sum + value.second * weight;
-					sum -= n_i*n_i.dot(sum);
-					weight_sum += weight;
+			for (int phase = 0; phase < phases.size(); ++phase) {
+				auto& p = phases[phase];
+#pragma omp parallel for
+				for (int pi = 0; pi < p.size(); ++pi) {
+					int i = p[pi];
+					const Vector3d n_i = N.col(i);
+					double weight_sum = 0.0f;
+					Vector3d sum = Q.col(i);
+					for (auto& link : adj[i]) {
+						const int j = link.id;
+						const double weight = link.weight;
+						if (weight == 0)
+							continue;
+						const Vector3d n_j = N.col(j);
+						Vector3d q_j = Q.col(j);
+						std::pair<Vector3d, Vector3d> value = compat_orientation_extrinsic_4(sum, n_i, q_j, n_j);
+						sum = value.first * weight_sum + value.second * weight;
+						sum -= n_i*n_i.dot(sum);
+						weight_sum += weight;
 
-					double norm = sum.norm();
-					if (norm > RCPOVERFLOW)
-						sum /= norm;
+						double norm = sum.norm();
+						if (norm > RCPOVERFLOW)
+							sum /= norm;
+					}
+
+					if (weight_sum > 0)
+						Q.col(i) = sum;
 				}
-
-				if (weight_sum > 0)
-					Q.col(i) = sum;
 			}
 		}
 
@@ -46,6 +51,7 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
 			MatrixXd &destField = mRes.mQ[level - 1];
 			const MatrixXd &N = mRes.mN[level - 1];
+#pragma omp parallel for
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);
@@ -59,6 +65,7 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 	}
 	MatrixXd& N = mRes.mN[0];
 	MatrixXd& Q = mRes.mQ[0];
+/*#pragma omp parallel for
 	for (int i = 0; i < Q.cols(); ++i) {
 		Vector3d q = Q.col(i);
 		Vector3d n = N.col(i);
@@ -71,12 +78,14 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 		}
 		Q.col(i) = q;
 	}
+*/
 	for (int l = 0; l< mRes.mN.size() - 1; ++l)  {
 		const MatrixXd &N = mRes.mN[l];
 		const MatrixXd &N_next = mRes.mN[l + 1];
 		const MatrixXd &Q = mRes.mQ[l];
 		MatrixXd &Q_next = mRes.mQ[l + 1];
 		auto& toUpper = mRes.mToUpper[l];
+#pragma omp parallel for
 		for (int i = 0; i < toUpper.cols(); ++i) {
 			Vector2i upper = toUpper.col(i);
 			Vector3d q0 = Q.col(upper[0]);
@@ -156,6 +165,15 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 		}
 	}
 
+	for (int i = 0; i < entries.size(); ++i) {
+		for (auto& j : entries[i]) {
+			if (abs(j.second + entries[j.first][i]) > 1e-6) {
+				printf("not true... %f %f\n", j.second, entries[j.first][i]);
+				system("pause");
+			}
+		}
+	}
+
 	Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
 	VectorXd rhs(V.cols() * 2);
 	rhs.setZero();
@@ -208,56 +226,75 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			AdjacentMatrix &adj = mRes.mAdj[level];
 			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
 			MatrixXd &O = mRes.mO[level];
-
-			for (int i = 0; i < N.cols(); ++i) {
-				double scale_x = mRes.mScale;
-				double scale_y = mRes.mScale;
-				if (with_scale) {
-					scale_x *= S(0, i);
-					scale_y *= S(1, i);
-				}
-				double inv_scale_x = 1.0f / scale_x;
-				double inv_scale_y = 1.0f / scale_y;
-				const Vector3d n_i = N.col(i), v_i = V.col(i);
-				Vector3d q_i = Q.col(i);
-
-				Vector3d sum = O.col(i);
-				double weight_sum = 0.0f;
-
-				q_i.normalize();
+			auto& phases = mRes.mPhases[level];
+			int t = 0;
+			std::vector<int> colors(V.cols(), -1);
+			for (int i = 0; i < phases.size(); ++i) {
+				for (auto& p : phases[i])
+					colors[p] = i;
+			}
+			for (int i = 0; i < adj.size(); ++i) {
 				for (auto& link : adj[i]) {
-					const int j = link.id;
-					const double weight = link.weight;
-					if (weight == 0)
-						continue;
-					double scale_x_1 = mRes.mScale;
-					double scale_y_1 = mRes.mScale;
-					if (with_scale) {
-						scale_x_1 *= S(0, j);
-						scale_y_1 *= S(1, j);
+					if (colors[i] == colors[link.id]) {
+						printf("should not happen!\n");
+						system("pause");
 					}
-					double inv_scale_x_1 = 1.0f / scale_x_1;
-					double inv_scale_y_1 = 1.0f / scale_y_1;
-
-					const Vector3d n_j = N.col(j), v_j = V.col(j);
-					Vector3d q_j = Q.col(j), o_j = O.col(j);
-
-					q_j.normalize();
-
-					std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
-						v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j,
-						scale_x, scale_y, inv_scale_x, inv_scale_y,
-						scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
-
-					sum = value.first*weight_sum + value.second*weight;
-					weight_sum += weight;
-					if (weight_sum > RCPOVERFLOW)
-						sum /= weight_sum;
-					sum -= n_i.dot(sum - v_i)*n_i;
 				}
+			}
+			for (int phase = 0; phase < phases.size(); ++phase) {
+				auto& p = phases[phase];
+#pragma omp parallel for
+				for (int pi = 0; pi < p.size(); ++pi) {
+					int i = p[pi];
+					double scale_x = mRes.mScale;
+					double scale_y = mRes.mScale;
+					if (with_scale) {
+						scale_x *= S(0, i);
+						scale_y *= S(1, i);
+					}
+					double inv_scale_x = 1.0f / scale_x;
+					double inv_scale_y = 1.0f / scale_y;
+					const Vector3d n_i = N.col(i), v_i = V.col(i);
+					Vector3d q_i = Q.col(i);
 
-				if (weight_sum > 0) {
-					O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale_x, scale_y, inv_scale_x, inv_scale_y);
+					Vector3d sum = O.col(i);
+					double weight_sum = 0.0f;
+
+					q_i.normalize();
+					for (auto& link : adj[i]) {
+						const int j = link.id;
+						const double weight = link.weight;
+						if (weight == 0)
+							continue;
+						double scale_x_1 = mRes.mScale;
+						double scale_y_1 = mRes.mScale;
+						if (with_scale) {
+							scale_x_1 *= S(0, j);
+							scale_y_1 *= S(1, j);
+						}
+						double inv_scale_x_1 = 1.0f / scale_x_1;
+						double inv_scale_y_1 = 1.0f / scale_y_1;
+
+						const Vector3d n_j = N.col(j), v_j = V.col(j);
+						Vector3d q_j = Q.col(j), o_j = O.col(j);
+
+						q_j.normalize();
+
+						std::pair<Vector3d, Vector3d> value = compat_position_extrinsic_4(
+							v_i, n_i, q_i, sum, v_j, n_j, q_j, o_j,
+							scale_x, scale_y, inv_scale_x, inv_scale_y,
+							scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1);
+
+						sum = value.first*weight_sum + value.second*weight;
+						weight_sum += weight;
+						if (weight_sum > RCPOVERFLOW)
+							sum /= weight_sum;
+						sum -= n_i.dot(sum - v_i)*n_i;
+					}
+
+					if (weight_sum > 0) {
+						O.col(i) = position_round_4(sum, q_i, n_i, v_i, scale_x, scale_y, inv_scale_x, inv_scale_y);
+					}
 				}
 			}
 		}
@@ -268,6 +305,7 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			MatrixXd &destField = mRes.mO[level - 1];
 			const MatrixXd &N = mRes.mN[level - 1];
 			const MatrixXd &V = mRes.mV[level - 1];
+#pragma omp parallel for
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);

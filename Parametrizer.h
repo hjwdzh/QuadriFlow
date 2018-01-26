@@ -1,5 +1,9 @@
 #ifndef PARAMETRIZER_H_
 #define PARAMETRIZER_H_
+#include <atomic>
+#include <tbb/tbb.h>
+#include <condition_variable>
+
 #include <list>
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -68,6 +72,7 @@ public:
 	void BuildIntegerConstraints();
 	void ComputePosition(int with_scale = 0);
 	void FixFlipAdvance();
+	void SubdivideLongEdge();
 
 	// sanity check
 	void SanityCheckDiff(int sing);
@@ -120,8 +125,8 @@ public:
 	std::vector<int> bad_vertices;
 	std::vector<double> counter;
 	std::vector<Vector2i> edge_diff;
-	std::map<DEdge, int> edge_ids;
 	std::vector<DEdge> edge_values;
+	std::vector<Vector3i> face_edgeIds;
 
 	std::vector<Vector3i> constraints_index;
 	std::vector<Vector3i> constraints_sign;

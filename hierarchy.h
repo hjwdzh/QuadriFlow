@@ -17,6 +17,8 @@ public:
 		MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
 		MatrixXi &to_upper, VectorXi &to_lower,
 		AdjacentMatrix& adj_p);
+	void generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
+		std::vector<std::vector<int> > &phases);
 
 	enum {
 		MAX_DEPTH = 25
@@ -35,7 +37,7 @@ public:
 	std::vector<VectorXd> mA;
 	std::vector<VectorXi> mToLower;
 	std::vector<MatrixXi> mToUpper;
-
+	std::vector<std::vector<std::vector<int> > > mPhases;
 	// parameters
 	std::vector<MatrixXd> mQ;
 	std::vector<MatrixXd> mO;

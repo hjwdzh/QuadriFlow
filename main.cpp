@@ -572,13 +572,16 @@ extern void max_flow_main();
 
 int main(int argc, char** argv)
 {
-	int with_scale = 1;
+	int with_scale = 0;
 	int t1, t2;
-	/*
+	
 	field.Load(argv[1]);
 	
+	t1 = GetTickCount();
 	printf("Initialize...\n");
 	field.Initialize();
+	t2 = GetTickCount();
+	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
 	printf("Solve Orientation Field...\n");
 	t1 = GetTickCount();
@@ -587,12 +590,19 @@ int main(int argc, char** argv)
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
-	printf("Solve for scale...\n");
-	t1 = GetTickCount();
-	field.EstimateScale();
-	Optimizer::optimize_scale(field.hierarchy);
-	t2 = GetTickCount();
-	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	if (with_scale == 1) {
+		printf("estimate for scale...\n");
+		t1 = GetTickCount();
+		field.EstimateScale();
+		t2 = GetTickCount();
+		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+
+		printf("Solve for scale...\n");
+		t1 = GetTickCount();
+		Optimizer::optimize_scale(field.hierarchy);
+		t2 = GetTickCount();
+		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	}
 
 	printf("Solve for position field...\n");
 	t1 = GetTickCount();
@@ -601,11 +611,13 @@ int main(int argc, char** argv)
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
+	system("pause");
+
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
-	*/
+	
 	printf("load...\n");
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
