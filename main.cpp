@@ -302,7 +302,7 @@ static void render_quadmesh()
 			if (field.fixed_cuts.count(
 				DEdge(field.disajoint_tree.Index(EV[i].x),
 				field.disajoint_tree.Index(EV[i].y)))) {
-				glColor3f(0, 1, 0);
+//				glColor3f(0, 1, 0);
 			}
 /*			if (field.fixed[field.disajoint_tree.Index(EV[i].x)] &&
 				field.fixed[field.disajoint_tree.Index(EV[i].y)]) {
@@ -582,13 +582,14 @@ int main(int argc, char** argv)
 	field.Initialize();
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-
+	printf("E2E %d\n", field.hierarchy.mE2E.size());
 	printf("Solve Orientation Field...\n");
 	t1 = GetTickCount();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	printf("E2E %d\n", field.hierarchy.mE2E.size());
 
 	if (with_scale == 1) {
 		printf("estimate for scale...\n");
@@ -610,16 +611,20 @@ int main(int argc, char** argv)
 	field.ComputePositionSingularities(with_scale);
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	printf("E2E %d\n", field.hierarchy.mE2E.size());
 
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
 	field.SaveToFile(fp_w);
 	fclose(fp_w);
+	printf("E2E %d\n", field.hierarchy.mE2E.size());
 	*/
 	printf("load...\n");
 	FILE* fp = fopen("result.txt", "rb");
 	field.LoadFromFile(fp);
 	fclose(fp);
+	printf("V2E %d\n", field.V2E.size());
+	printf("E2E %d\n", field.hierarchy.mE2E.size());
 
 	t1 = GetTickCount();
 	printf("Solve index map...\n");

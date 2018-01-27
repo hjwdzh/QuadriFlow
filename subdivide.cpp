@@ -73,7 +73,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E,
 		int f3 = nF++;
 		int f20, f30;
 		if (nF > F.cols()) {
-			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
+			F.conservativeResize(F.rows(), max(nF, (int)F.cols() * 2));
 			E2E.conservativeResize(F.cols() * 3);
 		}
 
@@ -154,63 +154,149 @@ void subdivide_diff(MatrixXi &F,
 	VectorXi &boundary, VectorXi &nonmanifold, 
 	std::vector<Vector2i>& edge_diff,
 	std::vector<DEdge>& edge_values,
-	std::map<DEdge,int>& edge_ids,
-	std::vector<Vector4i>& edge_to_constraints,
-	DisajointOrientTree& disajoint_orient_tree
+	std::vector<Vector3i>& face_edgeOrients,
+	std::vector<Vector3i>& face_edgeIds,
+	std::map<int, int>& singularities
 	) {
 	struct EdgeInfo
 	{
-		int eid;
 		int e2eid;
-		Vector2i diff;
+		DEdge edge;
 	};
 
-	std::queue<EdgeInfo> queue;
+	std::vector<EdgeInfo> queue;
+	int qid = 0;
+	bool debug = false;
+	auto sanity = [&](int c) {
+		printf("check sanity %d\n", c);
+		for (int i = 0; i < face_edgeIds.size(); ++i) {
+			for (int j = 0; j < 3; ++j) {
+				if (edge_values[face_edgeIds[i][j]] != DEdge(F(j, i), F((j + 1) % 3, i))) {
+					printf("edge id wrong!\n");
+					system("pause");
+				}
+			}
+		}
+		for (int i = 0; i < face_edgeOrients.size(); ++i) {
+			if (singularities.count(i))
+				continue;
+			for (int j = 0; j < 3; ++j) {
+				int od0, od1;
+				int orient0 = face_edgeOrients[i][j];
+				int orient1 = face_edgeOrients[i][(j + 1) % 3];
+				int v0 = F(j, i), v1 = F((j + 1) % 3, i), v2 = F((j + 2) % 3, i);
+				if (v0 < v1) {
+					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(F(0, i)), N.col(F(0, i)));
+					od0 = (value1.second - value1.first + 4) % 4;
+				}
+				else {
+					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(F(0, i)), N.col(F(0, i)));
+					od0 = (value1.second - value1.first + 6) % 4;
+				}
+				if (v1 < v2) {
+					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(F(0, i)), N.col(F(0, i)));
+					od1 = (value1.second - value1.first + 4) % 4;
+				}
+				else {
+					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v2), N.col(v2), Q.col(F(0, i)), N.col(F(0, i)));
+					od1 = (value1.second - value1.first + 6) % 4;
+				}
 
+				if ((orient0 - od0 + 4) % 4 != (orient1 - od1 + 4) % 4) {
+					printf("%d %d %d %d\n", orient0, od0, orient1, od1);
+					printf("orient wrong!\n");
+					system("pause");
+				}
+			}
+		}
+		for (int i = 0; i < face_edgeIds.size(); ++i) {
+			Vector2i total_diff(0, 0);
+			for (int j = 0; j < 3; ++j) {
+				total_diff += rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
+				if ((c || singularities.count(i)) &&
+					(abs(edge_diff[face_edgeIds[i][j]][0]) > 1 || abs(edge_diff[face_edgeIds[i][j]][1]) > 1))
+				{
+					printf("long edge %d!\n", singularities.count(i));
+					printf("%d %d\n", i, j);
+					system("pause");
+				}
+			}
+			if (total_diff != Vector2i(0, 0)) {
+				printf("non zero diff\n");
+				system("pause");
+			}
+		}
+		printf("finish check!\n");
+	};
+
+	auto AnalyzeOrients = [&](int f0, int orients[3]) {
+		int vo = F(0, f0);
+		for (int j = 0; j < 3; ++j) {
+			int od0, od1;
+			int v0 = F(j, f0), v1 = F((j + 1) % 3, f0);
+			if (v0 < v1) {
+				auto value1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(vo), N.col(vo));
+				od0 = (value1.second - value1.first + 4) % 4;
+			}
+			else {
+				auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(vo), N.col(vo));
+				od0 = (value1.second - value1.first + 6) % 4;
+			}
+			orients[j] = od0;
+		}
+	};
+
+	sanity(0);
 	for (int i = 0; i < E2E.size(); ++i) {
+		if (singularities.count(i / 3) || singularities.count(E2E[i] / 3)) {
+			continue;
+		}
 		int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
 		if (nonmanifold[v0] || nonmanifold[v1])
 			continue;
-		int eid = edge_ids[DEdge(v0, v1)];
-		Vector2i diff = edge_diff[edge_ids[DEdge(v0, v1)]];
+		Vector2i diff = edge_diff[face_edgeIds[i/3][i%3]];
 		if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
 			int other = E2E[i];
 			if (other == -1 || other > i) {
 				EdgeInfo info;
-				info.eid = eid;
 				info.e2eid = i;
-				info.diff = diff;
-				queue.push(info);
+				info.edge = DEdge(v0, v1);
+				queue.push_back(info);
 			}
 		}
 	}
 
 	int nV = V.cols(), nF = F.cols(), nSplit = 0;
 	int counter = 0;
-	while (!queue.empty()) {
+
+	while (qid != queue.size()) {
 		counter += 1;
-		EdgeInfo edge = queue.front();
-		queue.pop();
-		int eid = edge.eid;
+		EdgeInfo edge = queue[qid];
+		qid++;
 		int e0 = edge.e2eid, e1 = E2E[e0];
+		if (edge.edge != edge_values[face_edgeIds[e0 / 3][e0 % 3]]) {
+			continue;
+		}
 		bool is_boundary = e1 == -1;
 		int f0 = e0 / 3, f1 = is_boundary ? -1 : (e1 / 3);
+		int f2 = is_boundary ? -1 : (nF++);
+		if (f2 != -1) {
+			face_edgeOrients.push_back(Vector3i());
+			face_edgeIds.push_back(Vector3i());
+		}
+		int f3 = nF++;
+		face_edgeOrients.push_back(Vector3i());
+		face_edgeIds.push_back(Vector3i());
 		int v0 = F(e0 % 3, f0), v0p = F((e0 + 2) % 3, f0), v1 = F((e0 + 1) % 3, f0);
 		int v1p = is_boundary ? -1 : F((e1 + 2) % 3, f1);
 
-		int eid01 = edge_ids[DEdge(v1, v0p)];
-		int eid02 = edge_ids[DEdge(v0p, v0)];
-		int eid11 = edge_ids[DEdge(v1, v1p)];
-		int eid12 = edge_ids[DEdge(v1p, v0)];
-		int orient0 = edge_to_constraints[eid][1];
-		int orient1 = edge_to_constraints[eid][3];
+		int eid = face_edgeIds[f0][e0 % 3];
+		int eid01 = face_edgeIds[f0][(e0 + 1) % 3];
+		int eid02 = face_edgeIds[f0][(e0 + 2) % 3];
+		int eid11 = face_edgeIds[f1][(e1 + 1) % 3];
+		int eid12 = face_edgeIds[f1][(e1 + 2) % 3];
 
-		if (f0 == edge_to_constraints[eid][2])
-			std::swap(orient0, orient1);
-
-		DEdge eid0, eid1, eid0p, eid1p;
-		int f_orient0 = disajoint_orient_tree.Orient(f0);
-		int f_orient1 = disajoint_orient_tree.Orient(f1);
+		int eid0, eid1, eid0p, eid1p;
 
 		int vn = nV++;
 		nSplit++;
@@ -227,30 +313,43 @@ void subdivide_diff(MatrixXi &F,
 
 		/* Update V */
 		V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5;
-		N.col(vn) = (N.col(v0) + N.col(v1)).normalized();
+		N.col(vn) = N.col(v0);
 		auto value = compat_orientation_extrinsic_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
-		Q.col(vn) = (value.first + value.second).normalized();
+		Q.col(vn) = Q.col(v0);
 		O.col(vn) = (O.col(v0) + O.col(v1)) * 0.5;
+
+		auto id1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(vn), N.col(vn));
+		auto id2 = compat_orientation_extrinsic_index_4(Q.col(vn), N.col(vn), Q.col(v1), N.col(v1));
+		auto id3 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+		int t1 = id1.second - id1.first;
+		int t2 = id2.second - id2.first;
+		if ((t1 + t2 + 8) % 4 != (id3.second - id3.first + 4) % 4) {
+			printf("inconsistent orients!\n");
+		}
 		nonmanifold[vn] = false;
 		boundary[vn] = is_boundary;
+		int orient0, orient1, orient0p, orient1p;
+		eid0 = eid;
+		edge_values[eid0] = DEdge(v0, vn);
 		
-		eid0 = DEdge(vn, v0);
-		edge_ids[eid0] = edge_values.size();
-		edge_values.push_back(eid0);
-		edge_diff.push_back(edge_diff[eid] / 2);
+		eid1 = edge_values.size();
+		edge_values.push_back(DEdge(vn, v1));
+		auto index = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
+		if (v0 < v1) {
+			auto diff = edge_diff[eid];
+			edge_diff[eid0] = diff / 2;
+			edge_diff.push_back(rshift90(diff / 2 - diff, (index.second - index.first + 4) % 4));
+		}
+		else {
+			auto diff = edge_diff[eid];
+			edge_diff[eid0] = rshift90(-diff / 2, (index.first - index.second + 4) % 4);
+			edge_diff.push_back(diff - diff / 2);
+		}
 
-		eid1 = DEdge(vn, v1);
-		edge_ids[eid1] = edge_values.size();
-		edge_values.push_back(eid1);
-		edge_diff.push_back(edge_diff[eid] / 2 - edge_diff[eid]);
-
-		eid0p = DEdge(vn, v0p);
-		edge_ids[eid0p] = edge_values.size();
-		edge_values.push_back(eid0p);
+		eid0p = edge_values.size();
+		edge_values.push_back(DEdge(vn, v0p));
 
 		/* Update F and E2E */
-		int f2 = is_boundary ? -1 : (nF++);
-		int f3 = nF++;
 		int f20, f30;
 		if (nF > F.cols()) {
 			F.conservativeResize(F.rows(), max(nF, (int)F.cols() * 2));
@@ -259,22 +358,39 @@ void subdivide_diff(MatrixXi &F,
 
 		/* Update F */
 		F.col(f0) << vn, v0p, v0;
+		int vo = F(0, f0);
+		face_edgeIds[f0] = Vector3i(eid0p, eid02, eid0);
+
+		int orients[3];
+		AnalyzeOrients(f0, orients);
+		face_edgeOrients[f0] = Vector3i(orients[0], orients[1], orients[2]);
+		edge_diff.push_back(rshift90(-rshift90(edge_diff[eid02], orients[1]) - rshift90(edge_diff[eid0], orients[2]), (4 - orients[0]) % 4));
+
 		if (!is_boundary) {
 			F.col(f1) << vn, v0, v1p;
-			F.col(f2) << vn, v1p, v1;
-			
-			eid1p = DEdge(vn, v1p);
-			edge_ids[eid1p] = edge_values.size();
-			edge_values.push_back(eid1p);
+			AnalyzeOrients(f1, orients);
+			eid1p = edge_values.size();
+			edge_values.push_back(DEdge(vn, v1p));
 
-			disajoint_orient_tree.parent.push_back(std::make_pair(disajoint_orient_tree.parent.size(), f_orient1));
+			face_edgeOrients[f1] = Vector3i(orients[0], orients[1], orients[2]);
+			face_edgeIds[f1] = (Vector3i(eid0, eid11, eid1p));
+			edge_diff.push_back(rshift90(-rshift90(edge_diff[eid0], orients[0]) - rshift90(edge_diff[eid11], orients[1]), (4 - orients[2]) % 4));
+
+			F.col(f2) << vn, v1p, v1;
+			AnalyzeOrients(f2, orients);
+			face_edgeIds[f2] = (Vector3i(eid1p, eid12, eid1));
+			face_edgeOrients[f2] = Vector3i(orients[0], orients[1], orients[2]);
 		}
 		F.col(f3) << vn, v1, v0p;
-		disajoint_orient_tree.parent.push_back(std::make_pair(disajoint_orient_tree.parent.size(), f_orient0));
+		AnalyzeOrients(f3, orients);
+		face_edgeIds[f3] = (Vector3i(eid1, eid01, eid0p));
+		face_edgeOrients[f3] = Vector3i(orients[0], orients[1], orients[2]);
 
 		/* Update E2E */
 		const int e0p = E2E[dedge_prev_3(e0)],
 			e0n = E2E[dedge_next_3(e0)];
+		const int e1p = E2E[dedge_prev_3(e1)],
+			e1n = E2E[dedge_next_3(e1)];
 
 #define sE2E(a, b) E2E[a] = b; if (b != -1) E2E[b] = a;
 		sE2E(3 * f0 + 0, 3 * f3 + 2);
@@ -285,8 +401,6 @@ void subdivide_diff(MatrixXi &F,
 			sE2E(3 * f3 + 0, -1);
 		}
 		else {
-			const int e1p = E2E[dedge_prev_3(e1)],
-				e1n = E2E[dedge_next_3(e1)];
 			sE2E(3 * f0 + 2, 3 * f1 + 0);
 			sE2E(3 * f1 + 1, e1n);
 			sE2E(3 * f1 + 2, 3 * f2 + 0);
@@ -305,9 +419,14 @@ void subdivide_diff(MatrixXi &F,
 
 		auto schedule = [&](int f) {
 			for (int i = 0; i<3; ++i) {
-				double length = (V.col(F(i, f)) - V.col(F((i + 1) % 3, f))).squaredNorm();
-//				if (length > maxLength)
-//					queue.push(Edge(length, f * 3 + i));
+				Vector2i diff = edge_diff[face_edgeIds[f][i]];
+				if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+					EdgeInfo info;
+					info.e2eid = f * 3 + i;
+					info.edge = edge_values[face_edgeIds[f][i]];
+					queue.push_back(info);
+
+				}
 			}
 		};
 
@@ -318,6 +437,8 @@ void subdivide_diff(MatrixXi &F,
 		};
 		schedule(f3);
 	}
+	sanity(1);
+
 	F.conservativeResize(F.rows(), nF);
 	V.conservativeResize(V.rows(), nV);
 	N.conservativeResize(N.rows(), nV);

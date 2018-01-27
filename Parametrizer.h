@@ -140,5 +140,8 @@ public:
 	// fixed_vertices
 	std::vector<int> fixed;
 	std::set<DEdge> fixed_cuts;
+
+	std::set<int> edge_around_singularities;
+
 };
 #endif
