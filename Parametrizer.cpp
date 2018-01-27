@@ -6,7 +6,7 @@
 #include "dedge.h"
 #include "AdjacentMatrix.h"
 #include "field_math.h"
-#include "mcmf.h"
+#include "flow.h"
 #include <fstream>
 #include <queue>
 #include <list>
@@ -1980,85 +1980,28 @@ void Parametrizer::ComputeMaxFlow()
 			singularity_edge.push_back(0);
 		}
 	}
-	std::vector<std::map<int, std::pair<int, int> > > graph(constraints_index.size() + 2);
-
-	std::map<Edge, std::pair<int, int> > edge_to_variable;
+	int t1 = GetTickCount();
+	MaxFlowHelper flow;
+	flow.resize(constraints_index.size() + 2);
+	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
 	for (int i = 0; i < arcs.size(); ++i) {
 		int v1 = arcs[i].first[0] + 1;
 		int v2 = arcs[i].first[1] + 1;
 		int c = arcs[i].second;
 		if (v1 == 0 || v2 == constraints_index.size() + 1) {
-			graph[v1][v2] = std::make_pair(c, 0);
-			graph[v2][v1] = std::make_pair(0, 0);
+			flow.AddEdge(v1, v2, c, 0);
 		}
 		else {
 			int t = arc_ids[i].second;
 			int sing = singularity_edge[i];
-			graph[v1][v2] = std::make_pair(std::max(0, c + 2 - sing), 0);
-			graph[v2][v1] = std::make_pair(std::max(0, -c + 2 - sing), 0);
-			edge_to_variable[Edge(v1, v2)] = std::make_pair(arc_ids[i].first, -1);
-			edge_to_variable[Edge(v2, v1)] = std::make_pair(arc_ids[i].first, 1);
+			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
+			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i].first, -1);
+			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i].first, 1);
 		}
 	}
-
-	int total_flow = 0;
-	while (true) {
-		std::vector<int> visited(graph.size(), 0);
-		std::vector<std::pair<int, int> > q;
-		q.push_back(std::make_pair(0, -1));
-		visited[0] = 1;
-		int front = 0;
-		bool found = false;
-		while (front < q.size() && !found) {
-			for (auto& p : graph[q[front].first]) {
-				if (visited[p.first] == 0 && p.second.first - p.second.second > 0) {
-					visited[p.first] = 1;
-					q.push_back(std::make_pair(p.first, front));
-					if (p.first == constraints_index.size() + 1) {
-						found = true;
-						break;
-					}
-				}
-			}
-			front += 1;
-		}
-		if (found) {
-			int flows = 0x7fffffff;
-			int r = q.size() - 1;
-			while (q[r].second != -1) {
-				int v2 = q[r].first;
-				int v1 = q[q[r].second].first;
-				auto& p = graph[v1][v2];
-				flows = std::min(flows, p.first - p.second);
-				r = q[r].second;
-			}
-			r = q.size() - 1;
-			while (q[r].second != -1) {
-				int v2 = q[r].first;
-				int v1 = q[q[r].second].first;
-				graph[v1][v2].second += flows;
-				graph[v2][v1].second -= flows;
-				r = q[r].second;
-			}
-			total_flow += flows;
-		}
-		else
-			break;
-	}
-	printf("supply and flow: %d %d\n", supply, total_flow);
-
-	for (int i = 1; i < graph.size() - 1; ++i) {
-		for (auto& p : graph[i]) {
-			if (p.first >= 1 && p.first < graph.size() - 1) {
-				int flow = p.second.second;
-				if (flow > 0) {
-					auto q = edge_to_variable[Edge(i, p.first)];
-					edge_diff[q.first / 2][q.first % 2] += q.second * flow;
-				}
-			}
-		}
-	}
-	//WriteTestData();
+	
+	flow.compute();
+	flow.Apply(edge_to_variable, edge_diff);
 }
 
 void Parametrizer::WriteTestData()
@@ -2358,7 +2301,7 @@ void Parametrizer::FixFlipAdvance()
 		}
 		for (auto& l : vertices_to_edges[v1]) {
 			auto it0 = vertices_to_edges[l.first].find(v1);
-			std::pair<int, list<int> > rec = *it0;
+			std::pair<int, std::list<int> > rec = *it0;
 			rec.first = v2;
 			int next_m = l.first;
 			if (next_m != v1) {

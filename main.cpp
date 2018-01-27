@@ -568,7 +568,6 @@ static void keyboard_callback(unsigned char key, int x, int y)
 	}
 }
 
-extern void max_flow_main();
 
 int main(int argc, char** argv)
 {
