@@ -12,6 +12,7 @@ public:
 
 #ifdef WITH_CUDA
 	static void optimize_orientations_cuda(Hierarchy &mRes);
+	static void optimize_positions_cuda(Hierarchy &mRes);
 #endif
 };
 
@@ -19,6 +20,9 @@ public:
 extern void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj);
 extern void PropagateOrientationUpper(glm::dvec3* srcField, int num_orientation, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField);
 extern void PropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N, glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper);
+
+extern void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O, double scale);
+extern void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField);
 #endif
 
 #endif

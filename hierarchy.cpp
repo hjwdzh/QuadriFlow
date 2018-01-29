@@ -388,6 +388,19 @@ void Hierarchy::CopyToDevice()
 //		cudaMemcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols(), cudaMemcpyHostToDevice);
 		memcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols());
 	}
+
+	if (cudaV.empty()) {
+		cudaV.resize(mV.size());
+		for (int i = 0; i < mV.size(); ++i) {
+//			cudaMalloc(&cudaV[i], sizeof(glm::dvec3) * mV[i].cols());
+			cudaV[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mV[i].cols());
+		}
+	}
+	for (int i = 0; i < mV.size(); ++i) {
+//		cudaMemcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols(), cudaMemcpyHostToDevice);
+		memcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols());
+	}
+
 	if (cudaQ.empty()) {
 		cudaQ.resize(mQ.size());
 		for (int i = 0; i < mQ.size(); ++i) {
@@ -398,6 +411,17 @@ void Hierarchy::CopyToDevice()
 	for (int i = 0; i < mQ.size(); ++i) {
 //		cudaMemcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols(), cudaMemcpyHostToDevice);
 		memcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols());
+	}
+	if (cudaO.empty()) {
+		cudaO.resize(mO.size());
+		for (int i = 0; i < mO.size(); ++i) {
+//			cudaMalloc(&cudaO[i], sizeof(glm::dvec3) * mO[i].cols());
+			cudaO[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mO[i].cols());
+		}
+	}
+	for (int i = 0; i < mO.size(); ++i) {
+//		cudaMemcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols(), cudaMemcpyHostToDevice);
+		memcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols());
 	}
 	if (cudaPhases.empty()) {
 		cudaPhases.resize(mPhases.size());

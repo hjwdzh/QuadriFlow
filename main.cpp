@@ -592,17 +592,7 @@ int main(int argc, char** argv)
 
 	printf("Solve Orientation Field...\n");
 	t1 = GetTickCount();
-
-	printf("save\n");
-	FILE* fp_w = fopen("result.txt", "wb");
-	field.SaveToFile(fp_w);
-	fclose(fp_w);
 	
-	printf("load...\n");
-	FILE* fp = fopen("result.txt", "rb");
-	field.LoadFromFile(fp);
-	fclose(fp);
-//	field.hierarchy.CopyToDevice();
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 	t2 = GetTickCount();
@@ -628,6 +618,16 @@ int main(int argc, char** argv)
 	field.ComputePositionSingularities(with_scale);
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+
+	printf("save\n");
+	FILE* fp_w = fopen("result.txt", "wb");
+	field.SaveToFile(fp_w);
+	fclose(fp_w);
+	
+	printf("load...\n");
+	FILE* fp = fopen("result.txt", "rb");
+	field.LoadFromFile(fp);
+	fclose(fp);
 
 	t1 = GetTickCount();
 	printf("Solve index map...\n");

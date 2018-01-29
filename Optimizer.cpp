@@ -217,7 +217,15 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 	int levelIterations = 6;
 
 #ifdef WITH_CUDA
-
+	optimize_positions_cuda(mRes);
+	for (int i = mRes.mO.size() - 1; i >= 0; --i) {
+		for (int j = 0; j < mRes.mO[i].cols(); ++j) {
+			for (int k = 0; k < 3; ++k) {
+				mRes.mO[i](k, j) = mRes.cudaO[i][j][k];
+			}
+		}
+	}
+#else
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
@@ -228,12 +236,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
 			MatrixXd &O = mRes.mO[level];
 			auto& phases = mRes.mPhases[level];
-			int t = 0;
-			std::vector<int> colors(V.cols(), -1);
-			for (int i = 0; i < phases.size(); ++i) {
-				for (auto& p : phases[i])
-					colors[p] = i;
-			}
 			for (int phase = 0; phase < phases.size(); ++phase) {
 				auto& p = phases[phase];
 #pragma omp parallel for
@@ -311,17 +313,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			}
 		}
 	}
-#else
-	optimize_positions_cuda(mRes);
-	for (int i = mRes.mO.size() - 1; i >= 0; --i) {
-		for (int j = 0; j < mRes.mO[i].cols(); ++j) {
-			for (int k = 0; k < 3; ++k) {
-				double p1 = mRes.mO[i](k, j);
-				double p2 = mRes.cudaO[i][j][k];
-				mRes.mQ[i](k, j) = mRes.cudaQ[i][j][k];
-			}
-		}
-	}
 #endif
 }
 
@@ -359,6 +350,36 @@ void Optimizer::optimize_orientations_cuda(Hierarchy &mRes)
 		glm::ivec2* toUpper = mRes.cudaToUpper[l];
 
 		PropagateOrientationLower(toUpper, Q, N, Q_next, N_next, mRes.mToUpper[l].cols());
+	}
+}
+
+void Optimizer::optimize_positions_cuda(Hierarchy &mRes)
+{
+	int levelIterations = 6;
+	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
+		Link* adj = mRes.cudaAdj[level];
+		int* adjOffset = mRes.cudaAdjOffset[level];
+		glm::dvec3* N = mRes.cudaN[level];
+		glm::dvec3* Q = mRes.cudaQ[level];
+		glm::dvec3* V = mRes.cudaV[level];
+		glm::dvec3* O = mRes.cudaO[level];
+		std::vector<int*> phases = mRes.cudaPhases[level];
+		for (int iter = 0; iter < levelIterations; ++iter) {
+			for (int phase = 0; phase < phases.size(); ++phase) {
+				int* p = phases[phase];
+				UpdatePosition(p, mRes.mPhases[level][phase].size(), N, Q, adj, adjOffset, mRes.mAdj[level][phase].size(),
+					V, O, mRes.mScale);
+			}
+		}
+
+		if (level > 0) {
+			glm::dvec3* srcField = mRes.cudaO[level];
+			glm::ivec2* toUpper = mRes.cudaToUpper[level - 1];
+			glm::dvec3* destField = mRes.cudaO[level - 1];
+			glm::dvec3* N = mRes.cudaN[level - 1];
+			glm::dvec3* V = mRes.cudaV[level - 1];
+			PropagatePositionUpper(srcField, mRes.mO[level].cols(), toUpper, N, V, destField);
+		}
 	}
 }
 #endif

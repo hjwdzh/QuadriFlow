@@ -49,7 +49,9 @@ public:
 	std::vector<Link*> cudaAdj;
 	std::vector<int*> cudaAdjOffset;
 	std::vector<glm::dvec3*> cudaN;
+	std::vector<glm::dvec3*> cudaV;
 	std::vector<glm::dvec3*> cudaQ;
+	std::vector<glm::dvec3*> cudaO;
 	std::vector<std::vector<int*> > cudaPhases;
 	std::vector<glm::ivec2*> cudaToUpper;
 	void CopyToDevice();

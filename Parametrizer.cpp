@@ -1275,7 +1275,6 @@ void Parametrizer::BuildEdgeInfo()
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
-	auto &S = hierarchy.mS[0];
 	auto &E2E = hierarchy.mE2E;
 
 	edge_diff.clear();
@@ -1323,7 +1322,6 @@ void Parametrizer::SanityCheckDiff(int sing)
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
-	auto &S = hierarchy.mS[0];
 	printf("Check Sanity\n");
 	int pos_sings = 0;
 	for (int ff = 0; ff < F.cols(); ++ff) {
@@ -1397,7 +1395,7 @@ void Parametrizer::ComputePosition(int with_scale)
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
-	auto &S = hierarchy.mS[0];
+//	auto &S = hierarchy.mS[0];
 	std::vector<Eigen::Triplet<double> > lhsTriplets;
 	int t1 = GetTickCount();
 	lhsTriplets.reserve(F.cols() * 6);
@@ -1414,13 +1412,13 @@ void Parametrizer::ComputePosition(int with_scale)
 		Vector3d q_2_y = n_2.cross(q_2);
 		Vector3d weights[] = { q_2, q_2_y, -q_1, -q_1_y };
 		auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
-		double s_x1 = S(0, v1), s_y1 = S(1, v1);
-		double s_x2 = S(0, v2), s_y2 = S(1, v2);
+//		double s_x1 = S(0, v1), s_y1 = S(1, v1);
+//		double s_x2 = S(0, v2), s_y2 = S(1, v2);
 		int rank_diff = (index.second + 4 - index.first) % 4;
 		Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
 		Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-		double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * hierarchy.mScale;
-		double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * hierarchy.mScale;
+		double scale_x = /*(with_scale ? 0.5 * (s_x1 + s_x2) : 1) */ hierarchy.mScale;
+		double scale_y = /*(with_scale ? 0.5 * (s_y1 + s_y2) : 1) */ hierarchy.mScale;
 		Vector2i diff = edge_diff[e];
 		Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + V.col(v1) - V.col(v2);
 		int vid[] = { v2 * 2, v2 * 2 + 1, v1 * 2, v1 * 2 + 1 };
@@ -1475,7 +1473,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
-	auto &S = hierarchy.mS[0];
 	ComputeOrientationSingularities();
 
 	BuildEdgeInfo();
@@ -2382,6 +2379,8 @@ void Parametrizer::FixFlipAdvance()
 					while (true) {
 						bool update = false;
 						for (auto& nf : edge_to_faces[peid]) {
+							if (nf != f)
+								continue;
 							int non_collapse = 0;
 							for (int nj = 0; nj < 3; ++nj) {
 								if (edge_diff[get_parents(parent_edge, face_edgeIds[nf][nj])] != Vector2i::Zero()) {
@@ -2553,6 +2552,9 @@ void Parametrizer::FixFlipAdvance()
 					int p2 = tree.Parent(edge_values[i].y);
 					if (p1 == p2)
 						continue;
+					if (p1 == 13317 && p2 == 911) {
+						i = i;
+					}
 					if (CheckMove(p1, p2, i, 1)) {
 						update = true;
 					}
