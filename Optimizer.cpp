@@ -2,14 +2,28 @@
 #include "field_math.h"
 #include <fstream>
 #include <Eigen/Sparse>
+#include <cuda_runtime.h>
+
 
 Optimizer::Optimizer()
 {}
 
 void Optimizer::optimize_orientations(Hierarchy &mRes)
 {
+#ifdef WITH_CUDA
+	optimize_orientations_cuda(mRes);
+	for (int i = mRes.mQ.size() - 1; i >= 0; --i) {
+		for (int j = 0; j < mRes.mQ[i].cols(); ++j) {
+			for (int k = 0; k < 3; ++k) {
+				mRes.mQ[i](k, j) = mRes.cudaQ[i][j][k];
+			}
+		}
+	}
+
+#else
+	
 	int levelIterations = 6;
-	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
+	for (int level = mRes.mN.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
 		MatrixXd &Q = mRes.mQ[level];
@@ -34,18 +48,16 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 						sum = value.first * weight_sum + value.second * weight;
 						sum -= n_i*n_i.dot(sum);
 						weight_sum += weight;
-
 						double norm = sum.norm();
 						if (norm > RCPOVERFLOW)
 							sum /= norm;
 					}
-
-					if (weight_sum > 0)
+					if (weight_sum > 0) {
 						Q.col(i) = sum;
+					}
 				}
 			}
 		}
-
 		if (level > 0) {
 			const MatrixXd &srcField = mRes.mQ[level];
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
@@ -63,22 +75,7 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 			}
 		}
 	}
-	MatrixXd& N = mRes.mN[0];
-	MatrixXd& Q = mRes.mQ[0];
-/*#pragma omp parallel for
-	for (int i = 0; i < Q.cols(); ++i) {
-		Vector3d q = Q.col(i);
-		Vector3d n = N.col(i);
-		Vector3d q_y = n.cross(q);
-		if (fabs(q.dot(Vector3d(1, 0, 0))) < fabs(q_y.dot(Vector3d(1, 0, 0)))) {
-			std::swap(q, q_y);
-		}
-		if (q.dot(Vector3d(1, 0, 0)) < 0) {
-			q = -q;
-		}
-		Q.col(i) = q;
-	}
-*/
+
 	for (int l = 0; l< mRes.mN.size() - 1; ++l)  {
 		const MatrixXd &N = mRes.mN[l];
 		const MatrixXd &N_next = mRes.mN[l + 1];
@@ -109,6 +106,8 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 			Q_next.col(i) = q;
 		}
 	}
+
+#endif
 }
 
 void Optimizer::optimize_scale(Hierarchy &mRes)
@@ -217,6 +216,8 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 {
 	int levelIterations = 6;
 
+#ifdef WITH_CUDA
+
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
@@ -232,14 +233,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			for (int i = 0; i < phases.size(); ++i) {
 				for (auto& p : phases[i])
 					colors[p] = i;
-			}
-			for (int i = 0; i < adj.size(); ++i) {
-				for (auto& link : adj[i]) {
-					if (colors[i] == colors[link.id]) {
-						printf("should not happen!\n");
-						system("pause");
-					}
-				}
 			}
 			for (int phase = 0; phase < phases.size(); ++phase) {
 				auto& p = phases[phase];
@@ -318,8 +311,54 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			}
 		}
 	}
+#else
+	optimize_positions_cuda(mRes);
+	for (int i = mRes.mO.size() - 1; i >= 0; --i) {
+		for (int j = 0; j < mRes.mO[i].cols(); ++j) {
+			for (int k = 0; k < 3; ++k) {
+				double p1 = mRes.mO[i](k, j);
+				double p2 = mRes.cudaO[i][j][k];
+				mRes.mQ[i](k, j) = mRes.cudaQ[i][j][k];
+			}
+		}
+	}
+#endif
 }
 
+#ifdef WITH_CUDA
 
+void Optimizer::optimize_orientations_cuda(Hierarchy &mRes)
+{
+	int levelIterations = 6;
+	for (int level = mRes.mN.size() - 1; level >= 0; --level) {
+		Link* adj = mRes.cudaAdj[level];
+		int* adjOffset = mRes.cudaAdjOffset[level];
+		glm::dvec3* N = mRes.cudaN[level];
+		glm::dvec3* Q = mRes.cudaQ[level];
+		auto& phases = mRes.cudaPhases[level];
+		for (int iter = 0; iter < levelIterations; ++iter) {
+			for (int phase = 0; phase < phases.size(); ++phase) {
+				int* p = phases[phase];
+				UpdateOrientation(p, mRes.mPhases[level][phase].size(), N, Q, adj, adjOffset, mRes.mAdj[level][phase].size());
+			}
+		}
+		if (level > 0) {
+			glm::dvec3* srcField = mRes.cudaQ[level];
+			glm::ivec2* toUpper = mRes.cudaToUpper[level - 1];
+			glm::dvec3* destField = mRes.cudaQ[level - 1];
+			glm::dvec3* N = mRes.cudaN[level - 1];
+			PropagateOrientationUpper(srcField, mRes.mQ[level].cols(), toUpper, N, destField);
+		}
+	}
 
+	for (int l = 0; l< mRes.mN.size() - 1; ++l)  {
+		glm::dvec3* N = mRes.cudaN[l];
+		glm::dvec3* N_next = mRes.cudaN[l + 1];
+		glm::dvec3* Q = mRes.cudaQ[l];
+		glm::dvec3* Q_next = mRes.cudaQ[l + 1];
+		glm::ivec2* toUpper = mRes.cudaToUpper[l];
 
+		PropagateOrientationLower(toUpper, Q, N, Q_next, N_next, mRes.mToUpper[l].cols());
+	}
+}
+#endif

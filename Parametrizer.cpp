@@ -15,6 +15,10 @@
 
 #define LOG_OUTPUT
 
+extern void generate_adjacency_matrix_uniform(
+	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,
+	const VectorXi &nonManifold, AdjacentMatrix& adj);
+
 inline double fast_acos(double x) {
 	double negate = double(x < 0.0f);
 	x = std::abs(x);
@@ -55,46 +59,52 @@ void Parametrizer::Load(const char* filename)
 
 }
 
-void Parametrizer::Initialize()
+void Parametrizer::Initialize(int with_scale)
 {
 	ComputeMeshStatus();
-	num_vertices = V.cols();
+	num_vertices = V.cols() / 4;
 	num_faces = num_vertices;
 	scale = sqrt(surface_area / num_faces);
-	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	double target_len = std::min(scale / 2, average_edge_length * 2);
 	if (target_len < max_edge_length) {
-		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
 		compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
+		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
 	}
 
+	int t1 = GetTickCount();
+	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
 
 	ComputeSmoothNormal();
 	ComputeVertexArea();
-	triangle_space.resize(F.cols());
+
+	if (with_scale) {
+		triangle_space.resize(F.cols());
 #pragma omp parallel for
-	for (int i = 0; i < F.cols(); ++i) {
-		Matrix3d p, q;
-		p.col(0) = V.col(F(1, i)) - V.col(F(0, i));
-		p.col(1) = V.col(F(2, i)) - V.col(F(0, i));
-		p.col(2) = Nf.col(i);
-		q = p.inverse();
-		triangle_space[i].resize(2, 3);
-		for (int j = 0; j < 2; ++j) {
-			for (int k = 0; k < 3; ++k) {
-				triangle_space[i](j, k) = q(j, k);
+		for (int i = 0; i < F.cols(); ++i) {
+			Matrix3d p, q;
+			p.col(0) = V.col(F(1, i)) - V.col(F(0, i));
+			p.col(1) = V.col(F(2, i)) - V.col(F(0, i));
+			p.col(2) = Nf.col(i);
+			q = p.inverse();
+			triangle_space[i].resize(2, 3);
+			for (int j = 0; j < 2; ++j) {
+				for (int k = 0; k < 3; ++k) {
+					triangle_space[i](j, k) = q(j, k);
+				}
 			}
 		}
 	}
-
+	printf("V: %d F: %d\n", V.cols(), F.cols());
 	hierarchy.mA[0] = std::move(A);
 	hierarchy.mAdj[0] = std::move(adj);
 	hierarchy.mN[0] = std::move(N);
 	hierarchy.mV[0] = std::move(V);
 	hierarchy.mE2E = std::move(E2E);
 	hierarchy.mF = std::move(F);
-	hierarchy.Initialize(scale);
+	hierarchy.Initialize(scale, with_scale);
+	int t2 = GetTickCount();
+	printf("Initialize use time: %lf\n", (t2 - t1) * 1e-3);
 }
 
 void Parametrizer::ComputeMeshStatus()
@@ -958,7 +968,6 @@ void Parametrizer::ComputeOrientationSingularities()
 			singularities[f] = index_mod;
 		}
 	}
-	printf("singularities %d...\n", singularities.size());
 }
 
 void Parametrizer::ComputePositionSingularities(int with_scale)
@@ -1013,12 +1022,8 @@ void Parametrizer::ComputePositionSingularities(int with_scale)
 				scale_y_1 *= hierarchy.mS[0](1, F(kn, f));
 				if (best[k] % 2 != 0)
 					std::swap(scale_x, scale_y);
-//				if (best[k] >= 2)
-//					scale_x = -scale_x, scale_y = -scale_y;
 				if (best[kn] % 2 != 0)
 					std::swap(scale_x_1, scale_y_1);
-//				if (best[kn] >= 2)
-//					scale_x_1 = -scale_x_1, scale_y_1 = -scale_y_1;
 			}
 			double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y, inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
 			std::pair<Vector2i, Vector2i> value =
@@ -1037,8 +1042,6 @@ void Parametrizer::ComputePositionSingularities(int with_scale)
 			pos_sing[f] = rshift90(index, best[0]);
 		}
 	}
-
-	printf("position singularities %d...\n", pos_sing.size());
 }
 
 void Parametrizer::EstimateScale() {
@@ -1444,12 +1447,14 @@ void Parametrizer::ComputePosition(int with_scale)
 			lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
 		}
 	}
+	printf("solve matrix...\n");
 	A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 	Eigen::SparseLU<Eigen::SparseMatrix<double> > solver;
 	solver.analyzePattern(A);
 	solver.factorize(A);
 
 	VectorXd result = solver.solve(rhs);
+	printf("finish...\n");
 	for (int i = 0; i < O.cols(); ++i) {
 		Vector3d q = Q.col(i);
 		Vector3d n = N.col(i);
@@ -1818,6 +1823,9 @@ void Parametrizer::BuildIntegerConstraints()
 		int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
 		total_flow += diff;
 	}
+
+	printf("total flow %d\n", total_flow);
+	printf("sing diff size %d %d\n", sing_diff.size(), pos_sing.size());
 	sing_maps.resize(sing_diff.size() + 1);
 	sing_maps[0][total_flow] = std::make_pair(0, 0);
 	for (int i = 0; i < sing_diff.size(); ++i) {
@@ -1836,21 +1844,19 @@ void Parametrizer::BuildIntegerConstraints()
 			}
 		}
 	}
-	if (sing_maps.back().count(0) == 0) {
-		printf("No Zero map!\n");
-		//		exit(0);
-	}
+
 	std::vector<int> sing_selection;
 	int target_flow = 0;
 	while (sing_maps.back().count(target_flow) == 0 && sing_maps.back().count(-target_flow) == 0) {
-		target_flow += 1;
+		target_flow += 2;
 	}
 	if (sing_maps.back().count(target_flow) == 0)
 		target_flow = -target_flow;
+	int remain_flow = target_flow;
 	printf("target flow: %d\n", target_flow);
 	for (int i = sing_diff.size(); i > 0; i--) {
-		auto p = sing_maps[i][target_flow];
-		target_flow -= sing_diff[i - 1][p.second];
+		auto p = sing_maps[i][remain_flow];
+		remain_flow -= sing_diff[i - 1][p.second];
 		sing_selection.push_back(p.second);
 	}
 	std::reverse(sing_selection.begin(), sing_selection.end());
@@ -1917,10 +1923,33 @@ void Parametrizer::BuildIntegerConstraints()
 		}
 	}
 	cuts.clear();
+	std::vector<std::pair<int, int> > modified_variables;
 	for (int i = 0; i < variables.size(); ++i) {
 		if (variables[i].second != 0) {
 			cuts.insert(edge_values[i / 2]);
+			if (target_flow > 0) {
+				if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
+					modified_variables.push_back(std::make_pair(i, -1));
+				}
+				if (variables[i].second < 0 && edge_diff[i / 2][i % 2] < 1) {
+					modified_variables.push_back(std::make_pair(i, 1));
+				}
+			}
+			else if (target_flow < 0) {
+				if (variables[i].second < 0 && edge_diff[i / 2][i % 2] > -1) {
+					modified_variables.push_back(std::make_pair(i, -1));
+				}
+				if (variables[i].second > 0 && edge_diff[i / 2][i % 2] < 1) {
+					modified_variables.push_back(std::make_pair(i, 1));
+				}
+			}
 		}
+	}
+
+	std::random_shuffle(modified_variables.begin(), modified_variables.end());
+	for (int i = 0; i < target_flow / 2; ++i) {
+		auto& info = modified_variables[i];
+		edge_diff[info.first / 2][info.first % 2] += info.second;
 	}
 
 	for (int i = 0; i < face_edgeOrients.size(); ++i) {
@@ -1964,6 +1993,7 @@ void Parametrizer::ComputeMaxFlow()
 		}
 	}
 	int supply = 0;
+	int demand = 0;
 	for (int i = 0; i < constraints_index.size(); ++i) {
 		int diff = 0;
 		for (int j = 0; j < 3; ++j) {
@@ -1975,11 +2005,13 @@ void Parametrizer::ComputeMaxFlow()
 			singularity_edge.push_back(0);
 			supply += diff;
 		}
-		else {
+		else if (diff < 0) {
+			demand -= diff;
 			arcs.push_back(std::make_pair(Vector2i(i, constraints_index.size()), -diff));
 			singularity_edge.push_back(0);
 		}
 	}
+	printf("begin flow...\n");
 	int t1 = GetTickCount();
 	MaxFlowHelper flow;
 	flow.resize(constraints_index.size() + 2);
@@ -2002,6 +2034,10 @@ void Parametrizer::ComputeMaxFlow()
 	
 	flow.compute();
 	flow.Apply(edge_to_variable, edge_diff);
+	int t2 = GetTickCount();
+	printf("supply %d demand %d\n", supply, demand);
+	printf("flow use %lf\n", (t2 - t1) * 1e-3);
+	system("pause");
 }
 
 void Parametrizer::WriteTestData()
@@ -2566,9 +2602,6 @@ void Parametrizer::FixFlipAdvance()
 			for (int j = 0; j < 3; ++j) {
 				CheckMove(tree.Parent(F(j, i)), tree.Parent(F((j + 1) % 3, i)), eid[j], 1);
 				CheckMove(tree.Parent(F((j + 1) % 3, i)), tree.Parent(F(j, i)), eid[j], 1);
-				//				printf("neighbors %d\n", vertices_to_edges[tree.Parent(F(j, i))].size());
-//				std::vector<std::pair<int, Vector2i> > edge_change;
-//				ExtractEdgeSet(tree.Parent(F(j, i)), tree.Parent(F((j + 1) % 3, i)), eid[j], edge_change);
 			}
 			total_area -= area;
 		}

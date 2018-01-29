@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <glm/glm.hpp>
 using namespace Eigen;
 
 inline double signum(double value) {
@@ -67,7 +68,7 @@ const Vector3d &q1, const Vector3d &n1) {
 	for (int i = 0; i < 2; ++i) {
 		for (int j = 0; j < 2; ++j) {
 			double score = std::abs(A[i].dot(B[j]));
-			if (score > best_score) {
+			if (score > best_score + 1e-6) {
 				best_a = i;
 				best_b = j;
 				best_score = score;

@@ -2,7 +2,6 @@
 #define ADJACENT_MATRIX_H_
 
 #include <vector>
-#include "dedge.h"
 struct Link
 {
 	Link(){}
@@ -29,9 +28,5 @@ struct TaggedLink {
 };
 
 typedef std::vector<std::vector<Link> > AdjacentMatrix;
-
-void generate_adjacency_matrix_uniform(
-	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,
-	const VectorXi &nonManifold, AdjacentMatrix& adj);
 
 #endif

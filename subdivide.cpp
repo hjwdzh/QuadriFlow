@@ -73,7 +73,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E,
 		int f3 = nF++;
 		int f20, f30;
 		if (nF > F.cols()) {
-			F.conservativeResize(F.rows(), max(nF, (int)F.cols() * 2));
+			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
 			E2E.conservativeResize(F.cols() * 3);
 		}
 
@@ -352,7 +352,7 @@ void subdivide_diff(MatrixXi &F,
 		/* Update F and E2E */
 		int f20, f30;
 		if (nF > F.cols()) {
-			F.conservativeResize(F.rows(), max(nF, (int)F.cols() * 2));
+			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
 			E2E.conservativeResize(F.cols() * 3);
 		}
 

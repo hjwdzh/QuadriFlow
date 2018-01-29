@@ -1,8 +1,9 @@
 #ifndef HIERARCHY_H_
 #define HIERARCHY_H_
+#include "config.h"
 
 #include <vector>
-
+#include <glm/glm.hpp>
 #include "AdjacentMatrix.h"
 #include "serialize.h"
 #define RCPOVERFLOW   2.93873587705571876e-39f
@@ -11,7 +12,7 @@ class Hierarchy
 {
 public:
 	Hierarchy();
-	void Initialize(double scale);
+	void Initialize(double scale, int with_scale = 0);
 	void DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 		const MatrixXd &N, const VectorXd &A,
 		MatrixXd &V_p, MatrixXd &N_p, VectorXd &A_p,
@@ -43,5 +44,17 @@ public:
 	std::vector<MatrixXd> mO;
 	std::vector<MatrixXd> mS;
 	std::vector<MatrixXd> mK;
+
+#ifdef WITH_CUDA
+	std::vector<Link*> cudaAdj;
+	std::vector<int*> cudaAdjOffset;
+	std::vector<glm::dvec3*> cudaN;
+	std::vector<glm::dvec3*> cudaQ;
+	std::vector<std::vector<int*> > cudaPhases;
+	std::vector<glm::ivec2*> cudaToUpper;
+	void CopyToDevice();
+	void CopyToHost();
+	int with_scale;
+#endif
 };
 #endif

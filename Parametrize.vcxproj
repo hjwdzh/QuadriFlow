@@ -27,12 +27,14 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MergeVertex.cpp" />
     <ClCompile Include="Optimizer.cpp" />
+    <ClCompile Include="Optimizers.cpp" />
     <ClCompile Include="Parametrizer.cpp" />
     <ClCompile Include="subdivide.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdjacentMatrix.h" />
     <ClInclude Include="CompareKey.h" />
+    <ClInclude Include="config.h" />
     <ClInclude Include="dedge.h" />
     <ClInclude Include="DisajointTree.h" />
     <ClInclude Include="dset.h" />
@@ -101,7 +103,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>D:\local\boost_1_59_0;$(SolutionDir)tbb\include;D:\Recon3D\thirdparty\freeglut\include;D:\Recon3D\thirdparty\Eigen;D:\Recon3D\thirdparty\glm;$(IncludePath)</IncludePath>
+    <IncludePath>D:\Recon3D\thirdparty\glm;D:\local\boost_1_59_0;$(SolutionDir)tbb\include;D:\Recon3D\thirdparty\freeglut\include;D:\Recon3D\thirdparty\Eigen;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)tbb\tbb_static.lib;D:\Recon3D\thirdparty\freeglut\lib\x64;$(LibraryPath)</LibraryPath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
@@ -136,7 +138,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>$(SolutionDir)tbb\tbb_static_debug.lib;freeglut.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)tbb\tbb_debug.lib;$(SolutionDir)tbb\tbb_static_debug.lib;freeglut.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"

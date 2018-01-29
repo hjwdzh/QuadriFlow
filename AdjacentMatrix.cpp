@@ -1,4 +1,5 @@
 #include "AdjacentMatrix.h"
+#include "dedge.h"
 #include <fstream>
 void generate_adjacency_matrix_uniform(
 	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,

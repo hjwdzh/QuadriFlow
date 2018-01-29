@@ -15,8 +15,9 @@ Hierarchy::Hierarchy()
 	mToUpper.resize(MAX_DEPTH);
 }
 
-void Hierarchy::Initialize(double scale)
+void Hierarchy::Initialize(double scale, int with_scale)
 {
+	this->with_scale = with_scale;
 	generate_graph_coloring_deterministic(mAdj[0], mV[0].cols(), mPhases[0]);
 	for (int i = 0; i < MAX_DEPTH; ++i) {
 		DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1],
@@ -34,15 +35,21 @@ void Hierarchy::Initialize(double scale)
 	}
 	mQ.resize(mV.size());
 	mO.resize(mV.size());
-	mS.resize(mV.size());
-	mK.resize(mV.size());
+
+	if (with_scale) {
+		mS.resize(mV.size());
+		mK.resize(mV.size());
+	}
+
 	mScale = scale;
 #pragma omp parallel for
 	for (int i = 0; i<mV.size(); ++i) {
 		mQ[i].resize(mN[i].rows(), mN[i].cols());
 		mO[i].resize(mN[i].rows(), mN[i].cols());
-		mS[i].resize(2, mN[i].cols());
-		mK[i].resize(2, mN[i].cols());
+		if (with_scale) {
+			mS[i].resize(2, mN[i].cols());
+			mK[i].resize(2, mN[i].cols());
+		}
 		for (int j = 0; j < mN[i].cols(); ++j) {
 			Vector3d s, t;
 			coordinate_system(mN[i].col(j), s, t);
@@ -51,10 +58,15 @@ void Hierarchy::Initialize(double scale)
 			double y = ((double)rand()) / RAND_MAX * 2 - 1.f;
 			mQ[i].col(j) = s * std::cos(angle) + t * std::sin(angle);
 			mO[i].col(j) = mV[i].col(j) + (s * x + t * y) * scale;
-			mS[i].col(j) = Vector2d(1.0f, 1.0f);
-			mK[i].col(j) = Vector2d(0.0, 0.0);
+			if (with_scale) {
+				mS[i].col(j) = Vector2d(1.0f, 1.0f);
+				mK[i].col(j) = Vector2d(0.0, 0.0);
+			}
 		}
 	}
+#ifdef WITH_CUDA
+	CopyToDevice();
+#endif
 }
 
 void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
@@ -321,6 +333,7 @@ void Hierarchy::SaveToFile(FILE* fp)
 	Save(fp, mO);
 	Save(fp, mS);
 	Save(fp, mK);
+	Save(fp, this->mPhases);
 }
 
 void Hierarchy::LoadFromFile(FILE* fp)
@@ -338,4 +351,88 @@ void Hierarchy::LoadFromFile(FILE* fp)
 	Read(fp, mO);
 	Read(fp, mS);
 	Read(fp, mK);
+	Read(fp, this->mPhases);
 }
+
+#ifdef WITH_CUDA
+#include <cuda_runtime.h>
+
+void Hierarchy::CopyToDevice()
+{
+	if (cudaAdj.empty()) {
+		cudaAdj.resize(mAdj.size());
+		cudaAdjOffset.resize(mAdj.size());
+		for (int i = 0; i < mAdj.size(); ++i) {
+			std::vector<int> offset(mAdj[i].size() + 1, 0);
+			for (int j = 0; j < mAdj[i].size(); ++j) {
+				offset[j + 1] = offset[j] + mAdj[i][j].size();
+			}
+			cudaAdjOffset[i] = (int*)malloc(sizeof(int) * (mAdj[i].size() + 1));
+			memcpy(cudaAdjOffset[i], offset.data(), sizeof(int) * (mAdj[i].size() + 1));
+			cudaAdj[i] = (Link*)malloc(sizeof(Link) * offset.back());
+
+			for (int j = 0; j < mAdj[i].size(); ++j) {
+				memcpy(cudaAdj[i] + offset[j], mAdj[i][j].data(), mAdj[i][j].size() * sizeof(Link));
+			}
+		}
+	}
+
+	if (cudaN.empty()) {
+		cudaN.resize(mN.size());
+		for (int i = 0; i < mN.size(); ++i) {
+//			cudaMalloc(&cudaN[i], sizeof(glm::dvec3) * mN[i].cols());
+			cudaN[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mN[i].cols());
+		}
+	}
+	for (int i = 0; i < mN.size(); ++i) {
+//		cudaMemcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols(), cudaMemcpyHostToDevice);
+		memcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols());
+	}
+	if (cudaQ.empty()) {
+		cudaQ.resize(mQ.size());
+		for (int i = 0; i < mQ.size(); ++i) {
+//			cudaMalloc(&cudaQ[i], sizeof(glm::dvec3) * mQ[i].cols());
+			cudaQ[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mQ[i].cols());
+		}
+	}
+	for (int i = 0; i < mQ.size(); ++i) {
+//		cudaMemcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols(), cudaMemcpyHostToDevice);
+		memcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols());
+	}
+	if (cudaPhases.empty()) {
+		cudaPhases.resize(mPhases.size());
+		for (int i = 0; i < mPhases.size(); ++i) {
+			cudaPhases[i].resize(mPhases[i].size());
+			for (int j = 0; j < mPhases[i].size(); ++j) {
+//				cudaMalloc(&cudaPhases[i][j], sizeof(int) * mPhases[i][j].size());
+				cudaPhases[i][j] = (int*)malloc(sizeof(int) * mPhases[i][j].size());
+			}
+		}
+	}
+	for (int i = 0; i < mPhases.size(); ++i) {
+		for (int j = 0; j < mPhases[i].size(); ++j) {
+//			cudaMemcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size(), cudaMemcpyHostToDevice);
+			memcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size());
+		}
+	}
+	if (cudaToUpper.empty()) {
+		cudaToUpper.resize(mToUpper.size());
+		for (int i = 0; i < mToUpper.size(); ++i) {
+//			cudaMalloc(&cudaToUpper[i], mToUpper[i].cols() * sizeof(glm::ivec2));
+			cudaToUpper[i] = (glm::ivec2*)malloc(mToUpper[i].cols() * sizeof(glm::ivec2));
+		}
+	}
+	for (int i = 0; i < mToUpper.size(); ++i) {
+//		cudaMemcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols(), cudaMemcpyHostToDevice);
+		memcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols());
+	}
+}
+
+
+void Hierarchy::CopyToHost()
+{
+
+}
+
+
+#endif
