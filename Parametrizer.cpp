@@ -1255,6 +1255,8 @@ void Parametrizer::BuildIntegerConstraints()
 			face_edgeOrients[i][j] = (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
 		}
 	}
+
+//	WriteTestData();
 }
 
 void Parametrizer::ComputeMaxFlow()
@@ -1324,16 +1326,24 @@ void Parametrizer::ComputeMaxFlow()
 		else {
 			int t = arc_ids[i].second;
 			int sing = singularity_edge[i];
+			int forward_capacity = 0, backward_capacity = 0;
+			if (t > 0) {
+				backward_capacity = 2 - sing - c;
+			}
+			if (t < 0) {
+				forward_capacity = 2 - sing + c;
+			}
 			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
+//			flow.AddEdge(v1, v2, forward_capacity, backward_capacity);
 			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i].first, -1);
 			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i].first, 1);
 		}
 	}
 	
-	flow.compute();
+	int flow_count = flow.compute();
 	flow.Apply(edge_to_variable, edge_diff);
 	int t2 = GetTickCount();
-	printf("supply %d demand %d\n", supply, demand);
+	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
 }
 
@@ -1354,14 +1364,42 @@ void Parametrizer::WriteTestData()
 			diff += constraints_sign[i][j] * edge_diff[constraints_index[i][j] / 2][constraints_index[i][j] % 2];
 		}
 		if (diff != 0) {
-			printf("fail...\n");
+//			printf("fail...\n");
 		}
 	}
+	std::vector<std::set<int> > directions(edge_diff.size() * 2);
 	for (int i = 0; i < constraints_sign.size() / 2; ++i) {
 		os << -constraints_sign[i * 2][0] * constraints_sign[i * 2 + 1][2] << " " << constraints_index[i * 2][0] << " " << constraints_index[i * 2 + 1][2] << " "
 			<< constraints_sign[i * 2 + 1][0] * constraints_sign[i * 2][2] << " " << constraints_index[i * 2 + 1][0] << " " << constraints_index[i * 2][2] << "\n";
 	}
-
+	for (int i = 0; i < constraints_sign.size() / 2; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			int v0 = edge_diff[constraints_index[i * 2][j] / 2][constraints_index[i * 2][j] % 2];
+			int v1 = edge_diff[constraints_index[i * 2 + 1][(j + 2) % 3] / 2][constraints_index[i * 2 + 1][(j + 2) % 3] % 2];
+			int v2 = edge_diff[constraints_index[i * 2 + 1][j] / 2][constraints_index[i * 2 + 1][j] % 2];
+			int v3 = edge_diff[constraints_index[i * 2][(j + 2) % 3] / 2][constraints_index[i * 2][(j + 2) % 3] % 2];
+			v0 = (v0 >= 0) ? 1 : -1;
+			v1 = (v1 >= 0) ? 1 : -1;
+			v2 = (v2 >= 0) ? 1 : -1;
+			v3 = (v3 >= 0) ? 1 : -1;
+			int sign1 = -constraints_sign[i * 2][j] * constraints_sign[i * 2 + 1][j];
+			int sign2 = constraints_sign[i * 2 + 1][(j + 2) % 3] * constraints_sign[i * 2][(j + 2) % 3];
+			if (v0 != 0 && v1 != 0) {
+				directions[constraints_index[i * 2 + 1][(j + 2) % 3]].insert(v0 * sign1);
+				directions[constraints_index[i * 2][j]].insert(v1 * sign1);
+			}
+			if (v2 != 0 && v3 != 0) {
+				directions[constraints_index[i * 2 + 1][j]].insert(v3 * sign2);
+				directions[constraints_index[i * 2][(j + 2) % 3]].insert(v2 * sign2);
+			}
+		}
+	}
+	int count[3] = { 0 };
+	for (int i = 0; i < directions.size(); ++i) {
+		count[directions[i].size()] += 1;
+	}
+	printf("count %d %d %d\n", count[0], count[1], count[2]);
+	system("pause");
 	for (int i = 0; i < edge_values.size(); ++i) {
 		os << edge_values[i].x << " " << edge_values[i].y << " " << edge_diff[i][0] << " " << edge_diff[i][1] << "\n";
 	}
