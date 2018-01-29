@@ -742,6 +742,7 @@ void Parametrizer::ComputePosition(int with_scale)
 	std::vector<double> x_new(x.size(), 0);
 	for (int iter = 0; iter < 300; ++iter) {
 		double err = 0;
+#pragma omp parallel for
 		for (int i = 0; i < x.size(); ++i) {
 			x_new[i] = b[i];
 			for (int j = R_offset[i]; j < R_offset[i + 1]; ++j) {
@@ -750,7 +751,6 @@ void Parametrizer::ComputePosition(int with_scale)
 			x_new[i] *= D[i];
 			err += (x_new[i] - x[i]) * (x_new[i] - x[i]);
 		}
-		printf("iter: %d, error: %lf\n", iter, sqrt(err / x.size()));
 		std::swap(x_new, x);
 	}
 

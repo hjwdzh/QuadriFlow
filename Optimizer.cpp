@@ -216,7 +216,7 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 {
 	int levelIterations = 6;
 
-#ifndef WITH_CUDA
+#ifdef WITH_CUDA
 	optimize_positions_cuda(mRes);
 	for (int i = mRes.mO.size() - 1; i >= 0; --i) {
 		for (int j = 0; j < mRes.mO[i].cols(); ++j) {
