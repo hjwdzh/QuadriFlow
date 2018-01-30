@@ -27,7 +27,6 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MergeVertex.cpp" />
     <ClCompile Include="Optimizer.cpp" />
-    <ClCompile Include="Optimizers.cpp" />
     <ClCompile Include="Parametrizer.cpp" />
     <ClCompile Include="subdivide.cpp" />
   </ItemGroup>
@@ -49,6 +48,9 @@
     <ClInclude Include="serialize.h" />
     <ClInclude Include="subdivide.h" />
     <ClInclude Include="tbb_common.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Optimizer.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{7F53BE50-F8D0-4EBB-91B5-8FAE57F67AFA}</ProjectGuid>

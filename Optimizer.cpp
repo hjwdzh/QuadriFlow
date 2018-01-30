@@ -12,13 +12,8 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 {
 #ifdef WITH_CUDA
 	optimize_orientations_cuda(mRes);
-	for (int i = mRes.mQ.size() - 1; i >= 0; --i) {
-		for (int j = 0; j < mRes.mQ[i].cols(); ++j) {
-			for (int k = 0; k < 3; ++k) {
-				mRes.mQ[i](k, j) = mRes.cudaQ[i][j][k];
-			}
-		}
-	}
+	printf("%s\n", cudaGetErrorString(cudaDeviceSynchronize()));
+	cudaMemcpy(mRes.mQ[0].data(), mRes.cudaQ[0], sizeof(glm::dvec3) * mRes.mQ[0].cols(), cudaMemcpyDeviceToHost);
 
 #else
 	
@@ -218,19 +213,13 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 
 #ifdef WITH_CUDA
 	optimize_positions_cuda(mRes);
-	for (int i = mRes.mO.size() - 1; i >= 0; --i) {
-		for (int j = 0; j < mRes.mO[i].cols(); ++j) {
-			for (int k = 0; k < 3; ++k) {
-				mRes.mO[i](k, j) = mRes.cudaO[i][j][k];
-			}
-		}
-	}
+	cudaMemcpy(mRes.mO[0].data(), mRes.cudaO[0], sizeof(glm::dvec3) * mRes.mO[0].cols(), cudaMemcpyDeviceToHost);
 #else
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
 		AdjacentMatrix &adj = mRes.mAdj[level];
 		const MatrixXd &N = mRes.mN[level];
 		MatrixXd &Q = mRes.mQ[level];
-		MatrixXd &S = mRes.mS[level];
+//		MatrixXd &S = mRes.mS[level];
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			AdjacentMatrix &adj = mRes.mAdj[level];
 			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
@@ -243,10 +232,10 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 					int i = p[pi];
 					double scale_x = mRes.mScale;
 					double scale_y = mRes.mScale;
-					if (with_scale) {
-						scale_x *= S(0, i);
-						scale_y *= S(1, i);
-					}
+//					if (with_scale) {
+//						scale_x *= S(0, i);
+//						scale_y *= S(1, i);
+//					}
 					double inv_scale_x = 1.0f / scale_x;
 					double inv_scale_y = 1.0f / scale_y;
 					const Vector3d n_i = N.col(i), v_i = V.col(i);
@@ -264,8 +253,8 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 						double scale_x_1 = mRes.mScale;
 						double scale_y_1 = mRes.mScale;
 						if (with_scale) {
-							scale_x_1 *= S(0, j);
-							scale_y_1 *= S(1, j);
+//							scale_x_1 *= S(0, j);
+//							scale_y_1 *= S(1, j);
 						}
 						double inv_scale_x_1 = 1.0f / scale_x_1;
 						double inv_scale_y_1 = 1.0f / scale_y_1;
@@ -293,7 +282,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 				}
 			}
 		}
-
 		if (level > 0) {
 			const MatrixXd &srcField = mRes.mO[level];
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
@@ -310,6 +298,18 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 					o -= n * n.dot(o - v);
 					destField.col(dest) = o;
 				}
+			}
+		}
+	}
+	
+	for (int i = mO_buf.size() - 1; i >= 0; --i) {
+		for (int j = 0; j < mO_buf[i].cols(); ++j) {
+			double dis = (mO_buf[i].col(j) - mRes.mO[i].col(j)).norm();
+			if (dis > 1e-6) {
+				printf("dis %lf\n", dis);
+				printf("%lf %lf %lf  %lf %lf %lf\n", mO_buf[i](0, j), mO_buf[i](1, j), mO_buf[i](2, j),
+					mRes.mO[i](0, j), mRes.mO[i](1, j), mRes.mO[i](2, j));
+				system("pause");
 			}
 		}
 	}
@@ -371,7 +371,6 @@ void Optimizer::optimize_positions_cuda(Hierarchy &mRes)
 					V, O, mRes.mScale);
 			}
 		}
-
 		if (level > 0) {
 			glm::dvec3* srcField = mRes.cudaO[level];
 			glm::ivec2* toUpper = mRes.cudaToUpper[level - 1];

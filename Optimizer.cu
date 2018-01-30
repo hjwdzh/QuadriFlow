@@ -90,7 +90,7 @@ double scale, glm::dvec3& v1, glm::dvec3& v2) {
 	glm::dvec3 o0p = position_floor_4(o0, q0, n0, middle, scale);
 	glm::dvec3 o1p = position_floor_4(o1, q1, n1, middle, scale);
 
-	double best_cost = std::numeric_limits<double>::infinity();
+	double best_cost = 1e10;
 	int best_i = -1, best_j = -1;
 
 	for (int i = 0; i<4; ++i) {
@@ -112,11 +112,11 @@ double scale, glm::dvec3& v1, glm::dvec3& v2) {
 	v2 = o1p + (q1 * ((best_j & 1) * scale) + t1 * (((best_j & 2) >> 1) * scale));
 }
 
-//__global__ 
+__global__ 
 void cudaUpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj) {
-//	int pi = blockIdx.x * blockDim.x + threadIdx.x;
+	int pi = blockIdx.x * blockDim.x + threadIdx.x;
 
-	for (int pi = 0; pi < num_phases; ++pi) {
+//	for (int pi = 0; pi < num_phases; ++pi) {
 		if (pi >= num_phases)
 			return;
 		int i = phase[pi];
@@ -146,13 +146,13 @@ void cudaUpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3
 		if (weight_sum > 0) {
 			Q[i] = sum;
 		}
-	}
+//	}
 }
 
-//__global__
+__global__
 void cudaPropagateOrientationUpper(glm::dvec3* srcField, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField, int num_orientation) {
-//	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i = 0; i < num_orientation; ++i) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+//	for (int i = 0; i < num_orientation; ++i) {
 		if (i >= num_orientation)
 			return;
 		for (int k = 0; k < 2; ++k) {
@@ -163,13 +163,13 @@ void cudaPropagateOrientationUpper(glm::dvec3* srcField, glm::ivec2* toUpper, gl
 			glm::dvec3 n = N[dest];
 			destField[dest] = q - n * glm::dot(n, q);
 		}
-	}
+//	}
 }
 
-//__global__
+__global__
 void cudaPropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N, glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper) {
-//	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i = 0; i < num_toUpper; ++i) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+//	for (int i = 0; i < num_toUpper; ++i) {
 		if (i >= num_toUpper)
 			return;
 		glm::ivec2 upper = toUpper[i];
@@ -193,14 +193,17 @@ void cudaPropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec
 		if (len > 2.93873587705571876e-39f)
 			q /= sqrt(len);
 		Q_next[i] = q;
-	}
+//	}
 }
 
 
-//__global__ 
+__global__ 
 void cudaUpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O, double scale) {
-	//	int pi = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int pi = 0; pi < num_phases; ++pi) {
+	int pi = blockIdx.x * blockDim.x + threadIdx.x;
+
+//	for (int pi = 0; pi < num_phases; ++pi) {
+	if (pi >= num_phases)
+		return;
 		int i = phase[pi];
 		glm::dvec3 n_i = N[i], v_i = V[i];
 		glm::dvec3 q_i = Q[i];
@@ -230,13 +233,15 @@ void cudaUpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q
 		if (weight_sum > 0) {
 			O[i] = position_round_4(sum, q_i, n_i, v_i, scale);
 		}
-	}
+//	}
 }
 
-//__global__
+__global__
 void cudaPropagatePositionUpper(glm::dvec3* srcField, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField, int num_position) {
-	//	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i = 0; i < num_position; ++i) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+//	for (int i = 0; i < num_position; ++i) {
+	if (i >= num_position)
+		return;
 		for (int k = 0; k < 2; ++k) {
 			int dest = toUpper[i][k];
 			if (dest == -1)
@@ -245,33 +250,33 @@ void cudaPropagatePositionUpper(glm::dvec3* srcField, glm::ivec2* toUpper, glm::
 			o -= n * glm::dot(n, o - v);
 			destField[dest] = o;
 		}
-	}
+//	}
 }
 
 
 void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj) {
-//	cudaUpdateOrientation << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj);
-	cudaUpdateOrientation(phase, num_phases, N, Q, adj, adjOffset, num_adj);
+	cudaUpdateOrientation << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj);
+//	cudaUpdateOrientation(phase, num_phases, N, Q, adj, adjOffset, num_adj);
 }
 
 void PropagateOrientationUpper(glm::dvec3* srcField, int num_orientation, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField) {
-//	cudaPropagateOrientationUpper << <(num_orientation + 255) / 256, 256 >> >(srcField, toUpper, N, destField, num_orientation);
-	cudaPropagateOrientationUpper(srcField, toUpper, N, destField, num_orientation);
+	cudaPropagateOrientationUpper << <(num_orientation + 255) / 256, 256 >> >(srcField, toUpper, N, destField, num_orientation);
+//	cudaPropagateOrientationUpper(srcField, toUpper, N, destField, num_orientation);
 }
 
 void PropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N, glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper) {
-//	cudaPropagateOrientationLower << <(num_toUpper + 255) / 256, 256 >> >(toUpper, Q, N, Q_next, num_toUpper);
-	cudaPropagateOrientationLower(toUpper, Q, N, Q_next, N_next, num_toUpper);
+	cudaPropagateOrientationLower << <(num_toUpper + 255) / 256, 256 >> >(toUpper, Q, N, Q_next, N_next, num_toUpper);
+//	cudaPropagateOrientationLower(toUpper, Q, N, Q_next, N_next, num_toUpper);
 }
 
 
 void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O, double scale) {
-//	cudaUpdatePosition << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O);
-	cudaUpdatePosition(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
+	cudaUpdatePosition << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
+//	cudaUpdatePosition(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
 }
 
 void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField) {
-	//	cudaPropagateOrientationUpper << <(num_orientation + 255) / 256, 256 >> >(srcField, toUpper, N, V, destField, num_position);
-	cudaPropagatePositionUpper(srcField, toUpper, N, V, destField, num_position);
+	cudaPropagatePositionUpper << <(num_position + 255) / 256, 256 >> >(srcField, toUpper, N, V, destField, num_position);
+//	cudaPropagatePositionUpper(srcField, toUpper, N, V, destField, num_position);
 }
 

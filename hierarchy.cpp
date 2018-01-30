@@ -65,7 +65,9 @@ void Hierarchy::Initialize(double scale, int with_scale)
 		}
 	}
 #ifdef WITH_CUDA
+	printf("copy to device...\n");
 	CopyToDevice();
+	printf("copy to device finish...\n");
 #endif
 }
 
@@ -367,89 +369,95 @@ void Hierarchy::CopyToDevice()
 			for (int j = 0; j < mAdj[i].size(); ++j) {
 				offset[j + 1] = offset[j] + mAdj[i][j].size();
 			}
-			cudaAdjOffset[i] = (int*)malloc(sizeof(int) * (mAdj[i].size() + 1));
-			memcpy(cudaAdjOffset[i], offset.data(), sizeof(int) * (mAdj[i].size() + 1));
-			cudaAdj[i] = (Link*)malloc(sizeof(Link) * offset.back());
+			cudaMalloc(&cudaAdjOffset[i], sizeof(int) * (mAdj[i].size() + 1));
+			cudaMemcpy(cudaAdjOffset[i], offset.data(), sizeof(int) * (mAdj[i].size() + 1), cudaMemcpyHostToDevice);
+//			cudaAdjOffset[i] = (int*)malloc(sizeof(int) * (mAdj[i].size() + 1));
+//			memcpy(cudaAdjOffset[i], offset.data(), sizeof(int) * (mAdj[i].size() + 1));
 
+			cudaMalloc(&cudaAdj[i], sizeof(Link) * offset.back());
+//			cudaAdj[i] = (Link*)malloc(sizeof(Link) * offset.back());
+			std::vector<Link> plainlink(offset.back());
 			for (int j = 0; j < mAdj[i].size(); ++j) {
-				memcpy(cudaAdj[i] + offset[j], mAdj[i][j].data(), mAdj[i][j].size() * sizeof(Link));
+				memcpy(plainlink.data() + offset[j], mAdj[i][j].data(), mAdj[i][j].size() * sizeof(Link));
 			}
+			cudaMemcpy(cudaAdj[i], plainlink.data(), plainlink.size() * sizeof(Link), cudaMemcpyHostToDevice);
 		}
 	}
 
 	if (cudaN.empty()) {
 		cudaN.resize(mN.size());
 		for (int i = 0; i < mN.size(); ++i) {
-//			cudaMalloc(&cudaN[i], sizeof(glm::dvec3) * mN[i].cols());
-			cudaN[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mN[i].cols());
+			cudaMalloc(&cudaN[i], sizeof(glm::dvec3) * mN[i].cols());
+//			cudaN[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mN[i].cols());
 		}
 	}
 	for (int i = 0; i < mN.size(); ++i) {
-//		cudaMemcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols(), cudaMemcpyHostToDevice);
-		memcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols());
+		cudaMemcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols(), cudaMemcpyHostToDevice);
+//		memcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols());
 	}
 
 	if (cudaV.empty()) {
 		cudaV.resize(mV.size());
 		for (int i = 0; i < mV.size(); ++i) {
-//			cudaMalloc(&cudaV[i], sizeof(glm::dvec3) * mV[i].cols());
-			cudaV[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mV[i].cols());
+			cudaMalloc(&cudaV[i], sizeof(glm::dvec3) * mV[i].cols());
+//			cudaV[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mV[i].cols());
 		}
 	}
 	for (int i = 0; i < mV.size(); ++i) {
-//		cudaMemcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols(), cudaMemcpyHostToDevice);
-		memcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols());
+		cudaMemcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols(), cudaMemcpyHostToDevice);
+//		memcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols());
 	}
 
 	if (cudaQ.empty()) {
 		cudaQ.resize(mQ.size());
 		for (int i = 0; i < mQ.size(); ++i) {
-//			cudaMalloc(&cudaQ[i], sizeof(glm::dvec3) * mQ[i].cols());
-			cudaQ[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mQ[i].cols());
+			cudaMalloc(&cudaQ[i], sizeof(glm::dvec3) * mQ[i].cols());
+//			cudaQ[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mQ[i].cols());
 		}
 	}
 	for (int i = 0; i < mQ.size(); ++i) {
-//		cudaMemcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols(), cudaMemcpyHostToDevice);
-		memcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols());
+		cudaMemcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols(), cudaMemcpyHostToDevice);
+//		memcpy(cudaQ[i], mQ[i].data(), sizeof(glm::dvec3) * mQ[i].cols());
 	}
 	if (cudaO.empty()) {
 		cudaO.resize(mO.size());
 		for (int i = 0; i < mO.size(); ++i) {
-//			cudaMalloc(&cudaO[i], sizeof(glm::dvec3) * mO[i].cols());
-			cudaO[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mO[i].cols());
+			cudaMalloc(&cudaO[i], sizeof(glm::dvec3) * mO[i].cols());
+//			cudaO[i] = (glm::dvec3*)malloc(sizeof(glm::dvec3) * mO[i].cols());
 		}
 	}
 	for (int i = 0; i < mO.size(); ++i) {
-//		cudaMemcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols(), cudaMemcpyHostToDevice);
-		memcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols());
+		cudaMemcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols(), cudaMemcpyHostToDevice);
+//		memcpy(cudaO[i], mO[i].data(), sizeof(glm::dvec3) * mO[i].cols());
 	}
 	if (cudaPhases.empty()) {
 		cudaPhases.resize(mPhases.size());
 		for (int i = 0; i < mPhases.size(); ++i) {
 			cudaPhases[i].resize(mPhases[i].size());
 			for (int j = 0; j < mPhases[i].size(); ++j) {
-//				cudaMalloc(&cudaPhases[i][j], sizeof(int) * mPhases[i][j].size());
-				cudaPhases[i][j] = (int*)malloc(sizeof(int) * mPhases[i][j].size());
+				cudaMalloc(&cudaPhases[i][j], sizeof(int) * mPhases[i][j].size());
+//				cudaPhases[i][j] = (int*)malloc(sizeof(int) * mPhases[i][j].size());
 			}
 		}
 	}
 	for (int i = 0; i < mPhases.size(); ++i) {
 		for (int j = 0; j < mPhases[i].size(); ++j) {
-//			cudaMemcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size(), cudaMemcpyHostToDevice);
-			memcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size());
+			cudaMemcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size(), cudaMemcpyHostToDevice);
+//			memcpy(cudaPhases[i][j], mPhases[i][j].data(), sizeof(int) * mPhases[i][j].size());
 		}
 	}
 	if (cudaToUpper.empty()) {
 		cudaToUpper.resize(mToUpper.size());
 		for (int i = 0; i < mToUpper.size(); ++i) {
-//			cudaMalloc(&cudaToUpper[i], mToUpper[i].cols() * sizeof(glm::ivec2));
-			cudaToUpper[i] = (glm::ivec2*)malloc(mToUpper[i].cols() * sizeof(glm::ivec2));
+			cudaMalloc(&cudaToUpper[i], mToUpper[i].cols() * sizeof(glm::ivec2));
+//			cudaToUpper[i] = (glm::ivec2*)malloc(mToUpper[i].cols() * sizeof(glm::ivec2));
 		}
 	}
 	for (int i = 0; i < mToUpper.size(); ++i) {
-//		cudaMemcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols(), cudaMemcpyHostToDevice);
-		memcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols());
+		cudaMemcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols(), cudaMemcpyHostToDevice);
+//		memcpy(cudaToUpper[i], mToUpper[i].data(), sizeof(glm::ivec2) * mToUpper[i].cols());
 	}
+	cudaDeviceSynchronize();
 }
 
 

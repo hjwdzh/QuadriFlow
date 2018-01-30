@@ -62,7 +62,7 @@ void Parametrizer::Load(const char* filename)
 void Parametrizer::Initialize(int with_scale)
 {
 	ComputeMeshStatus();
-	num_vertices = V.cols();
+	num_vertices = V.cols() * 10;
 	num_faces = num_vertices;
 	scale = sqrt(surface_area / num_faces);
 	double target_len = std::min(scale / 2, average_edge_length * 2);
