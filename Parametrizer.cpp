@@ -11,6 +11,7 @@
 #include <queue>
 #include <list>
 #include <Eigen/Sparse>
+#include "Optimizer.h"
 #include <GL/glut.h>
 
 #define LOG_OUTPUT
@@ -62,7 +63,7 @@ void Parametrizer::Load(const char* filename)
 void Parametrizer::Initialize(int with_scale)
 {
 	ComputeMeshStatus();
-	num_vertices = V.cols() * 10;
+	num_vertices = V.cols();
 	num_faces = num_vertices;
 	scale = sqrt(surface_area / num_faces);
 	double target_len = std::min(scale / 2, average_edge_length * 2);
@@ -674,9 +675,7 @@ void Parametrizer::ComputePosition(int with_scale)
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
 //	auto &S = hierarchy.mS[0];
-	std::vector<Eigen::Triplet<double> > lhsTriplets;
 	int t1 = GetTickCount();
-	lhsTriplets.reserve(F.cols() * 6);
 	std::vector<std::unordered_map<int, double> > entries(V.cols() * 2);
 	std::vector<double> b(V.cols() * 2);
 	for (int e = 0; e < edge_diff.size(); ++e) {
@@ -721,13 +720,14 @@ void Parametrizer::ComputePosition(int with_scale)
 	std::vector<double> x(V.cols() * 2);
 	std::vector<double> R;
 	std::vector<int> R_ind;
-	std::vector<double> R_offset(V.cols() * 2 + 1);
+	std::vector<int> R_offset(V.cols() * 2 + 1);
+#pragma omp parallel for
 	for (int i = 0; i < O.cols(); ++i) {
 		Vector3d q = Q.col(i);
 		Vector3d n = N.col(i);
 		Vector3d q_y = n.cross(q);
-//		x[i * 2] = (O.col(i) - V.col(i)).dot(q);
-//		x[i * 2 + 1] = (O.col(i) - V.col(i)).dot(q_y);
+		x[i * 2] = (O.col(i) - V.col(i)).dot(q);
+		x[i * 2 + 1] = (O.col(i) - V.col(i)).dot(q_y);
 	}
 	for (int i = 0; i < entries.size(); ++i) {
 		R_offset[i] = R.size();
@@ -739,8 +739,32 @@ void Parametrizer::ComputePosition(int with_scale)
 		}
 	}
 	R_offset.back() = R.size();
+#ifdef WITH_CUDA
+	JacobiSolve(D, R, R_ind, R_offset, x, b);
+#else
+#ifndef WITH_JACOBI
+	std::vector<Eigen::Triplet<double> > lhsTriplets;
+	lhsTriplets.reserve(F.cols() * 6);
+	Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
+	VectorXd rhs(V.cols() * 2);
+	rhs.setZero();
+	for (int i = 0; i < entries.size(); ++i) {
+		rhs(i) = b[i];
+		for (auto& rec : entries[i]) {
+			lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
+		}
+	}
+
+	A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
+	Eigen::SimplicialLLT<Eigen::SparseMatrix<double> > solver;
+	solver.analyzePattern(A);
+	solver.factorize(A);
+	VectorXd x_new = solver.solve(rhs);
+	for (int i = 0; i < x.size(); ++i)
+		x[i] = x_new[i];
+#else	
 	std::vector<double> x_new(x.size(), 0);
-	for (int iter = 0; iter < 300; ++iter) {
+	for (int iter = 0; iter < 30; ++iter) {
 		double err = 0;
 #pragma omp parallel for
 		for (int i = 0; i < x.size(); ++i) {
@@ -753,7 +777,15 @@ void Parametrizer::ComputePosition(int with_scale)
 		}
 		std::swap(x_new, x);
 	}
-
+	for (int i = 0; i < x.size(); ++i) {
+		if (abs(x[i] - x1[i]) > 1e-6) {
+			printf("fail %lf %lf\n", x[i], x1[i]);
+		}
+	}
+	printf("finish...\n");
+	system("pause");
+#endif
+#endif
 	for (int i = 0; i < O.cols(); ++i) {
 		Vector3d q = Q.col(i);
 		Vector3d n = N.col(i);

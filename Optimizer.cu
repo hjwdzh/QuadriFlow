@@ -253,6 +253,19 @@ void cudaPropagatePositionUpper(glm::dvec3* srcField, glm::ivec2* toUpper, glm::
 //	}
 }
 
+__global__
+void cudaJacobiSolve(double* D, double* R, int* R_ind, int* R_offset, double* b, double* x, double* xn, int num) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= num)
+		return;
+	double res = b[i];
+	for (int j = R_offset[i]; j < R_offset[i + 1]; ++j) {
+		res -= R[j] * x[R_ind[j]];
+	}
+	xn[i] = res * D[i];
+
+}
+
 
 void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj) {
 	cudaUpdateOrientation << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj);
@@ -280,3 +293,37 @@ void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* 
 //	cudaPropagatePositionUpper(srcField, toUpper, N, V, destField, num_position);
 }
 
+void JacobiSolve(std::vector<double>& D, std::vector<double>& R, std::vector<int>& R_ind, std::vector<int>& R_offset, std::vector<double>& x, std::vector<double>& b)
+{
+	double *cudaD, *cudaR, *cudaX, *cudaB, *cudaXn;
+	int *cudaR_offset, *cudaR_ind;
+	cudaMalloc(&cudaD, sizeof(double) * D.size());
+	cudaMemcpy(cudaD, D.data(), D.size() * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaR, sizeof(double) * R.size());
+	cudaMemcpy(cudaR, R.data(), R.size() * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaR_ind, sizeof(int) * R.size());
+	cudaMemcpy(cudaR_ind, R_ind.data(), R_ind.size() * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaR_offset, sizeof(int) * R_offset.size());
+	cudaMemcpy(cudaR_offset, R_offset.data(), R_offset.size() * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaB, sizeof(double) * b.size());
+	cudaMemcpy(cudaB, b.data(), b.size() * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaX, sizeof(double) * x.size());
+	cudaMemcpy(cudaX, x.data(), x.size() * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMalloc(&cudaXn, sizeof(double) * x.size());
+
+	for (int i = 0; i < 30; ++i) {
+		cudaJacobiSolve << <(x.size() + 255) / 256, 256 >> >(cudaD, cudaR, cudaR_ind, cudaR_offset, cudaB, cudaX, cudaXn, x.size());
+		std::swap(cudaX, cudaXn);
+	}
+
+	cudaMemcpy(x.data(), cudaX, x.size() * sizeof(double), cudaMemcpyDeviceToHost);
+	cudaFree(cudaD);
+	cudaFree(cudaR);
+	cudaFree(cudaX);
+	cudaFree(cudaXn);
+	cudaFree(cudaR_offset);
+	cudaFree(cudaR_ind);
+	cudaFree(cudaB);
+
+	printf("%s\n", cudaGetErrorString(cudaDeviceSynchronize()));
+}

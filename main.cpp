@@ -618,7 +618,7 @@ int main(int argc, char** argv)
 	field.ComputePositionSingularities(with_scale);
 	t2 = GetTickCount();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-	system("pause");
+//	system("pause");
 	/*
 	printf("save\n");
 	FILE* fp_w = fopen("result.txt", "wb");
