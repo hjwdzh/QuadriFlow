@@ -263,34 +263,6 @@ void cudaJacobiSolve(double* D, double* R, int* R_ind, int* R_offset, double* b,
 		res -= R[j] * x[R_ind[j]];
 	}
 	xn[i] = res * D[i];
-
-}
-
-
-void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj) {
-	cudaUpdateOrientation << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj);
-//	cudaUpdateOrientation(phase, num_phases, N, Q, adj, adjOffset, num_adj);
-}
-
-void PropagateOrientationUpper(glm::dvec3* srcField, int num_orientation, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField) {
-	cudaPropagateOrientationUpper << <(num_orientation + 255) / 256, 256 >> >(srcField, toUpper, N, destField, num_orientation);
-//	cudaPropagateOrientationUpper(srcField, toUpper, N, destField, num_orientation);
-}
-
-void PropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N, glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper) {
-	cudaPropagateOrientationLower << <(num_toUpper + 255) / 256, 256 >> >(toUpper, Q, N, Q_next, N_next, num_toUpper);
-//	cudaPropagateOrientationLower(toUpper, Q, N, Q_next, N_next, num_toUpper);
-}
-
-
-void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O, double scale) {
-	cudaUpdatePosition << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
-//	cudaUpdatePosition(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
-}
-
-void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField) {
-	cudaPropagatePositionUpper << <(num_position + 255) / 256, 256 >> >(srcField, toUpper, N, V, destField, num_position);
-//	cudaPropagatePositionUpper(srcField, toUpper, N, V, destField, num_position);
 }
 
 void JacobiSolve(std::vector<double>& D, std::vector<double>& R, std::vector<int>& R_ind, std::vector<int>& R_offset, std::vector<double>& x, std::vector<double>& b)
@@ -326,4 +298,31 @@ void JacobiSolve(std::vector<double>& D, std::vector<double>& R, std::vector<int
 	cudaFree(cudaB);
 
 	printf("%s\n", cudaGetErrorString(cudaDeviceSynchronize()));
+}
+
+
+void UpdateOrientation(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj) {
+	cudaUpdateOrientation << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj);
+//	cudaUpdateOrientation(phase, num_phases, N, Q, adj, adjOffset, num_adj);
+}
+
+void PropagateOrientationUpper(glm::dvec3* srcField, int num_orientation, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* destField) {
+	cudaPropagateOrientationUpper << <(num_orientation + 255) / 256, 256 >> >(srcField, toUpper, N, destField, num_orientation);
+//	cudaPropagateOrientationUpper(srcField, toUpper, N, destField, num_orientation);
+}
+
+void PropagateOrientationLower(glm::ivec2* toUpper, glm::dvec3* Q, glm::dvec3* N, glm::dvec3* Q_next, glm::dvec3* N_next, int num_toUpper) {
+	cudaPropagateOrientationLower << <(num_toUpper + 255) / 256, 256 >> >(toUpper, Q, N, Q_next, N_next, num_toUpper);
+//	cudaPropagateOrientationLower(toUpper, Q, N, Q_next, N_next, num_toUpper);
+}
+
+
+void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3* Q, Link* adj, int* adjOffset, int num_adj, glm::dvec3* V, glm::dvec3* O, double scale) {
+	cudaUpdatePosition << <(num_phases + 255) / 256, 256 >> >(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
+//	cudaUpdatePosition(phase, num_phases, N, Q, adj, adjOffset, num_adj, V, O, scale);
+}
+
+void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper, glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField) {
+	cudaPropagatePositionUpper << <(num_position + 255) / 256, 256 >> >(srcField, toUpper, N, V, destField, num_position);
+//	cudaPropagatePositionUpper(srcField, toUpper, N, V, destField, num_position);
 }
