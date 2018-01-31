@@ -18,6 +18,8 @@ Hierarchy::Hierarchy()
 	mToUpper.resize(MAX_DEPTH);
 }
 
+#undef max
+
 void Hierarchy::Initialize(double scale, int with_scale)
 {
 	this->with_scale = with_scale;

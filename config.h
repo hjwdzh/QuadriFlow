@@ -2,9 +2,9 @@
 #define CONFIG_H_
 
 //#define WITH_SCALE
-//#define WITH_CUDA
+#define WITH_CUDA
 #define WITH_OMP
-//#define WITH_TBB
+#define WITH_TBB
 
 #define DATA_PATH "./data"
 #define INVALID -1

@@ -19,6 +19,8 @@ inline bool atomicCompareAndExchange(volatile int *v, uint32_t newValue, int old
 #endif
 }
 
+#undef max
+#undef min
 void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
