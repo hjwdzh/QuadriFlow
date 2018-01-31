@@ -1,3 +1,4 @@
+#include "config.h"
 #include "Parametrizer.h"
 
 #include "loader.h"
@@ -12,7 +13,6 @@
 #include <list>
 #include <Eigen/Sparse>
 #include "Optimizer.h"
-#include <GL/glut.h>
 
 #define LOG_OUTPUT
 
@@ -37,7 +37,9 @@ void Parametrizer::Load(const char* filename)
 	load(filename, V, F);
 	double maxV[3] = { -1e30, -1e30, -1e30 };
 	double minV[3] = { 1e30, 1e30, 1e30 };
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V.cols(); ++i) {
 		for (int j = 0; j < 3; ++j) {
 			maxV[j] = std::max(maxV[j], V(j, i));
@@ -45,7 +47,9 @@ void Parametrizer::Load(const char* filename)
 		}
 	}
 	double scale = std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V.cols(); ++i) {
 		for (int j = 0; j < 3; ++j) {
 			V(j, i) = (V(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
@@ -72,7 +76,7 @@ void Parametrizer::Initialize(int with_scale)
 		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
 	}
 
-	int t1 = GetTickCount();
+	int t1 = GetTickCount64();
 	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
 
@@ -81,7 +85,9 @@ void Parametrizer::Initialize(int with_scale)
 
 	if (with_scale) {
 		triangle_space.resize(F.cols());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 		for (int i = 0; i < F.cols(); ++i) {
 			Matrix3d p, q;
 			p.col(0) = V.col(F(1, i)) - V.col(F(0, i));
@@ -104,7 +110,7 @@ void Parametrizer::Initialize(int with_scale)
 	hierarchy.mE2E = std::move(E2E);
 	hierarchy.mF = std::move(F);
 	hierarchy.Initialize(scale, with_scale);
-	int t2 = GetTickCount();
+	int t2 = GetTickCount64();
 	printf("Initialize use time: %lf\n", (t2 - t1) * 1e-3);
 }
 
@@ -131,7 +137,9 @@ void Parametrizer::ComputeSmoothNormal()
 {
 	/* Compute face normals */
 	Nf.resize(3, F.cols());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int f = 0; f < F.cols(); ++f) {
 		Vector3d v0 = V.col(F(0, f)),
 			v1 = V.col(F(1, f)),
@@ -148,7 +156,9 @@ void Parametrizer::ComputeSmoothNormal()
 	}
 
 	N.resize(3, V.cols());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V2E.rows(); ++i) {
 		int edge = V2E[i];
 		if (nonManifold[i] || edge == -1) {
@@ -188,7 +198,9 @@ void Parametrizer::ComputeVertexArea() {
 	A.resize(V.cols());
 	A.setZero();
 
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V2E.size(); ++i) {
 		int edge = V2E[i], stop = edge;
 		if (nonManifold[i] || edge == -1)
@@ -330,7 +342,9 @@ void Parametrizer::EstimateScale() {
 	auto& mV = hierarchy.mV[0];
 	FS.resize(2, mF.cols());
 	FQ.resize(3, mF.cols());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < mF.cols(); ++i) {
 		const Vector3d& n = Nf.col(i);
 		const Vector3d &q_1 = mQ.col(mF(0, i)), &q_2 = mQ.col(mF(1, i)), &q_3 = mQ.col(mF(2, i));
@@ -346,7 +360,9 @@ void Parametrizer::EstimateScale() {
 		q = q - n * q.dot(n);
 		FQ.col(i) = q.normalized();
 	}
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < mF.cols(); ++i) {
 		double step = hierarchy.mScale * 1.f;
 
@@ -396,7 +412,9 @@ void Parametrizer::EstimateScale() {
 			}
 		}
 	}
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < mV.cols(); ++i) {
 		if (areas[i] != 0)
 			hierarchy.mK[0].col(i) /= areas[i];
@@ -405,7 +423,9 @@ void Parametrizer::EstimateScale() {
 		const MatrixXd &K = hierarchy.mK[l];
 		MatrixXd &K_next = hierarchy.mK[l + 1];
 		auto& toUpper = hierarchy.mToUpper[l];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 		for (int i = 0; i < toUpper.cols(); ++i) {
 			Vector2i upper = toUpper.col(i);
 			Vector2d k0 = K.col(upper[0]);
@@ -675,7 +695,7 @@ void Parametrizer::ComputePosition(int with_scale)
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
 //	auto &S = hierarchy.mS[0];
-	int t1 = GetTickCount();
+	int t1 = GetTickCount64();
 	std::vector<std::unordered_map<int, double> > entries(V.cols() * 2);
 	std::vector<double> b(V.cols() * 2);
 	for (int e = 0; e < edge_diff.size(); ++e) {
@@ -721,7 +741,9 @@ void Parametrizer::ComputePosition(int with_scale)
 	std::vector<double> R;
 	std::vector<int> R_ind;
 	std::vector<int> R_offset(V.cols() * 2 + 1);
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < O.cols(); ++i) {
 		Vector3d q = Q.col(i);
 		Vector3d n = N.col(i);
@@ -766,7 +788,9 @@ void Parametrizer::ComputePosition(int with_scale)
 	std::vector<double> x_new(x.size(), 0);
 	for (int iter = 0; iter < 30; ++iter) {
 		double err = 0;
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 		for (int i = 0; i < x.size(); ++i) {
 			x_new[i] = b[i];
 			for (int j = R_offset[i]; j < R_offset[i + 1]; ++j) {
@@ -783,7 +807,7 @@ void Parametrizer::ComputePosition(int with_scale)
 		}
 	}
 	printf("finish...\n");
-	system("pause");
+    exit(0);
 #endif
 #endif
 	for (int i = 0; i < O.cols(); ++i) {
@@ -793,7 +817,7 @@ void Parametrizer::ComputePosition(int with_scale)
 		O.col(i) = V.col(i) + q * x[i * 2] + q_y * x[i * 2 + 1];
 	}
 	
-	int t2 = GetTickCount();
+	int t2 = GetTickCount64();
 	printf("Use %lf seconds.\n", (t2 - t1) * 1e-3);
 }
 
@@ -831,7 +855,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
 			printf("wait...\n");
-			system("pause");
+            exit(0);
 		}
 	}
 	//	FixFlipComplete();
@@ -1344,7 +1368,7 @@ void Parametrizer::ComputeMaxFlow()
 		}
 	}
 	printf("begin flow...\n");
-	int t1 = GetTickCount();
+	int t1 = GetTickCount64();
 	MaxFlowHelper flow;
 	flow.resize(constraints_index.size() + 2);
 	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
@@ -1374,7 +1398,7 @@ void Parametrizer::ComputeMaxFlow()
 	
 	int flow_count = flow.compute();
 	flow.Apply(edge_to_variable, edge_diff);
-	int t2 = GetTickCount();
+	int t2 = GetTickCount64();
 	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
 }
@@ -1431,7 +1455,7 @@ void Parametrizer::WriteTestData()
 		count[directions[i].size()] += 1;
 	}
 	printf("count %d %d %d\n", count[0], count[1], count[2]);
-	system("pause");
+    exit(0);
 	for (int i = 0; i < edge_values.size(); ++i) {
 		os << edge_values[i].x << " " << edge_values[i].y << " " << edge_diff[i][0] << " " << edge_diff[i][1] << "\n";
 	}
@@ -1480,13 +1504,6 @@ void Parametrizer::FixFlipAdvance()
 	auto sanity = [&](int count) {
 		printf("check sanity %d:\n", count);
 		// parent_edge, tree, vertices_to_edge, edge_to_faces
-		for (int i = 0; i < edge_to_faces.size(); ++i) {
-			int count = (edge_to_faces[i].size());
-			if (count == 1) {
-//				printf("interesting edges %d!\n", i);
-//				system("pause");
-			}
-		}
 		for (int i = 0; i < parent_edge.size(); ++i) {
 			if (parent_edge[i].first == i) {
 				int nx = tree.Parent(edge_values[i].x);
@@ -1507,37 +1524,33 @@ void Parametrizer::FixFlipAdvance()
 						printf("<%d %d>  ", edge_values[m].x, edge_values[m].y);
 					}
 					printf("\n");
-					system("pause");
+                    exit(0);
 				}
 			}
 		}
 		for (int i = 0; i < V.cols(); ++i) {
 			if (tree.Parent(i) != i && vertices_to_edges[i].size()) {
 				printf("child edge list not empty!\n");
-				system("pause");
+                exit(0);
 			}
 			for (auto& l : vertices_to_edges[i]) {
-				if (l.first == i) {
-//					printf("self index! %d %d\n", l.first, i);
-//					system("pause");
-				}
 				if (tree.Parent(l.first) != l.first) {
 					printf("vertex index not root!\n");
-					system("pause");
-				}
+                    exit(0);
+                }
 				for (auto& li : l.second) {
 					if (get_parents(parent_edge, li) != li) {
 						printf("%d %d %d\n", i, tree.Parent(i), li);
 						printf("(%d %d): <%d %d> ==> <%d %d>\n", li, get_parents(parent_edge, li), edge_values[li].x, edge_values[li].y,
 							edge_values[get_parents(parent_edge, li)].x, edge_values[get_parents(parent_edge, li)].y);
 						printf("edge index not root!\n");
-						system("pause");
+                        exit(0);
 					}
 					if (tree.Parent(edge_values[li].x) == tree.Parent(edge_values[li].y) &&
 						edge_diff[li] == Vector2i::Zero()) {
 						printf("%d %d %d %d\n", i, l.first, edge_values[li].x, edge_values[li].y);
 						printf("zero edge length!\n");
-//						system("pause");
+                        exit(0);
 					}
 				}
 			}
@@ -1574,13 +1587,13 @@ void Parametrizer::FixFlipAdvance()
 				printf("\n");
 				printf("face %d %d %d %d\n", f, tree.Parent(F(0, f)), tree.Parent(F(1, f)), tree.Parent(F(2, f)));
 				printf("face origin %d %d %d\n", F(0, f), F(1, f), F(2, f));
-				system("pause");
+                exit(0);
 			}
 			int i = 0;
 			for (auto& p : l) {
 				if (p != faces_from_edge[f][i++]) {
 					printf("inconsistent edge-face connection! %d\n", f);
-					system("pause");
+                    exit(0);
 				}
 			}
 		}
@@ -1612,8 +1625,8 @@ void Parametrizer::FixFlipAdvance()
 					get_parents(parent_edge, face_edgeIds[i][0]),
 					get_parents(parent_edge, face_edgeIds[i][1]),
 					get_parents(parent_edge, face_edgeIds[i][2]));
-				system("pause");
-			}
+                exit(0);
+            }
 			int area = -diff[0][0] * diff[2][1] + diff[0][1] * diff[2][0];
 			if (area < 0)
 				total_area -= area;
@@ -1780,7 +1793,7 @@ void Parametrizer::FixFlipAdvance()
 												edge_values[npeid].x, edge_values[npeid].y);
 											printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0], diff2[1]);
 											printf("no orient solution!\n");
-											system("pause");
+                                            exit(0);
 										}
 										else {
 											parent_edge[npeid] = std::make_pair(peid, orient);
@@ -1794,18 +1807,10 @@ void Parametrizer::FixFlipAdvance()
 										auto it = std::find(l1.begin(), l1.end(), npeid);
 										if (it != l1.end())
 											l1.erase(it);
-										else {
-//											printf("not found1 %d %d!\n", nv0, nv1);
-//											system("pause");
-										}
 										auto& l2 = vertices_to_edges[nv1][nv0];
 										it = std::find(l2.begin(), l2.end(), npeid);
 										if (it != l2.end())
 											l2.erase(it);
-										else {
-//											printf("not found2 %d %d!\n", nv1, nv0);
-//											system("pause");
-										}
 										break;
 									}
 								}
@@ -2041,15 +2046,15 @@ void Parametrizer::FixFlipAdvance()
 		edge_diff[i] = rshift90(edge_diff[p], orient);
 	}
 	fixed.resize(V.cols(), 0);
-	for (int i = 0; i < V.cols(); ++i) {
+//	for (int i = 0; i < V.cols(); ++i) {
 //		if (fixed_vertices[tree.Parent(i)])
 //			fixed[i] = 1;
-	}
+//	}
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (edge_diff[i] == Vector2i::Zero()) {
 			if (tree.Parent(edge_values[i].x) != tree.Parent(edge_values[i].y)) {
 				printf("wrong tree!\n");
-				system("pause");
+                exit(0);
 			}
 		}
 	}

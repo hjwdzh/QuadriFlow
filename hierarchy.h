@@ -45,6 +45,8 @@ public:
 	std::vector<MatrixXd> mS;
 	std::vector<MatrixXd> mK;
 
+    int with_scale;
+
 #ifdef WITH_CUDA
 	std::vector<Link*> cudaAdj;
 	std::vector<int*> cudaAdjOffset;
@@ -56,7 +58,6 @@ public:
 	std::vector<glm::ivec2*> cudaToUpper;
 	void CopyToDevice();
 	void CopyToHost();
-	int with_scale;
 #endif
 };
 #endif

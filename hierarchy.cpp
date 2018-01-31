@@ -1,3 +1,4 @@
+#include "config.h"
 #include "hierarchy.h"
 #include "field_math.h"
 #include <fstream>
@@ -42,7 +43,9 @@ void Hierarchy::Initialize(double scale, int with_scale)
 	}
 
 	mScale = scale;
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i<mV.size(); ++i) {
 		mQ[i].resize(mN[i].rows(), mN[i].cols());
 		mO[i].resize(mN[i].rows(), mN[i].cols());
@@ -168,7 +171,7 @@ void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj,
 	},
 		[](ColorData c1, ColorData c2) -> ColorData {
 		ColorData result;
-		result.nColors = max(c1.nColors, c2.nColors);
+        result.nColors = std::max(c1.nColors, c2.nColors);
 		memset(result.nNodes, 0, sizeof(uint32_t) * result.nColors);
 		for (uint8_t i = 0; i<c1.nColors; ++i)
 			result.nNodes[i] += c1.nNodes[i];
@@ -211,7 +214,9 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 		bases[i] = bases[i - 1] + adj[i - 1].size();
 	}
 
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V.cols(); ++i) {
 		int num = adj[i].size();
 		int base = bases[i];
@@ -246,7 +251,9 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 	to_upper.resize(2, vertexCount);
 	to_lower.resize(V.cols());
 
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < nCollapsed; ++i) {
 		const Entry &e = entries[i];
 		const double area1 = A[e.i], area2 = A[e.j], surfaceArea = area1 + area2;
@@ -279,7 +286,9 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 	adj_p.resize(V_p.cols());
 	std::vector<int> capacity(V_p.cols());
 	std::vector<std::vector<Link> > scratches(V_p.cols());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V_p.cols(); ++i) {
 		int t = 0;
 		for (int j = 0; j < 2; ++j) {
@@ -291,7 +300,9 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 		scratches[i].reserve(t);
 		adj_p[i].reserve(t);
 	}
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < V_p.cols(); ++i) {
 		auto& scratch = scratches[i];
 		for (int j = 0; j<2; ++j) {

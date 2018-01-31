@@ -1,7 +1,7 @@
 #include "config.h"
 #include "Parametrizer.h"
 #include "Optimizer.h"
-#include <GL/glut.h>
+#include <glut/glut.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 #include "glDraw.h"
@@ -585,58 +585,49 @@ int main(int argc, char** argv)
 #endif
 	int t1, t2;
 	
-	field.Load(argv[1]);
+    if (argc >= 2)
+        field.Load(argv[1]);
+    else
+        field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
 	
 	printf("Initialize...\n");
 	field.Initialize(with_scale);
 
 	printf("Solve Orientation Field...\n");
-	t1 = GetTickCount();
+	t1 = GetTickCount64();
 	
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-	t2 = GetTickCount();
+	t2 = GetTickCount64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
 	if (with_scale == 1) {
 		printf("estimate for scale...\n");
-		t1 = GetTickCount();
+		t1 = GetTickCount64();
 		field.EstimateScale();
-		t2 = GetTickCount();
+		t2 = GetTickCount64();
 		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
 		printf("Solve for scale...\n");
-		t1 = GetTickCount();
+		t1 = GetTickCount64();
 		Optimizer::optimize_scale(field.hierarchy);
-		t2 = GetTickCount();
+		t2 = GetTickCount64();
 		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 	}
 
 	printf("Solve for position field...\n");
-	t1 = GetTickCount();
+	t1 = GetTickCount64();
 	Optimizer::optimize_positions(field.hierarchy, with_scale);
 	field.ComputePositionSingularities(with_scale);
-	t2 = GetTickCount();
+	t2 = GetTickCount64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-//	system("pause");
-	/*
-	printf("save\n");
-	FILE* fp_w = fopen("result.txt", "wb");
-	field.SaveToFile(fp_w);
-	fclose(fp_w);
-	
-	printf("load...\n");
-	FILE* fp = fopen("result.txt", "rb");
-	field.LoadFromFile(fp);
-	fclose(fp);
-	*/
-	t1 = GetTickCount();
+	t1 = GetTickCount64();
 	printf("Solve index map...\n");
 	field.ComputeIndexMap(with_scale);
-	t2 = GetTickCount();
+	t2 = GetTickCount64();
 	printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
 
-	field.ExtractMesh("result.obj");
+    field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;

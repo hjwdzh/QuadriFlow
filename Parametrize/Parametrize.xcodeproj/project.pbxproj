@@ -1,0 +1,370 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 48;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		544FD52F2022796B00F40213 /* Parametrizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD5172022796900F40213 /* Parametrizer.cpp */; };
+		544FD5302022796B00F40213 /* Optimizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD51A2022796900F40213 /* Optimizer.cpp */; };
+		544FD5312022796B00F40213 /* hierarchy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD51B2022796900F40213 /* hierarchy.cpp */; };
+		544FD5322022796B00F40213 /* dedge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD51C2022796900F40213 /* dedge.cpp */; };
+		544FD5332022796B00F40213 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD51E2022796900F40213 /* main.cpp */; };
+		544FD5342022796B00F40213 /* AdjacentMatrix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD5272022796A00F40213 /* AdjacentMatrix.cpp */; };
+		544FD5352022796B00F40213 /* glDraw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD5292022796A00F40213 /* glDraw.cpp */; };
+		544FD5362022796B00F40213 /* MergeVertex.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD52B2022796B00F40213 /* MergeVertex.cpp */; };
+		544FD5372022796B00F40213 /* subdivide.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD52C2022796B00F40213 /* subdivide.cpp */; };
+		544FD5382022796B00F40213 /* loader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 544FD52D2022796B00F40213 /* loader.cpp */; };
+		544FD53B20227CEA00F40213 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 544FD53A20227CEA00F40213 /* OpenGL.framework */; };
+		544FD53D20227CEF00F40213 /* GLUT.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 544FD53C20227CEF00F40213 /* GLUT.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		544FD5072022793100F40213 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		544FD5092022793100F40213 /* Parametrize */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Parametrize; sourceTree = BUILT_PRODUCTS_DIR; };
+		544FD5132022796900F40213 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = config.h; path = ../../config.h; sourceTree = "<group>"; };
+		544FD5142022796900F40213 /* serialize.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = serialize.h; path = ../../serialize.h; sourceTree = "<group>"; };
+		544FD5152022796900F40213 /* tbb_common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = tbb_common.h; path = ../../tbb_common.h; sourceTree = "<group>"; };
+		544FD5162022796900F40213 /* loader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = loader.h; path = ../../loader.h; sourceTree = "<group>"; };
+		544FD5172022796900F40213 /* Parametrizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = Parametrizer.cpp; path = ../../Parametrizer.cpp; sourceTree = "<group>"; };
+		544FD5182022796900F40213 /* Parametrizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Parametrizer.h; path = ../../Parametrizer.h; sourceTree = "<group>"; };
+		544FD5192022796900F40213 /* DisajointTree.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DisajointTree.h; path = ../../DisajointTree.h; sourceTree = "<group>"; };
+		544FD51A2022796900F40213 /* Optimizer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = Optimizer.cpp; path = ../../Optimizer.cpp; sourceTree = "<group>"; };
+		544FD51B2022796900F40213 /* hierarchy.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = hierarchy.cpp; path = ../../hierarchy.cpp; sourceTree = "<group>"; };
+		544FD51C2022796900F40213 /* dedge.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = dedge.cpp; path = ../../dedge.cpp; sourceTree = "<group>"; };
+		544FD51D2022796900F40213 /* AdjacentMatrix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AdjacentMatrix.h; path = ../../AdjacentMatrix.h; sourceTree = "<group>"; };
+		544FD51E2022796900F40213 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = main.cpp; path = ../../main.cpp; sourceTree = "<group>"; };
+		544FD51F2022796900F40213 /* flow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = flow.h; path = ../../flow.h; sourceTree = "<group>"; };
+		544FD5202022796A00F40213 /* MergeVertex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MergeVertex.h; path = ../../MergeVertex.h; sourceTree = "<group>"; };
+		544FD5212022796A00F40213 /* hierarchy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = hierarchy.h; path = ../../hierarchy.h; sourceTree = "<group>"; };
+		544FD5222022796A00F40213 /* dset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = dset.h; path = ../../dset.h; sourceTree = "<group>"; };
+		544FD5242022796A00F40213 /* glDraw.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = glDraw.h; path = ../../glDraw.h; sourceTree = "<group>"; };
+		544FD5252022796A00F40213 /* CompareKey.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CompareKey.h; path = ../../CompareKey.h; sourceTree = "<group>"; };
+		544FD5262022796A00F40213 /* dedge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = dedge.h; path = ../../dedge.h; sourceTree = "<group>"; };
+		544FD5272022796A00F40213 /* AdjacentMatrix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = AdjacentMatrix.cpp; path = ../../AdjacentMatrix.cpp; sourceTree = "<group>"; };
+		544FD5282022796A00F40213 /* field_math.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = field_math.h; path = ../../field_math.h; sourceTree = "<group>"; };
+		544FD5292022796A00F40213 /* glDraw.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = glDraw.cpp; path = ../../glDraw.cpp; sourceTree = "<group>"; };
+		544FD52A2022796B00F40213 /* subdivide.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = subdivide.h; path = ../../subdivide.h; sourceTree = "<group>"; };
+		544FD52B2022796B00F40213 /* MergeVertex.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = MergeVertex.cpp; path = ../../MergeVertex.cpp; sourceTree = "<group>"; };
+		544FD52C2022796B00F40213 /* subdivide.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = subdivide.cpp; path = ../../subdivide.cpp; sourceTree = "<group>"; };
+		544FD52D2022796B00F40213 /* loader.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = loader.cpp; path = ../../loader.cpp; sourceTree = "<group>"; };
+		544FD52E2022796B00F40213 /* Optimizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Optimizer.h; path = ../../Optimizer.h; sourceTree = "<group>"; };
+		544FD53A20227CEA00F40213 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
+		544FD53C20227CEF00F40213 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = System/Library/Frameworks/GLUT.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		544FD5062022793100F40213 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				544FD53D20227CEF00F40213 /* GLUT.framework in Frameworks */,
+				544FD53B20227CEA00F40213 /* OpenGL.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		544FD5002022793100F40213 = {
+			isa = PBXGroup;
+			children = (
+				544FD50B2022793100F40213 /* Parametrize */,
+				544FD50A2022793100F40213 /* Products */,
+				544FD53920227CEA00F40213 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		544FD50A2022793100F40213 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				544FD5092022793100F40213 /* Parametrize */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		544FD50B2022793100F40213 /* Parametrize */ = {
+			isa = PBXGroup;
+			children = (
+				544FD5272022796A00F40213 /* AdjacentMatrix.cpp */,
+				544FD51D2022796900F40213 /* AdjacentMatrix.h */,
+				544FD5252022796A00F40213 /* CompareKey.h */,
+				544FD5132022796900F40213 /* config.h */,
+				544FD51C2022796900F40213 /* dedge.cpp */,
+				544FD5262022796A00F40213 /* dedge.h */,
+				544FD5192022796900F40213 /* DisajointTree.h */,
+				544FD5222022796A00F40213 /* dset.h */,
+				544FD5282022796A00F40213 /* field_math.h */,
+				544FD51F2022796900F40213 /* flow.h */,
+				544FD5292022796A00F40213 /* glDraw.cpp */,
+				544FD5242022796A00F40213 /* glDraw.h */,
+				544FD51B2022796900F40213 /* hierarchy.cpp */,
+				544FD5212022796A00F40213 /* hierarchy.h */,
+				544FD52D2022796B00F40213 /* loader.cpp */,
+				544FD5162022796900F40213 /* loader.h */,
+				544FD51E2022796900F40213 /* main.cpp */,
+				544FD52B2022796B00F40213 /* MergeVertex.cpp */,
+				544FD5202022796A00F40213 /* MergeVertex.h */,
+				544FD51A2022796900F40213 /* Optimizer.cpp */,
+				544FD52E2022796B00F40213 /* Optimizer.h */,
+				544FD5172022796900F40213 /* Parametrizer.cpp */,
+				544FD5182022796900F40213 /* Parametrizer.h */,
+				544FD5142022796900F40213 /* serialize.h */,
+				544FD52C2022796B00F40213 /* subdivide.cpp */,
+				544FD52A2022796B00F40213 /* subdivide.h */,
+				544FD5152022796900F40213 /* tbb_common.h */,
+			);
+			path = Parametrize;
+			sourceTree = "<group>";
+		};
+		544FD53920227CEA00F40213 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				544FD53C20227CEF00F40213 /* GLUT.framework */,
+				544FD53A20227CEA00F40213 /* OpenGL.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		544FD5082022793100F40213 /* Parametrize */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 544FD5102022793100F40213 /* Build configuration list for PBXNativeTarget "Parametrize" */;
+			buildPhases = (
+				544FD5052022793100F40213 /* Sources */,
+				544FD5062022793100F40213 /* Frameworks */,
+				544FD5072022793100F40213 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Parametrize;
+			productName = Parametrize;
+			productReference = 544FD5092022793100F40213 /* Parametrize */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		544FD5012022793100F40213 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0900;
+				ORGANIZATIONNAME = Jingwei;
+				TargetAttributes = {
+					544FD5082022793100F40213 = {
+						CreatedOnToolsVersion = 9.0;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 544FD5042022793100F40213 /* Build configuration list for PBXProject "Parametrize" */;
+			compatibilityVersion = "Xcode 8.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 544FD5002022793100F40213;
+			productRefGroup = 544FD50A2022793100F40213 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				544FD5082022793100F40213 /* Parametrize */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		544FD5052022793100F40213 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				544FD52F2022796B00F40213 /* Parametrizer.cpp in Sources */,
+				544FD5372022796B00F40213 /* subdivide.cpp in Sources */,
+				544FD5312022796B00F40213 /* hierarchy.cpp in Sources */,
+				544FD5352022796B00F40213 /* glDraw.cpp in Sources */,
+				544FD5342022796B00F40213 /* AdjacentMatrix.cpp in Sources */,
+				544FD5302022796B00F40213 /* Optimizer.cpp in Sources */,
+				544FD5332022796B00F40213 /* main.cpp in Sources */,
+				544FD5362022796B00F40213 /* MergeVertex.cpp in Sources */,
+				544FD5382022796B00F40213 /* loader.cpp in Sources */,
+				544FD5322022796B00F40213 /* dedge.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		544FD50E2022793100F40213 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		544FD50F2022793100F40213 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		544FD5112022793100F40213 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/include/eigen3,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = "-ltbb";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		544FD5122022793100F40213 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/include/eigen3,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = "-ltbb";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		544FD5042022793100F40213 /* Build configuration list for PBXProject "Parametrize" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				544FD50E2022793100F40213 /* Debug */,
+				544FD50F2022793100F40213 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		544FD5102022793100F40213 /* Build configuration list for PBXNativeTarget "Parametrize" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				544FD5112022793100F40213 /* Debug */,
+				544FD5122022793100F40213 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 544FD5012022793100F40213 /* Project object */;
+}

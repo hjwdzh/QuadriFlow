@@ -1,3 +1,4 @@
+#include "config.h"
 #include "AdjacentMatrix.h"
 #include "dedge.h"
 #include <fstream>
@@ -5,7 +6,9 @@ void generate_adjacency_matrix_uniform(
 	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,
 	const VectorXi &nonManifold, AdjacentMatrix& adj) {
 	adj.resize(V2E.size());
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 	for (int i = 0; i < adj.size(); ++i) {
 		int start = V2E[i];
 		int edge = start;

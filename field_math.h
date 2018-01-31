@@ -250,14 +250,7 @@ inline Vector3d Travel(Vector3d p, const Vector3d& dir, double& len, int& f, Vec
 		MatrixXd& T = triangle_space[f];
 		VectorXd coord = T * Vector3d(p - V.col(F(0, f)));
 		VectorXd dirs = (T * pt);
-/*		VectorXd coord1 = triangle_space[f] * Vector3d(p - V.col(F(0, f)));
-		for (int i = 0; i < 2; ++i) {
-			for (int j = 0; j < 3; ++j) {
-				printf("<%lf %lf>\n", triangle_space[f](i, j), m(i, j));
-			}
-		}
-		printf("\n%lf %lf %lf %lf\n", coord.x(), coord.y(), coord1.x(), coord1.y());
-		system("pause");*/
+        
 		double lens[3];
 		lens[0] = -coord.y() / dirs.y();
 		lens[1] = (1 - coord.x() - coord.y()) / (dirs.x() + dirs.y());
@@ -278,7 +271,7 @@ inline Vector3d Travel(Vector3d p, const Vector3d& dir, double& len, int& f, Vec
 		}
 		if (!found) {
 			printf("error...\n");
-			system("pause");
+            exit(0);
 		}
 //		printf("status: %f %f %d\n", len, max_len, f);
 		if (max_len >= len) {
@@ -401,7 +394,7 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 
 		if (!found) {
 			printf("error...\n");
-			system("pause");
+            exit(0);
 		}
 		//		printf("status: %f %f %d\n", len, max_len, f);
 		if (max_len >= len) {

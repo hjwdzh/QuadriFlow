@@ -116,7 +116,7 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 			/* Walk backwards to the first boundary edge (if any) */
 			uint32_t start = edge, v2e = INVALID;
 			do {
-				v2e = min(v2e, edge);
+                v2e = std::min(v2e, edge);
 				uint32_t prevEdge = E2E[dedge_prev(edge, deg)];
 				if (prevEdge == INVALID) {
 					/* Reached boundary -- update the vertex->edge link */

@@ -1,5 +1,6 @@
 #ifndef OPTIMIZER_H_
 #define OPTIMIZER_H_
+#include "config.h"
 #include "hierarchy.h"
 
 class Optimizer

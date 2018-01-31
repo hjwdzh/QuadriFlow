@@ -173,7 +173,7 @@ void subdivide_diff(MatrixXi &F,
 			for (int j = 0; j < 3; ++j) {
 				if (edge_values[face_edgeIds[i][j]] != DEdge(F(j, i), F((j + 1) % 3, i))) {
 					printf("edge id wrong!\n");
-					system("pause");
+                    exit(0);
 				}
 			}
 		}
@@ -205,8 +205,8 @@ void subdivide_diff(MatrixXi &F,
 				if ((orient0 - od0 + 4) % 4 != (orient1 - od1 + 4) % 4) {
 					printf("%d %d %d %d\n", orient0, od0, orient1, od1);
 					printf("orient wrong!\n");
-					system("pause");
-				}
+                    exit(0);
+                }
 			}
 		}
 		for (int i = 0; i < face_edgeIds.size(); ++i) {
@@ -218,12 +218,12 @@ void subdivide_diff(MatrixXi &F,
 				{
 					printf("long edge %d!\n", singularities.count(i));
 					printf("%d %d\n", i, j);
-					system("pause");
+                    exit(0);
 				}
 			}
 			if (total_diff != Vector2i(0, 0)) {
 				printf("non zero diff\n");
-				system("pause");
+                exit(0);
 			}
 		}
 		printf("finish check!\n");

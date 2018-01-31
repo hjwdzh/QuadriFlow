@@ -1,9 +1,11 @@
+#include "config.h"
 #include "Optimizer.h"
 #include "field_math.h"
 #include <fstream>
 #include <Eigen/Sparse>
+#ifdef WITH_CUDA
 #include <cuda_runtime.h>
-
+#endif
 
 Optimizer::Optimizer()
 {}
@@ -26,7 +28,9 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			for (int phase = 0; phase < phases.size(); ++phase) {
 				auto& p = phases[phase];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 				for (int pi = 0; pi < p.size(); ++pi) {
 					int i = p[pi];
 					const Vector3d n_i = N.col(i);
@@ -58,7 +62,9 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 			const MatrixXi &toUpper = mRes.mToUpper[level - 1];
 			MatrixXd &destField = mRes.mQ[level - 1];
 			const MatrixXd &N = mRes.mN[level - 1];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);
@@ -77,7 +83,9 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 		const MatrixXd &Q = mRes.mQ[l];
 		MatrixXd &Q_next = mRes.mQ[l + 1];
 		auto& toUpper = mRes.mToUpper[l];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 		for (int i = 0; i < toUpper.cols(); ++i) {
 			Vector2i upper = toUpper.col(i);
 			Vector3d q0 = Q.col(upper[0]);
@@ -163,7 +171,7 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 		for (auto& j : entries[i]) {
 			if (abs(j.second + entries[j.first][i]) > 1e-6) {
 				printf("not true... %f %f\n", j.second, entries[j.first][i]);
-				system("pause");
+                exit(0);
 			}
 		}
 	}
@@ -227,7 +235,9 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			auto& phases = mRes.mPhases[level];
 			for (int phase = 0; phase < phases.size(); ++phase) {
 				auto& p = phases[phase];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 				for (int pi = 0; pi < p.size(); ++pi) {
 					int i = p[pi];
 					double scale_x = mRes.mScale;
@@ -288,7 +298,9 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 			MatrixXd &destField = mRes.mO[level - 1];
 			const MatrixXd &N = mRes.mN[level - 1];
 			const MatrixXd &V = mRes.mV[level - 1];
+#ifdef WITH_OMP
 #pragma omp parallel for
+#endif
 			for (int i = 0; i < srcField.cols(); ++i) {
 				for (int k = 0; k < 2; ++k) {
 					int dest = toUpper(k, i);
@@ -298,18 +310,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 					o -= n * n.dot(o - v);
 					destField.col(dest) = o;
 				}
-			}
-		}
-	}
-	
-	for (int i = mO_buf.size() - 1; i >= 0; --i) {
-		for (int j = 0; j < mO_buf[i].cols(); ++j) {
-			double dis = (mO_buf[i].col(j) - mRes.mO[i].col(j)).norm();
-			if (dis > 1e-6) {
-				printf("dis %lf\n", dis);
-				printf("%lf %lf %lf  %lf %lf %lf\n", mO_buf[i](0, j), mO_buf[i](1, j), mO_buf[i](2, j),
-					mRes.mO[i](0, j), mRes.mO[i](1, j), mRes.mO[i](2, j));
-				system("pause");
 			}
 		}
 	}
