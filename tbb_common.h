@@ -6,7 +6,4 @@
 #include <condition_variable>
 #include <atomic>
 
-#define INVALID -1
-#define GRAIN_SIZE 1024
-
 #endif

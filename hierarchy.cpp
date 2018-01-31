@@ -2,7 +2,9 @@
 #include "hierarchy.h"
 #include "field_math.h"
 #include <fstream>
+#ifdef WITH_TBB
 #include "tbb_common.h"
+#endif
 #include "pss/parallel_stable_sort.h"
 #include "pcg32/pcg32.h"
 Hierarchy::Hierarchy()
@@ -74,6 +76,7 @@ void Hierarchy::Initialize(double scale, int with_scale)
 #endif
 }
 
+#ifdef WITH_TBB
 void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
 	std::vector<std::vector<int> > &phases) {
 	struct ColorData {
@@ -187,8 +190,59 @@ void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj,
 
 	for (uint32_t i = 0; i<size; ++i)
 		phases[color[i]].push_back(i);
-
 }
+#else
+void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix &adj, int size,
+                                           std::vector<std::vector<int> > &phases) {
+    phases.clear();
+    
+    std::vector<uint32_t> perm(size);
+    for (uint32_t i=0; i<size; ++i)
+        perm[i] = i;
+    pcg32 rng;
+    rng.shuffle(perm.begin(), perm.end());
+    
+    std::vector<int> color(size, -1);
+    std::vector<uint8_t> possible_colors;
+    std::vector<int> size_per_color;
+    int ncolors = 0;
+    
+    for (uint32_t i=0; i<size; ++i) {
+        uint32_t ip = perm[i];
+        
+        std::fill(possible_colors.begin(), possible_colors.end(), 1);
+        
+        for (auto& link : adj[ip]) {
+            int c = color[link.id];
+            if (c >= 0)
+                possible_colors[c] = 0;
+        }
+        
+        int chosen_color = -1;
+        for (uint32_t j=0; j<possible_colors.size(); ++j) {
+            if (possible_colors[j]) {
+                chosen_color = j;
+                break;
+            }
+        }
+        
+        if (chosen_color < 0) {
+            chosen_color = ncolors++;
+            possible_colors.resize(ncolors);
+            size_per_color.push_back(0);
+        }
+        
+        color[ip] = chosen_color;
+        size_per_color[chosen_color]++;
+    }
+    phases.resize(ncolors);
+    for (int i=0; i<ncolors; ++i)
+        phases[i].reserve(size_per_color[i]);
+    for (uint32_t i=0; i<size; ++i)
+        phases[color[i]].push_back(i);
+    
+}
+#endif
 
 
 void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,

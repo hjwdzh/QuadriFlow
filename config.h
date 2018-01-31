@@ -1,12 +1,14 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-//#define WITH_CUDA
 //#define WITH_SCALE
+//#define WITH_CUDA
 #define WITH_OMP
-#define WITH_TBB
+//#define WITH_TBB
 
-#define DATA_PATH "/Users/jingwei/Desktop/project/Parametrize/data"
+#define DATA_PATH "./data"
+#define INVALID -1
+#define GRAIN_SIZE 1024
 
 #include <chrono>
 
