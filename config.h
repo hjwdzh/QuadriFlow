@@ -14,7 +14,7 @@
 
 // simulation of Windows GetTickCount()
 unsigned long long
-inline GetTickCount64()
+inline GetCurrentTime64()
 {
     using namespace std::chrono;
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();

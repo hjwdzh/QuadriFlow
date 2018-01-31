@@ -76,7 +76,7 @@ void Parametrizer::Initialize(int with_scale)
 		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
 	}
 
-	int t1 = GetTickCount64();
+	int t1 = GetCurrentTime64();
 	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
 
@@ -110,7 +110,7 @@ void Parametrizer::Initialize(int with_scale)
 	hierarchy.mE2E = std::move(E2E);
 	hierarchy.mF = std::move(F);
 	hierarchy.Initialize(scale, with_scale);
-	int t2 = GetTickCount64();
+	int t2 = GetCurrentTime64();
 	printf("Initialize use time: %lf\n", (t2 - t1) * 1e-3);
 }
 
@@ -695,7 +695,7 @@ void Parametrizer::ComputePosition(int with_scale)
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
 //	auto &S = hierarchy.mS[0];
-	int t1 = GetTickCount64();
+	int t1 = GetCurrentTime64();
 	std::vector<std::unordered_map<int, double> > entries(V.cols() * 2);
 	std::vector<double> b(V.cols() * 2);
 	for (int e = 0; e < edge_diff.size(); ++e) {
@@ -817,7 +817,7 @@ void Parametrizer::ComputePosition(int with_scale)
 		O.col(i) = V.col(i) + q * x[i * 2] + q_y * x[i * 2 + 1];
 	}
 	
-	int t2 = GetTickCount64();
+	int t2 = GetCurrentTime64();
 	printf("Use %lf seconds.\n", (t2 - t1) * 1e-3);
 }
 
@@ -1368,7 +1368,7 @@ void Parametrizer::ComputeMaxFlow()
 		}
 	}
 	printf("begin flow...\n");
-	int t1 = GetTickCount64();
+	int t1 = GetCurrentTime64();
 	MaxFlowHelper flow;
 	flow.resize(constraints_index.size() + 2);
 	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
@@ -1398,7 +1398,7 @@ void Parametrizer::ComputeMaxFlow()
 	
 	int flow_count = flow.compute();
 	flow.Apply(edge_to_variable, edge_diff);
-	int t2 = GetTickCount64();
+	int t2 = GetCurrentTime64();
 	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
 }

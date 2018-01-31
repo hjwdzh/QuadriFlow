@@ -3,6 +3,7 @@
 
 #include "CompareKey.h"
 #include <vector>
+#include <atomic>
 #include <fstream>
 #ifdef WITH_TBB
 #include "tbb_common.h"
@@ -85,7 +86,7 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
-    for (int f = 0; f != F.cols(); ++f) {
+    for (int f = 0; f < F.cols(); ++f) {
         for (uint32_t i = 0; i < deg; ++i) {
             uint32_t idx_cur = F(i, f),
             idx_next = F((i + 1) % deg, f),

@@ -594,37 +594,37 @@ int main(int argc, char** argv)
 	field.Initialize(with_scale);
 
 	printf("Solve Orientation Field...\n");
-	t1 = GetTickCount64();
+	t1 = GetCurrentTime64();
 	
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
-	t2 = GetTickCount64();
+	t2 = GetCurrentTime64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
 	if (with_scale == 1) {
 		printf("estimate for scale...\n");
-		t1 = GetTickCount64();
+		t1 = GetCurrentTime64();
 		field.EstimateScale();
-		t2 = GetTickCount64();
+		t2 = GetCurrentTime64();
 		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
 		printf("Solve for scale...\n");
-		t1 = GetTickCount64();
+		t1 = GetCurrentTime64();
 		Optimizer::optimize_scale(field.hierarchy);
-		t2 = GetTickCount64();
+		t2 = GetCurrentTime64();
 		printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 	}
 
 	printf("Solve for position field...\n");
-	t1 = GetTickCount64();
+	t1 = GetCurrentTime64();
 	Optimizer::optimize_positions(field.hierarchy, with_scale);
 	field.ComputePositionSingularities(with_scale);
-	t2 = GetTickCount64();
+	t2 = GetCurrentTime64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-	t1 = GetTickCount64();
+	t1 = GetCurrentTime64();
 	printf("Solve index map...\n");
 	field.ComputeIndexMap(with_scale);
-	t2 = GetTickCount64();
+	t2 = GetCurrentTime64();
 	printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
