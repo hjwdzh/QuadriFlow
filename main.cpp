@@ -627,7 +627,12 @@ int main(int argc, char** argv)
 	t2 = GetCurrentTime64();
 	printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
 
-    field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
+	printf("Writing the file...\n");
+	if (argc < 3)
+		field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
+	else
+		field.ExtractMesh(argv[2]);
+	printf("finish...\n");
 	//	field.LoopFace(2);
 	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
