@@ -769,7 +769,7 @@ void Parametrizer::ComputePosition(int with_scale)
 		}
 	}
 	R_offset.back() = R.size();
-#ifndef WITH_CUDA
+#ifdef WITH_CUDA
 	JacobiSolve(D, R, R_ind, R_offset, x, b);
 #else
 #ifndef WITH_JACOBI

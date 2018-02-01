@@ -1,7 +1,11 @@
+#if defined __APPLE_CC__
+#include <GLUT/glut.h>
+#else
+#include <GL/glut.h>
+#endif
 #include "config.hpp"
 #include "parametrizer.hpp"
 #include "optimizer.hpp"
-#include <GL/glut.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 #include "gldraw.hpp"
