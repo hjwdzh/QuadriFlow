@@ -19,11 +19,11 @@ set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(3rd/pss)
-include_directories(${GLM_INCLUDE_DIR})
-include_directories(${EIGEN3_INCLUDE_DIR})
-include_directories(${OPENGL_INCLUDE_DIR})
-include_directories(${GLUT_INCLUDE_DIR})
-include_directories(${TBB_INCLUDE_DIR})
+include_directories(${GLM_INCLUDE_DIRS})
+include_directories(${EIGEN3_INCLUDE_DIRS})
+include_directories(${OPENGL_INCLUDE_DIRS})
+include_directories(${GLUT_INCLUDE_DIRS})
+include_directories(${TBB_INCLUDE_DIRS})
 
 set(
     parametrize_SRC
