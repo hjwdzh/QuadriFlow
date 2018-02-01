@@ -55,7 +55,7 @@ class Parametrizer
 {
 public:
 	void Load(const char* filename);
-	void Initialize(int with_scale = 0);
+	void Initialize(int faces, int with_scale = 0);
 	
 	// member function
 	void ComputeMeshStatus();

@@ -584,25 +584,47 @@ int main(int argc, char** argv)
 	cudaFree(0);
 #endif
 	int t1, t2;
-	
-    if (argc >= 2)
-        field.Load(argv[1]);
+	std::string input_obj, output_obj;
+	int faces = -1;
+	for (int i = 0; i < argc; ++i) {
+		if (strcmp(argv[i], "-f")==0) {
+			sscanf(argv[i + 1], "%d", &faces);
+		}
+		if (strcmp(argv[i], "-i") == 0) {
+			input_obj = argv[i + 1];
+		}
+		if (strcmp(argv[i], "-o") == 0) {
+			output_obj = argv[i + 1];
+		}
+	}
+	int t = input_obj.size() - 1;
+	while (input_obj[t] != '_')
+		t -= 1;
+	output_obj = input_obj.substr(0, t + 1) + output_obj;
+	printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
+	fflush(stdout);
+	if (input_obj.size() >= 1)
+        field.Load(input_obj.c_str());
     else
         field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
 	
 	printf("Initialize...\n");
-	field.Initialize(with_scale);
+	fflush(stdout);
+	field.Initialize(faces, with_scale);
 
 	printf("Solve Orientation Field...\n");
+	fflush(stdout);
 	t1 = GetCurrentTime64();
 	
 	Optimizer::optimize_orientations(field.hierarchy);
 	field.ComputeOrientationSingularities();
 	t2 = GetCurrentTime64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	fflush(stdout);
 
 	if (with_scale == 1) {
 		printf("estimate for scale...\n");
+		fflush(stdout);
 		t1 = GetCurrentTime64();
 		field.EstimateScale();
 		t2 = GetCurrentTime64();
@@ -616,24 +638,30 @@ int main(int argc, char** argv)
 	}
 
 	printf("Solve for position field...\n");
+	fflush(stdout);
 	t1 = GetCurrentTime64();
 	Optimizer::optimize_positions(field.hierarchy, with_scale);
 	field.ComputePositionSingularities(with_scale);
 	t2 = GetCurrentTime64();
 	printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+	fflush(stdout);
 	t1 = GetCurrentTime64();
 	printf("Solve index map...\n");
+	fflush(stdout);
 	field.ComputeIndexMap(with_scale);
 	t2 = GetCurrentTime64();
 	printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
+	fflush(stdout);
 
 	printf("Writing the file...\n");
-	if (argc < 3)
+	fflush(stdout);
+	if (output_obj.size() < 1)
 		field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
 	else
-		field.ExtractMesh(argv[2]);
+		field.ExtractMesh(output_obj.c_str());
 	printf("finish...\n");
+	fflush(stdout);
 	//	field.LoopFace(2);
-	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
+//	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
 }

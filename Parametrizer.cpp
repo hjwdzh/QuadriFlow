@@ -64,12 +64,20 @@ void Parametrizer::Load(const char* filename)
 
 }
 
-void Parametrizer::Initialize(int with_scale)
+void Parametrizer::Initialize(int faces, int with_scale)
 {
 	ComputeMeshStatus();
-	num_vertices = V.cols();
-	num_faces = num_vertices;
-	scale = sqrt(surface_area / num_faces);
+
+	if (faces == -1) {
+		num_vertices = V.cols();
+		num_faces = num_vertices;
+		scale = sqrt(surface_area / num_faces);
+	}
+	else {
+		double face_area = surface_area / faces;
+		num_vertices = faces;
+		scale = std::sqrt(face_area) / 2;
+	}
 	double target_len = std::min(scale / 2, average_edge_length * 2);
 	if (target_len < max_edge_length) {
 		compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
@@ -761,7 +769,7 @@ void Parametrizer::ComputePosition(int with_scale)
 		}
 	}
 	R_offset.back() = R.size();
-#ifdef WITH_CUDA
+#ifndef WITH_CUDA
 	JacobiSolve(D, R, R_ind, R_offset, x, b);
 #else
 #ifndef WITH_JACOBI
@@ -1524,19 +1532,19 @@ void Parametrizer::FixFlipAdvance()
 						printf("<%d %d>  ", edge_values[m].x, edge_values[m].y);
 					}
 					printf("\n");
-                    exit(0);
+//                    exit(0);
 				}
 			}
 		}
 		for (int i = 0; i < V.cols(); ++i) {
 			if (tree.Parent(i) != i && vertices_to_edges[i].size()) {
 				printf("child edge list not empty!\n");
-                exit(0);
+//                exit(0);
 			}
 			for (auto& l : vertices_to_edges[i]) {
 				if (tree.Parent(l.first) != l.first) {
 					printf("vertex index not root!\n");
-                    exit(0);
+//                    exit(0);
                 }
 				for (auto& li : l.second) {
 					if (get_parents(parent_edge, li) != li) {
@@ -1544,13 +1552,13 @@ void Parametrizer::FixFlipAdvance()
 						printf("(%d %d): <%d %d> ==> <%d %d>\n", li, get_parents(parent_edge, li), edge_values[li].x, edge_values[li].y,
 							edge_values[get_parents(parent_edge, li)].x, edge_values[get_parents(parent_edge, li)].y);
 						printf("edge index not root!\n");
-                        exit(0);
+//                        exit(0);
 					}
 					if (tree.Parent(edge_values[li].x) == tree.Parent(edge_values[li].y) &&
 						edge_diff[li] == Vector2i::Zero()) {
 						printf("%d %d %d %d\n", i, l.first, edge_values[li].x, edge_values[li].y);
 						printf("zero edge length!\n");
-                        exit(0);
+//                        exit(0);
 					}
 				}
 			}
@@ -1587,13 +1595,13 @@ void Parametrizer::FixFlipAdvance()
 				printf("\n");
 				printf("face %d %d %d %d\n", f, tree.Parent(F(0, f)), tree.Parent(F(1, f)), tree.Parent(F(2, f)));
 				printf("face origin %d %d %d\n", F(0, f), F(1, f), F(2, f));
-                exit(0);
+//                exit(0);
 			}
 			int i = 0;
 			for (auto& p : l) {
 				if (p != faces_from_edge[f][i++]) {
 					printf("inconsistent edge-face connection! %d\n", f);
-                    exit(0);
+//                    exit(0);
 				}
 			}
 		}
@@ -1625,7 +1633,7 @@ void Parametrizer::FixFlipAdvance()
 					get_parents(parent_edge, face_edgeIds[i][0]),
 					get_parents(parent_edge, face_edgeIds[i][1]),
 					get_parents(parent_edge, face_edgeIds[i][2]));
-                exit(0);
+//                exit(0);
             }
 			int area = -diff[0][0] * diff[2][1] + diff[0][1] * diff[2][0];
 			if (area < 0)
