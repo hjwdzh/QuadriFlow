@@ -2,6 +2,7 @@
 #define FLOW_H_
 #include <vector>
 #include <map>
+#include <list>
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
@@ -37,6 +38,95 @@ void AddDirectEdge(Traits::vertex_descriptor &v1,
 	const int capacity, const int inv_capacity,
 	Graph &g);
 
+class AdvanceMaxFlowHelper
+{
+public:
+    struct FlowInfo
+    {
+        int id;
+        int capacity, flow;
+    };
+    AdvanceMaxFlowHelper()
+    {
+        num = 0;
+    }
+    int num;
+    void resize(int n) {
+        graph.resize(n);
+        num = n;
+    }
+    void AddEdge(int x, int y, int c, int rc) {
+        FlowInfo flow;
+        flow.id = y;
+        flow.capacity = c;
+        flow.flow = 0;
+        graph[x].push_back(flow);
+        flow.id = x;
+        flow.capacity = rc;
+        flow.flow = 0;
+        graph[y].push_back(flow);
+    }
+    int compute() {
+        int total_flow = 0;
+        while (true) {
+            std::vector<int> vhash(num, 0);
+            std::vector<std::pair<int, int> > q;
+            q.push_back(std::make_pair(0, -1));
+            vhash[0] = 1;
+            int q_front = 0;
+            bool found = false;
+            while (q_front < q.size()) {
+                int vert = q[q_front].first;
+                for (auto& l : graph[vert]) {
+                    if (vhash[l.id] || l.capacity <= l.flow)
+                        continue;
+                    q.push_back(std::make_pair(l.id, q_front));
+                    vhash[l.id] = 1;
+                    if (l.id == num - 1) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found)
+                    break;
+                q_front += 1;
+            }
+            if (q_front == q.size())
+                break;
+            int loc = q.size() - 1;
+            while (q[loc].second != -1) {
+                int current_v = q[loc].first;
+                loc = q[loc].second;
+                int prev_v = q[loc].first;
+                for (auto it = graph[prev_v].begin(); it != graph[prev_v].end(); ++it) {
+                    if (it->id == current_v) {
+                        it->flow += 1;
+                    }
+                }
+                for (auto it = graph[current_v].begin(); it != graph[current_v].end(); ++it) {
+                    if (it->id == prev_v) {
+                        it->flow -= 1;
+                    }
+                }
+            }
+            total_flow += 1;
+        }
+        return total_flow;
+    }
+    void Apply(std::unordered_map<int64_t, std::pair<int, int> >& edge_to_variable, std::vector<Vector2i>& edge_diff)
+    {
+        for (int i = 0; i < graph.size(); ++i) {
+            for (auto& l : graph[i]) {
+                if (l.flow > 0) {
+                    int64_t key = (int64_t)i * num + l.id;
+                    auto q = edge_to_variable[key];
+                    edge_diff[q.first / 2][q.first % 2] += q.second * l.flow;
+                }
+            }
+        }
+    }
+    std::vector<std::list<FlowInfo> > graph;
+};
 class MaxFlowHelper
 {
 public:
@@ -87,6 +177,8 @@ public:
 	std::vector<Traits::vertex_descriptor> vertex_descriptors;
 
 };
+
+
 int flow(std::vector<std::map<int, std::pair<int, int> > >& graph);
 
 
@@ -112,4 +204,5 @@ inline void AddDirectEdge(Traits::vertex_descriptor &v1, Traits::vertex_descript
 	rev[e1] = e2;
 	rev[e2] = e1;
 }
+
 #endif

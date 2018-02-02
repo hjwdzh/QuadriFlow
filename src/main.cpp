@@ -601,10 +601,6 @@ int main(int argc, char** argv)
 			output_obj = argv[i + 1];
 		}
 	}
-	int t = input_obj.size() - 1;
-	while (input_obj[t] != '_')
-		t -= 1;
-	output_obj = input_obj.substr(0, t + 1) + output_obj;
 	printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
 	fflush(stdout);
 	if (input_obj.size() >= 1)

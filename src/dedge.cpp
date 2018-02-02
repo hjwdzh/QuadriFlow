@@ -156,7 +156,4 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
         } while (edge != start);
         V2E[i] = v2e;
     }
-
-	std::cout << nonManifoldCounter << " " << boundaryCounter << " " << isolatedCounter << "\n";
-
 }

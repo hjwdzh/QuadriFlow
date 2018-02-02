@@ -849,7 +849,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			}
 		}
 	}
-
 	SanityCheckDiff(0);
 	printf("Build Integer Constraints...\n");
 	BuildIntegerConstraints();
@@ -1311,7 +1310,13 @@ void Parametrizer::BuildIntegerConstraints()
 	std::random_shuffle(modified_variables.begin(), modified_variables.end());
 	for (int i = 0; i < target_flow / 2; ++i) {
 		auto& info = modified_variables[i];
+        if (abs(edge_diff[info.first / 2][info.first % 2]) > 1) {
+            printf("fuck0...\n");
+        }
 		edge_diff[info.first / 2][info.first % 2] += info.second;
+        if (abs(edge_diff[info.first / 2][info.first % 2]) > 1) {
+            printf("fuck...\n");
+        }
 	}
 
 	for (int i = 0; i < face_edgeOrients.size(); ++i) {
@@ -1366,18 +1371,17 @@ void Parametrizer::ComputeMaxFlow()
 		}
 		if (diff > 0) {
 			arcs.push_back(std::make_pair(Vector2i(-1, i), diff));
-			singularity_edge.push_back(0);
 			supply += diff;
 		}
 		else if (diff < 0) {
 			demand -= diff;
 			arcs.push_back(std::make_pair(Vector2i(i, constraints_index.size()), -diff));
-			singularity_edge.push_back(0);
 		}
 	}
+    
 	printf("begin flow...\n");
 	int t1 = GetCurrentTime64();
-	MaxFlowHelper flow;
+	AdvanceMaxFlowHelper flow;
 	flow.resize(constraints_index.size() + 2);
 	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
 	for (int i = 0; i < arcs.size(); ++i) {
@@ -1398,17 +1402,18 @@ void Parametrizer::ComputeMaxFlow()
 				forward_capacity = 2 - sing + c;
 			}
 			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
-//			flow.AddEdge(v1, v2, forward_capacity, backward_capacity);
 			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i].first, -1);
 			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i].first, 1);
 		}
 	}
-	
+
 	int flow_count = flow.compute();
 	flow.Apply(edge_to_variable, edge_diff);
+
 	int t2 = GetCurrentTime64();
 	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
+
 }
 
 void Parametrizer::WriteTestData()
