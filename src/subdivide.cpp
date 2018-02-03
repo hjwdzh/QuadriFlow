@@ -223,7 +223,7 @@ void subdivide_diff(MatrixXi &F,
 			}
 			if (total_diff != Vector2i(0, 0)) {
 				printf("non zero diff\n");
-                exit(0);
+//                exit(0);
 			}
 		}
 		printf("finish check!\n");

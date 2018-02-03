@@ -858,7 +858,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, singularities);
 	FixFlipAdvance();
 	subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, singularities);
-
+    
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
 			printf("wait...\n");
@@ -866,7 +866,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		}
 	}
 	//	FixFlipComplete();
-
+    
 	SanityCheckDiff(0);
 	
 	disajoint_tree = DisajointTree(V.cols());
@@ -877,21 +877,25 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			disajoint_tree.Merge(vv0, vv1);
 		}
 	}
-	
-	disajoint_tree.BuildCompactParent();
-	
+    disajoint_tree.BuildCompactParent();
+
 	ComputePosition(with_scale);
 
 	int num_v = disajoint_tree.CompactNum();
 	O_compact.resize(num_v, Vector3d::Zero());
+    N_compact.resize(num_v, Vector3d::Zero());
 	counter.resize(num_v, 0);
 	for (int i = 0; i < O.cols(); ++i) {
 		O_compact[disajoint_tree.Index(i)] += O.col(i);
+        N_compact[disajoint_tree.Index(i)] += N.col(i);
 		counter[disajoint_tree.Index(i)] += 1;
 	}
 	for (int i = 0; i < O_compact.size(); ++i) {
 		O_compact[i] /= counter[i];
 	}
+    for (int i = 0; i < N_compact.size(); ++i) {
+        N_compact[i].normalize();
+    }
 
 	printf("extract graph...\n");
 	std::vector<std::set<int> > vertices(num_v), complete_set(num_v);
@@ -928,6 +932,28 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			}
 		}
 	}
+    std::set<DEdge> bad_edges;
+    for (int i = 0; i < F.cols(); ++i) {
+        int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
+        int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
+        int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
+        if (p0 == p1 || p1 == p2 || p2 == p0)
+            continue;
+        Vector2i diff[3];
+        for (int j = 0; j < 3; ++j) {
+            int eid = face_edgeIds[i][j];
+            diff[j] = rshift90(edge_diff[eid], face_edgeOrients[i][j]);
+        }
+        int a = -diff[0][0] * diff[2][1] + diff[0][1] * diff[2][0];
+        if (a < 0) {
+            for (int j = 0; j < 3; ++j) {
+                int t1 = disajoint_tree.Index(F(j, i));
+                int t2 = disajoint_tree.Index(F((j + 1) % 3, i));
+                if (t1 != t2)
+                    bad_edges.insert(DEdge(t1, t2));
+            }
+        }
+    }
 	printf("extract quad cells...\n");
 
 	std::map<DEdge, std::pair<Vector3i, Vector3i> > quad_cells;
@@ -935,7 +961,8 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 		int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
 		int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
 		int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
-		if (p0 != p1 && p1 != p2 && p2 != p0 && bad_vertices[p0] == 0 && bad_vertices[p1] == 0 && bad_vertices[p2] == 0) {
+		if (p0 != p1 && p1 != p2 && p2 != p0 && bad_vertices[p0] == 0 && bad_vertices[p1] == 0 && bad_vertices[p2] == 0
+            && bad_edges.count(DEdge(p0, p1)) == 0 && bad_edges.count(DEdge(p1, p2)) == 0 && bad_edges.count(DEdge(p2, p0)) == 0) {
 			auto diff1 = edge_diff[face_edgeIds[i][0]];
 			auto diff2 = edge_diff[face_edgeIds[i][1]];
 			auto diff3 = edge_diff[face_edgeIds[i][2]];
@@ -972,36 +999,15 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 				quad_cells[eid].second = Vector3i(p0, p1, p2);
 		}
 	}
-	for (int i = 0; i < bad_vertices.size(); ++i) {
-		if (bad_vertices[i] && complete_set[i].size() == 3) {
-			auto it = complete_set[i].begin();
-			int p0 = *it++;
-			int p1 = *it++;
-			int p2 = *it++;
-			DEdge eid0(p0, p1);
-			DEdge eid1(p1, p2);
-			DEdge eid2(p2, p0);
-			printf("found!\n");
-			
-			if (quad_cells.count(eid0))
-				quad_cells[eid0].second = (Vector3i(p0, p1, p2));
-			else if (quad_cells.count(eid1))
-				quad_cells[eid1].second = Vector3i(p1, p2, p0);
-			else if (quad_cells.count(eid2))
-				quad_cells[eid2].second = Vector3i(p2, p0, p1);
-				
-		}
-	}
 	printf("extract quads...\n");
 
 	for (auto& c : quad_cells) {
 		if (c.second.second != Vector3i(-100, -100, -100)) {
 			F_compact.push_back(Vector4i(c.second.first[0], c.second.second[2], c.second.first[1], c.second.first[2]));
 		}
-		else {
-			F_compact.push_back(Vector4i(c.second.first[0], c.second.first[0], c.second.first[1], c.second.first[2]));
-		}
 	}
+    
+    FixHoles();
 	int count = 0;
 	for (int i = 0; i < F.cols(); ++i) {
 		Vector2i diffs[3];
@@ -1035,6 +1041,129 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 
 	printf("flipped %d\n", count);
 	SanityCheckDiff(0);
+}
+
+void Parametrizer::FixHoles()
+{
+    std::unordered_map<long long, std::pair<int, int> > edge_to_faces;
+    
+    for (int i = 0; i < F_compact.size(); ++i) {
+        for (int j = 0; j < 4; ++j) {
+            int v1 = F_compact[i][j];
+            int v2 = F_compact[i][(j + 1) % 4];
+            DEdge e(v1, v2);
+            long long hash = (long long)disajoint_tree.CompactNum() * e.x + e.y;
+            auto it = edge_to_faces.find(hash);
+            if (v1 < v2) {
+                if (it == edge_to_faces.end()) {
+                    edge_to_faces[hash] = std::make_pair(i * 4 + j, -1);
+                } else {
+                    edge_to_faces[hash].first = i * 4 + j;
+                }
+            } else {
+                if (it == edge_to_faces.end()) {
+                    edge_to_faces[hash] = std::make_pair(-1, i * 4 + j);
+                } else {
+                    edge_to_faces[hash].second = i * 4 + j;
+                }
+            }
+        }
+    }
+    int boundary = 0;
+    std::unordered_map<long long, int> boundary_edge_id;
+    std::vector<DEdge> boundary_edges;
+    for (auto& p : edge_to_faces) {
+        if (p.second.first == -1 || p.second.second == -1) {
+            if (boundary_edge_id.count(p.first) == 0) {
+                boundary_edges.push_back(DEdge(p.first / disajoint_tree.CompactNum(), p.first % disajoint_tree.CompactNum()));
+                boundary_edge_id[p.first] = boundary++;
+            }
+        }
+    }
+    std::vector<std::list<int> > graph(boundary_edges.size());
+    for (int i = 0; i < boundary_edges.size(); ++i) {
+        for (int j = 0; j < boundary_edges.size(); ++j) {
+            if (i == j)
+                continue;
+            auto& e1 = boundary_edges[i];
+            auto& e2 = boundary_edges[j];
+            if (e1.x == e2.x || e1.y == e2.x || e1.x == e2.y || e1.y == e2.y) {
+                graph[i].push_back(j);
+                graph[j].push_back(i);
+            }
+        }
+    }
+    std::vector<int> visited(graph.size(), -1);
+    int loop_id = 0;
+    for (int i = 0; i < graph.size(); ++i) {
+        if (visited[i] != -1)
+            continue;
+        std::vector<int> loop_edge;
+        loop_edge.push_back(i);
+        visited[i] = loop_id;
+        while (true) {
+            bool update = false;
+            int vert = loop_edge.back();
+            for (auto& next_vert : graph[vert]) {
+                if (visited[next_vert] == -1) {
+                    update = true;
+                    visited[next_vert] = loop_id;
+                    loop_edge.push_back(next_vert);
+                    break;
+                }
+            }
+            if (!update)
+                break;
+        }
+        std::vector<int> loop_vertices;
+        for (int i = 0; i < loop_edge.size(); ++i) {
+            int e1 = loop_edge[i];
+            int e2 = loop_edge[(i + 1) % loop_edge.size()];
+            int v1 = boundary_edges[e1].x;
+            if (v1 == boundary_edges[e2].x || v1 == boundary_edges[e2].y)
+                v1 = boundary_edges[e1].y;
+            loop_vertices.push_back(v1);
+        }
+        while (!loop_vertices.empty()) {
+            if (loop_vertices.size() == 4) {
+                F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[3]));
+                Vector3d d1 = O_compact[F_compact.back()[1]] - O_compact[F_compact.back()[0]];
+                Vector3d d2 = O_compact[F_compact.back()[3]] - O_compact[F_compact.back()[0]];
+                if (d1.cross(d2).dot(N_compact[F_compact.back()[0]]) < 0) {
+                    std::swap(F_compact.back()[1], F_compact.back()[3]);
+                }
+                loop_edge.clear();
+                break;
+            }
+            double min_dis = 1e30;
+            int v_start = -1;
+            for (int i = 0; i < loop_edge.size(); ++i) {
+                int v1 = loop_vertices[i];
+                int v2 = loop_vertices[(i + 3) % loop_edge.size()];
+                double dis = (O_compact[v1] - O_compact[v2]).norm();
+                if (dis < min_dis) {
+                    min_dis = dis;
+                    v_start = i;
+                }
+            }
+            F_compact.push_back(Vector4i(loop_vertices[v_start],
+                                         loop_vertices[(v_start + 1) % loop_vertices.size()],
+                                         loop_vertices[(v_start + 2) % loop_vertices.size()],
+                                         loop_vertices[(v_start + 3) % loop_vertices.size()]));
+            Vector3d d1 = O_compact[F_compact.back()[1]] - O_compact[F_compact.back()[0]];
+            Vector3d d2 = O_compact[F_compact.back()[3]] - O_compact[F_compact.back()[0]];
+            if (d1.cross(d2).dot(N_compact[F_compact.back()[0]]) < 0) {
+                std::swap(F_compact.back()[1], F_compact.back()[3]);
+            }
+            int delete_v1 = (v_start + 1) % loop_vertices.size();
+            int delete_v2 = (v_start + 2) % loop_vertices.size();
+            if (delete_v1 > delete_v2)
+                std:swap(delete_v1, delete_v2);
+            loop_vertices.erase(loop_vertices.begin() + delete_v2);
+            loop_vertices.erase(loop_vertices.begin() + delete_v1);
+        }
+        loop_id += 1;
+    }
 }
 
 void Parametrizer::BuildIntegerConstraints()
@@ -1333,7 +1462,6 @@ void Parametrizer::ComputeMaxFlow()
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& V = hierarchy.mV[0];
-	int num_nodes = constraints_index.size() + 2;
 	std::vector<std::pair<Vector2i, int> > arcs;
 	std::vector<std::pair<int, int> > arc_ids;
 	std::vector<int> singularity_edge;
@@ -1381,36 +1509,33 @@ void Parametrizer::ComputeMaxFlow()
     
 	printf("begin flow...\n");
 	int t1 = GetCurrentTime64();
-	AdvanceMaxFlowHelper flow;
-	flow.resize(constraints_index.size() + 2);
+	MaxFlowHelper flow;
+//	flow.resize(constraints_index.size() + 2, edge_diff.size() * 2);
+    flow.resize(constraints_index.size() + 2);
 	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
 	for (int i = 0; i < arcs.size(); ++i) {
 		int v1 = arcs[i].first[0] + 1;
 		int v2 = arcs[i].first[1] + 1;
 		int c = arcs[i].second;
 		if (v1 == 0 || v2 == constraints_index.size() + 1) {
-			flow.AddEdge(v1, v2, c, 0);
+//			flow.AddEdge(v1, v2, c, 0, -1);
+            flow.AddEdge(v1, v2, c, 0);
 		}
 		else {
-			int t = arc_ids[i].second;
 			int sing = singularity_edge[i];
-			int forward_capacity = 0, backward_capacity = 0;
-			if (t > 0) {
-				backward_capacity = 2 - sing - c;
-			}
-			if (t < 0) {
-				forward_capacity = 2 - sing + c;
-			}
-			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
+//			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), arc_ids[i].first);
+            flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
 			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i].first, -1);
 			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i].first, 1);
 		}
 	}
 
-	int flow_count = flow.compute();
+    int flow_count = flow.compute();
+    //flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
+//    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
 	flow.Apply(edge_to_variable, edge_diff);
 
-	int t2 = GetCurrentTime64();
+    int t2 = GetCurrentTime64();
 	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
 
@@ -1617,8 +1742,6 @@ void Parametrizer::FixFlipAdvance()
 			int orients[3];
 			int pids[3];
 			for (int j = 0; j < 3; ++j) {
-				int v0 = F(j, i);
-				int v1 = F((j + 1) % 3, i);
 				int eid = face_edgeIds[i][j];
 				int orient = face_edgeOrients[i][j];
 				int pid = get_parents(parent_edge, eid);
@@ -1665,8 +1788,6 @@ void Parametrizer::FixFlipAdvance()
 			int orient[3];
 			Vector2i total_diff(0, 0);
 			for (int i = 0; i < 3; ++i) {
-				int v0 = F(i, f);
-				int v1 = F((i + 1) % 3, f);
 				int eid = face_edgeIds[f][i];
 				int pid = get_parents(parent_edge, eid);
 				orient[i] = (get_parents_orient(parent_edge, eid) + face_edgeOrients[f][i]) % 4;
@@ -1840,8 +1961,6 @@ void Parametrizer::FixFlipAdvance()
 		}
 		for (auto& f : collapsed_faces) {
 			for (int i = 0; i < 3; ++i) {
-				int vv0 = F(i, f);
-				int vv1 = F((i + 1) % 3, f);
 				int peid = get_parents(parent_edge, face_edgeIds[f][i]);
 				edge_to_faces[peid].erase(f);
 			}
@@ -1863,9 +1982,6 @@ void Parametrizer::FixFlipAdvance()
 		}
 		int original_face_area = 0, current_face_area = 0;
 		for (auto& f : modified_faces) {
-			int vert0 = F(0, f);
-			int vert1 = F(1, f);
-			int vert2 = F(2, f);
 			int eid0 = face_edgeIds[f][0];
 			int pid0 = get_parents(parent_edge, eid0);
 			int eid1 = face_edgeIds[f][2];
@@ -1885,9 +2001,6 @@ void Parametrizer::FixFlipAdvance()
 		}
 
 		for (auto& f : modified_faces) {
-			int vert0 = F(0, f);
-			int vert1 = F(1, f);
-			int vert2 = F(2, f);
 			int eid0 = face_edgeIds[f][0];
 			int pid0 = get_parents(parent_edge, eid0);
 			int eid1 = face_edgeIds[f][2];
@@ -1916,7 +2029,6 @@ void Parametrizer::FixFlipAdvance()
 			return false;
 		}
 	};
-	int count = 0;
 	sanity(-1);
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (edge_diff[i] == Vector2i::Zero()) {
@@ -1940,9 +2052,6 @@ void Parametrizer::FixFlipAdvance()
 					int p2 = tree.Parent(edge_values[i].y);
 					if (p1 == p2)
 						continue;
-					if (p1 == 13317 && p2 == 911) {
-						i = i;
-					}
 					if (CheckMove(p1, p2, i, 1)) {
 						update = true;
 					}
@@ -1950,10 +2059,6 @@ void Parametrizer::FixFlipAdvance()
 						if (CheckMove(p2, p1, i, 1)) {
 							update = true;
 						}
-					}
-					if (i >= count && i >= 84968) {
-						count = i;
-//						sanity(i);
 					}
 				}
 			}
@@ -1978,8 +2083,6 @@ void Parametrizer::FixFlipAdvance()
 		int eid[3];
 		int orient[3];
 		for (int j = 0; j < 3; ++j) {
-			int v0 = F(j, i);
-			int v1 = F((j + 1) % 3, i);
 			int e = face_edgeIds[i][j];
 			int p = get_parents(parent_edge, e);
 			eid[j] = p;
@@ -2035,7 +2138,6 @@ void Parametrizer::FixFlipAdvance()
 			for (auto& p : collapse_set) {
 				for (auto& q : p.second) {
 					if (CheckMove(i, p.first, q, 0)) {
-						printf("Move from %d to %d\n", i, p.first);
 						bad_vertices[i] = 0;
 						update = true;
 						break;
