@@ -588,12 +588,9 @@ void Parametrizer::BuildEdgeInfo()
 	edge_values.clear();
 	face_edgeIds.resize(F.cols(), Vector3i(-1, -1, -1));
 	for (int i = 0; i < F.cols(); ++i) {
-		if (singularities.count(i)) {
-			continue;
-		}
 		for (int j = 0; j < 3; ++j) {
-			if (face_edgeIds[i][j] != -1)
-				continue;
+//			if (face_edgeIds[i][j] != -1)
+//				continue;
 			int k1 = j, k2 = (j + 1) % 3;
 			int v1 = F(k1, i);
 			int v2 = F(k2, i);
@@ -610,12 +607,18 @@ void Parametrizer::BuildEdgeInfo()
 			}
 			int current_eid = i * 3 + k1;
 			int eid = E2E[current_eid];
-			int eID2 = edge_values.size();
-			edge_values.push_back(e2);
-			edge_diff.push_back(diff2);
-			face_edgeIds[i][k1] = eID2;
-			if (eid != -1)
-				face_edgeIds[eid / 3][eid % 3] = eID2;
+            int eID2 = face_edgeIds[eid / 3][eid % 3];
+            if (eID2 == -1) {
+                eID2 = edge_values.size();
+                edge_values.push_back(e2);
+                edge_diff.push_back(diff2);
+                face_edgeIds[i][k1] = eID2;
+                if (eid != -1)
+                    face_edgeIds[eid / 3][eid % 3] = eID2;
+            }
+            else if (!singularities.count(i)) {
+                edge_diff[eID2] = diff2;
+            }
 		}
 	}
 }
@@ -1006,7 +1009,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			F_compact.push_back(Vector4i(c.second.first[0], c.second.second[2], c.second.first[1], c.second.first[2]));
 		}
 	}
-    
+    printf("Fix holes...\n");
     FixHoles();
 	int count = 0;
 	for (int i = 0; i < F.cols(); ++i) {
@@ -1115,6 +1118,10 @@ void Parametrizer::FixHoles()
             if (!update)
                 break;
         }
+        if (loop_edge.size() < 2) {
+            printf("irregular %d\n", loop_edge.size());
+            continue;
+        }
         std::vector<int> loop_vertices;
         for (int i = 0; i < loop_edge.size(); ++i) {
             int e1 = loop_edge[i];
@@ -1125,8 +1132,12 @@ void Parametrizer::FixHoles()
             loop_vertices.push_back(v1);
         }
         while (!loop_vertices.empty()) {
-            if (loop_vertices.size() == 4) {
-                F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[3]));
+            if (loop_vertices.size() <= 4) {
+                if (loop_vertices.size() == 4)
+                    F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[3]));
+                else
+                    F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[2]));
+                
                 Vector3d d1 = O_compact[F_compact.back()[1]] - O_compact[F_compact.back()[0]];
                 Vector3d d2 = O_compact[F_compact.back()[3]] - O_compact[F_compact.back()[0]];
                 if (d1.cross(d2).dot(N_compact[F_compact.back()[0]]) < 0) {
@@ -1176,7 +1187,7 @@ void Parametrizer::BuildIntegerConstraints()
 	std::vector<Vector4i> edge_to_constraints;
 	edge_to_constraints.resize(edge_values.size(), Vector4i(-1, -1, -1, -1));
 
-	for (int i = 0; i < F.cols(); ++i) {
+    for (int i = 0; i < F.cols(); ++i) {
 		int v0 = F(0, i);
 		int v1 = F(1, i);
 		int v2 = F(2, i);
@@ -1243,15 +1254,16 @@ void Parametrizer::BuildIntegerConstraints()
 		int f = i / 3;
 		int orient = disajoint_orient_tree.Orient(f);
 		for (int j = 0; j < 3; ++j) {
-			int v1 = F(j, f);
-			int v2 = F((j + 1) % 3, f);
-			int eid = face_edgeIds[f][j];
 			sign_indices[i + j] = rshift90(sign_indices[i + j], orient);
 		}
 		for (int j = 0; j < 2; ++j) {
 			Vector3i sign, ind;
 			for (int k = 0; k < 3; ++k) {
 				ind[k] = abs(sign_indices[i + k][j]);
+                if (ind[k] == 0) {
+                    printf("OMG!\n");
+                    exit(0);
+                }
 				sign[k] = sign_indices[i + k][j] / ind[k];
 				ind[k] -= 1;
 			}
@@ -1437,15 +1449,10 @@ void Parametrizer::BuildIntegerConstraints()
 	}
 
 	std::random_shuffle(modified_variables.begin(), modified_variables.end());
-	for (int i = 0; i < target_flow / 2; ++i) {
+
+    for (int i = 0; i < abs(target_flow) / 2; ++i) {
 		auto& info = modified_variables[i];
-        if (abs(edge_diff[info.first / 2][info.first % 2]) > 1) {
-            printf("fuck0...\n");
-        }
 		edge_diff[info.first / 2][info.first % 2] += info.second;
-        if (abs(edge_diff[info.first / 2][info.first % 2]) > 1) {
-            printf("fuck...\n");
-        }
 	}
 
 	for (int i = 0; i < face_edgeOrients.size(); ++i) {
@@ -1538,7 +1545,6 @@ void Parametrizer::ComputeMaxFlow()
     int t2 = GetCurrentTime64();
 	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
 	printf("flow use %lf\n", (t2 - t1) * 1e-3);
-
 }
 
 void Parametrizer::WriteTestData()

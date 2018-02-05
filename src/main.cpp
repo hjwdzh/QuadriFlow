@@ -662,6 +662,6 @@ int main(int argc, char** argv)
 	printf("finish...\n");
 	fflush(stdout);
 	//	field.LoopFace(2);
-	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
+//	gldraw(mouse_callback, render_callback, motion_callback, keyboard_callback);
 	return 0;
 }
