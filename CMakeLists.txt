@@ -51,6 +51,8 @@ set(
     src/optimizer.hpp
     src/parametrizer.cpp
     src/parametrizer.hpp
+    src/post-solver.cpp
+    src/post-solver.hpp
     src/serialize.hpp
     src/subdivide.cpp
     src/subdivide.hpp

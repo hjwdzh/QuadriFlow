@@ -13,6 +13,7 @@
 #include <set>
 #include "adjacent-matrix.hpp"
 #include "hierarchy.hpp"
+#include "post-solver.hpp"
 #include "serialize.hpp"
 #include "disajoint-tree.hpp"
 using namespace Eigen;
@@ -75,7 +76,7 @@ public:
 	void ComputePosition(int with_scale = 0);
 	void FixFlipAdvance();
     void FixHoles();
-	void SubdivideLongEdge();
+
 
 	void WriteTestData();
 	// sanity check
@@ -124,8 +125,14 @@ public:
 
 	int compact_num_v;
 	std::vector<Vector3d> O_compact;
+    std::vector<Vector3d> Q_compact;
     std::vector<Vector3d> N_compact;
 	std::vector<Vector4i> F_compact;
+    VectorXi V2E_compact;
+    VectorXi E2E_compact;
+    VectorXi boundary_compact;
+    VectorXi nonManifold_compact;
+    
 	std::vector<int> bad_vertices;
 	std::vector<double> counter;
 	std::vector<Vector2i> edge_diff;

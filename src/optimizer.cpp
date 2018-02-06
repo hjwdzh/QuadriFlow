@@ -381,4 +381,5 @@ void Optimizer::optimize_positions_cuda(Hierarchy &mRes)
 		}
 	}
 }
+
 #endif

@@ -882,23 +882,29 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
     disajoint_tree.BuildCompactParent();
 
-	ComputePosition(with_scale);
+//	ComputePosition(with_scale);
 
 	int num_v = disajoint_tree.CompactNum();
 	O_compact.resize(num_v, Vector3d::Zero());
+    Q_compact.resize(num_v, Vector3d::Zero());
     N_compact.resize(num_v, Vector3d::Zero());
 	counter.resize(num_v, 0);
 	for (int i = 0; i < O.cols(); ++i) {
-		O_compact[disajoint_tree.Index(i)] += O.col(i);
-        N_compact[disajoint_tree.Index(i)] += N.col(i);
-		counter[disajoint_tree.Index(i)] += 1;
+        int compact_v = disajoint_tree.Index(i);
+		O_compact[compact_v] += O.col(i);
+        N_compact[compact_v] = N_compact[compact_v] * counter[compact_v] + N.col(i);
+        N_compact[compact_v].normalize();
+        if (counter[compact_v] == 0)
+            Q_compact[compact_v] = Q.col(i);
+        else {
+            auto pairs = compat_orientation_extrinsic_4(Q_compact[compact_v], N_compact[compact_v], Q.col(i), N.col(i));
+            Q_compact[compact_v] = (pairs.first * counter[compact_v] + pairs.second).normalized();
+        }
+		counter[compact_v] += 1;
 	}
 	for (int i = 0; i < O_compact.size(); ++i) {
 		O_compact[i] /= counter[i];
 	}
-    for (int i = 0; i < N_compact.size(); ++i) {
-        N_compact[i].normalize();
-    }
 
 	printf("extract graph...\n");
 	std::vector<std::set<int> > vertices(num_v), complete_set(num_v);
@@ -1011,7 +1017,12 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
     printf("Fix holes...\n");
     FixHoles();
-	int count = 0;
+    printf("Direct Quad Graph...\n");
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
+    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
+                         V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree);
+    
+    int count = 0;
 	for (int i = 0; i < F.cols(); ++i) {
 		Vector2i diffs[3];
 		for (int j = 0; j < 3; ++j) {
@@ -1049,13 +1060,15 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 void Parametrizer::FixHoles()
 {
     std::unordered_map<long long, std::pair<int, int> > edge_to_faces;
-    
+    std::unordered_set<long long> directed_edges;
+    int numV = disajoint_tree.CompactNum();
     for (int i = 0; i < F_compact.size(); ++i) {
         for (int j = 0; j < 4; ++j) {
             int v1 = F_compact[i][j];
             int v2 = F_compact[i][(j + 1) % 4];
             DEdge e(v1, v2);
-            long long hash = (long long)disajoint_tree.CompactNum() * e.x + e.y;
+            long long hash = (long long)numV * e.x + e.y;
+            directed_edges.insert((long long)numV * v1 + v2);
             auto it = edge_to_faces.find(hash);
             if (v1 < v2) {
                 if (it == edge_to_faces.end()) {
@@ -1078,7 +1091,7 @@ void Parametrizer::FixHoles()
     for (auto& p : edge_to_faces) {
         if (p.second.first == -1 || p.second.second == -1) {
             if (boundary_edge_id.count(p.first) == 0) {
-                boundary_edges.push_back(DEdge(p.first / disajoint_tree.CompactNum(), p.first % disajoint_tree.CompactNum()));
+                boundary_edges.push_back(DEdge(p.first / numV, p.first % disajoint_tree.CompactNum()));
                 boundary_edge_id[p.first] = boundary++;
             }
         }
@@ -1137,10 +1150,8 @@ void Parametrizer::FixHoles()
                     F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[3]));
                 else
                     F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[2]));
-                
-                Vector3d d1 = O_compact[F_compact.back()[1]] - O_compact[F_compact.back()[0]];
-                Vector3d d2 = O_compact[F_compact.back()[3]] - O_compact[F_compact.back()[0]];
-                if (d1.cross(d2).dot(N_compact[F_compact.back()[0]]) < 0) {
+
+                if (directed_edges.count((long long)loop_vertices[0] * numV + loop_vertices[1])) {
                     std::swap(F_compact.back()[1], F_compact.back()[3]);
                 }
                 loop_edge.clear();
@@ -1161,9 +1172,7 @@ void Parametrizer::FixHoles()
                                          loop_vertices[(v_start + 1) % loop_vertices.size()],
                                          loop_vertices[(v_start + 2) % loop_vertices.size()],
                                          loop_vertices[(v_start + 3) % loop_vertices.size()]));
-            Vector3d d1 = O_compact[F_compact.back()[1]] - O_compact[F_compact.back()[0]];
-            Vector3d d2 = O_compact[F_compact.back()[3]] - O_compact[F_compact.back()[0]];
-            if (d1.cross(d2).dot(N_compact[F_compact.back()[0]]) < 0) {
+            if (directed_edges.count((long long)F_compact.back()[0] * numV + F_compact.back()[1])) {
                 std::swap(F_compact.back()[1], F_compact.back()[3]);
             }
             int delete_v1 = (v_start + 1) % loop_vertices.size();
@@ -2199,9 +2208,4 @@ void Parametrizer::ExtractMesh(const char* obj_name) {
 			<< " " << compact_answer[F_compact[i][2]] << " " << compact_answer[F_compact[i][3]] << "\n";
 	}
 	os.close();
-}
-
-void Parametrizer::SubdivideLongEdge()
-{
-
 }

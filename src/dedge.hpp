@@ -3,7 +3,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
-
+#include <vector>
 
 using namespace Eigen;
 
@@ -13,4 +13,6 @@ inline int dedge_next_3(int e) { return (e % 3 == 2) ? e - 2 : e + 1; }
 void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold);
 
+void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,
+                               VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold);
 #endif

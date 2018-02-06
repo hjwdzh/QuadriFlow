@@ -157,3 +157,140 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
         V2E[i] = v2e;
     }
 }
+
+void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,
+                          VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
+{
+    V2E.resize(V.size());
+    V2E.setConstant(INVALID);
+    
+    uint32_t deg = 4;
+    std::vector<std::pair<uint32_t, uint32_t>> tmp(F.size() * deg);
+    
+#ifdef WITH_TBB
+    tbb::parallel_for(
+                      tbb::blocked_range<uint32_t>(0u, (uint32_t)F.size(), GRAIN_SIZE),
+                      [&](const tbb::blocked_range<uint32_t> &range) {
+                          for (uint32_t f = range.begin(); f != range.end(); ++f) {
+                              for (uint32_t i = 0; i < deg; ++i) {
+                                  uint32_t idx_cur = F[f][i],
+                                  idx_next = F[f][(i + 1) % deg],
+                                  edge_id = deg * f + i;
+                                  if (idx_cur >= V.cols() || idx_next >= V.cols())
+                                      throw std::runtime_error("Mesh data contains an out-of-bounds vertex reference!");
+                                  if (idx_cur == idx_next)
+                                      continue;
+                                  
+                                  tmp[edge_id] = std::make_pair(idx_next, INVALID);
+                                  if (!atomicCompareAndExchange(&V2E[idx_cur], edge_id, INVALID)) {
+                                      uint32_t idx = V2E[idx_cur];
+                                      while (!atomicCompareAndExchange((int*)&tmp[idx].second, edge_id, INVALID))
+                                          idx = tmp[idx].second;
+                                  }
+                              }
+                          }
+                      }
+                      );
+#else
+    for (int f = 0; f < F.size(); ++f) {
+        for (unsigned int i = 0; i < deg; ++i) {
+            unsigned int idx_cur = F[f][i],
+            idx_next = F[f][(i + 1) % deg],
+            edge_id = deg * f + i;
+            if (idx_cur >= V.size() || idx_next >= V.size())
+                throw std::runtime_error("Mesh data contains an out-of-bounds vertex reference!");
+            if (idx_cur == idx_next)
+                continue;
+            
+            tmp[edge_id] = std::make_pair(idx_next, -1);
+            if (V2E[idx_cur] == -1)
+                V2E[idx_cur] = edge_id;
+            else {
+                unsigned int idx = V2E[idx_cur];
+                while (tmp[idx].second != -1) {
+                    idx = tmp[idx].second;
+                }
+                tmp[idx].second = edge_id;
+            }
+        }
+    }
+#endif
+    nonManifold.resize(V.size());
+    nonManifold.setConstant(false);
+
+    E2E.resize(F.size() * deg);
+    E2E.setConstant(INVALID);
+
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
+    for (int f = 0; f < F.size(); ++f) {
+        for (uint32_t i = 0; i < deg; ++i) {
+            uint32_t idx_cur = F[f][i],
+            idx_next = F[f][(i + 1) % deg],
+            edge_id_cur = deg * f + i;
+            
+            if (idx_cur == idx_next)
+                continue;
+            
+            uint32_t it = V2E[idx_next], edge_id_opp = INVALID;
+            while (it != INVALID) {
+                if (tmp[it].first == idx_cur) {
+                    if (edge_id_opp == INVALID) {
+                        edge_id_opp = it;
+                    }
+                    else {
+                        nonManifold[idx_cur] = true;
+                        nonManifold[idx_next] = true;
+                        edge_id_opp = INVALID;
+                        break;
+                    }
+                }
+                it = tmp[it].second;
+            }
+            
+            if (edge_id_opp != INVALID && edge_id_cur < edge_id_opp) {
+                E2E[edge_id_cur] = edge_id_opp;
+                E2E[edge_id_opp] = edge_id_cur;
+            }
+        }
+    }
+    std::atomic<uint32_t> nonManifoldCounter(0), boundaryCounter(0), isolatedCounter(0);
+    
+    boundary.resize(V.size());
+    boundary.setConstant(false);
+    
+    printf("step3...\n");
+    /* Detect boundary regions of the mesh and adjust vertex->edge pointers*/
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < V.size(); ++i) {
+        uint32_t edge = V2E[i];
+        if (edge == INVALID) {
+            isolatedCounter++;
+            continue;
+        }
+        if (nonManifold[i]) {
+            nonManifoldCounter++;
+            V2E[i] = INVALID;
+            continue;
+        }
+        
+        /* Walk backwards to the first boundary edge (if any) */
+        uint32_t start = edge, v2e = INVALID;
+        do {
+            v2e = std::min(v2e, edge);
+            uint32_t prevEdge = E2E[dedge_prev(edge, deg)];
+            if (prevEdge == INVALID) {
+                /* Reached boundary -- update the vertex->edge link */
+                v2e = edge;
+                boundary[i] = true;
+                boundaryCounter++;
+                break;
+            }
+            edge = prevEdge;
+        } while (edge != start);
+        V2E[i] = v2e;
+    }
+}
