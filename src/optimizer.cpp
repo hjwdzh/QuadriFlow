@@ -218,7 +218,6 @@ void Optimizer::optimize_scale(Hierarchy &mRes)
 void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 {
 	int levelIterations = 6;
-
 #ifdef WITH_CUDA
 	optimize_positions_cuda(mRes);
 	cudaMemcpy(mRes.mO[0].data(), mRes.cudaO[0], sizeof(glm::dvec3) * mRes.mO[0].cols(), cudaMemcpyDeviceToHost);

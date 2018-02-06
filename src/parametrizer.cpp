@@ -78,12 +78,12 @@ void Parametrizer::Initialize(int faces, int with_scale)
 		num_vertices = faces;
 		scale = std::sqrt(face_area) / 2;
 	}
+    int v0 = V.cols();
 	double target_len = std::min(scale / 2, average_edge_length * 2);
 	if (target_len < max_edge_length) {
 		compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
 	}
-
 	int t1 = GetCurrentTime64();
 	compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 	generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
@@ -1475,11 +1475,21 @@ void Parametrizer::BuildIntegerConstraints()
 
 void Parametrizer::ComputeMaxFlow()
 {
-	auto& Q = hierarchy.mQ[0];
-	auto& N = hierarchy.mN[0];
-	auto& V = hierarchy.mV[0];
+    //(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff, std::vector<int>& sing);
+    std::vector<Vector2i> E2F(edge_diff.size(), Vector2i(-1, -1));
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int e = face_edgeIds[i][j];
+            if (E2F[e][0] == -1)
+                E2F[e][0] = i;
+            else
+                E2F[e][1] = i;
+        }
+    }
+    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff);
+    
 	std::vector<std::pair<Vector2i, int> > arcs;
-	std::vector<std::pair<int, int> > arc_ids;
+	std::vector<int> arc_ids;
 	std::vector<int> singularity_edge;
 	for (auto& p : singularities) {
 		int f = p.first;
@@ -1494,15 +1504,7 @@ void Parametrizer::ComputeMaxFlow()
 			int v2 = edge_values[i / 2].y;
 			arcs.push_back(std::make_pair(variables[i].first, current_v));
 			singularity_edge.push_back(edge_around_singularities.count(i / 2));
-			Vector3d q = Q.col(v1);
-			Vector3d d = V.col(v2) - V.col(v1);
-			Vector3d n = N.col(v1);
-			double t = 0;
-			if (i % 2 == 0)
-				t = q.dot(d);
-			else
-				t = d.dot(n.cross(d));
-			arc_ids.push_back(std::make_pair(i, t > 0 ? 1 : -1));
+			arc_ids.push_back(i);
 		}
 	}
 	int supply = 0;
@@ -1541,8 +1543,8 @@ void Parametrizer::ComputeMaxFlow()
 			int sing = singularity_edge[i];
 //			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), arc_ids[i].first);
             flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
-			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i].first, -1);
-			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i].first, 1);
+			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i], -1);
+			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i], 1);
 		}
 	}
 

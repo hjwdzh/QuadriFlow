@@ -423,6 +423,168 @@ void Hierarchy::LoadFromFile(FILE* fp)
 	Read(fp, this->mPhases);
 }
 
+void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff)
+{
+    int levels = 8;
+    mFQ.resize(levels);
+    mF2E.resize(levels);
+    mE2F.resize(levels);
+    mEdgeDiff.resize(levels);
+    mSing.resize(levels);
+    mToUpperEdges.resize(levels - 1);
+    mToUpperOrients.resize(levels - 1);
+    for (int i = 0; i < FQ.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            diff += rshift90(edge_diff[F2E[i][j]], FQ[i][j]);
+        }
+        if (diff != Vector2i::Zero()) {
+            mSing[0].push_back(i);
+        }
+    }
+
+    mFQ[0] = std::move(FQ);
+    mF2E[0] = std::move(F2E);
+    mE2F[0] = std::move(E2F);
+    mEdgeDiff[0] = std::move(edge_diff);
+    
+    for (int l = 0; l < levels - 1; ++l) {
+        auto& FQ = mFQ[l];
+        auto& E2F = mE2F[l];
+        auto& F2E = mF2E[l];
+        auto& EdgeDiff = mEdgeDiff[l];
+        auto& Sing = mSing[l];
+
+        std::vector<int> fixed_faces(F2E.size(), 0);
+        for (auto& s : Sing) {
+            fixed_faces[s] = 1;
+        }
+
+        auto& toUpper = mToUpperEdges[l];
+        auto& toUpperOrients = mToUpperOrients[l];
+        toUpper.resize(E2F.size(), -1);
+        toUpperOrients.resize(E2F.size(), 0);
+
+        auto& nFQ = mFQ[l + 1];
+        auto& nE2F = mE2F[l + 1];
+        auto& nF2E = mF2E[l + 1];
+        auto& nEdgeDiff = mEdgeDiff[l + 1];
+        auto& nSing = mSing[l + 1];
+
+        for (int i = 0; i < E2F.size(); ++i) {
+            if (EdgeDiff[i] != Vector2i::Zero())
+                continue;
+            if (fixed_faces[E2F[i][0]] || fixed_faces[E2F[i][1]]) {
+                continue;
+            }
+            for (int j = 0; j < 2; ++j) {
+                int f = E2F[i][j];
+                for (int k = 0; k < 3; ++k) {
+                    int neighbor_e = F2E[f][k];
+                    for (int m = 0; m < 2; ++m) {
+                        int neighbor_f = E2F[neighbor_e][m];
+                        if (fixed_faces[neighbor_f] == 0)
+                            fixed_faces[neighbor_f] = 1;
+                    }
+                }
+            }
+            fixed_faces[E2F[i][0]] = 2;
+            fixed_faces[E2F[i][1]] = 2;
+            toUpper[i] = -2;
+        }
+        for (int i = 0; i < E2F.size(); ++i) {
+            if (toUpper[i] == -2)
+                continue;
+            if (fixed_faces[E2F[i][0]] == 2 && fixed_faces[E2F[i][1]] == 2) {
+                toUpper[i] = -3;
+                continue;
+            }
+        }
+        int numE = 0;
+        for (int i = 0; i < toUpper.size(); ++i) {
+            if (toUpper[i] == -1) {
+                if (fixed_faces[E2F[i][0]] < 2 && fixed_faces[E2F[i][1]] < 2) {
+                    nE2F.push_back(E2F[i]);
+                    toUpperOrients[i] = 0;
+                    toUpper[i] = numE++;
+                    continue;
+                }
+                int f0 = fixed_faces[E2F[i][0]] < 2 ? E2F[i][0] : E2F[i][1];
+                int e = i;
+                int f = f0;
+                while (true) {
+                    if (E2F[e][0] == f)
+                        f = E2F[e][1];
+                    else
+                        f = E2F[e][0];
+                    if (fixed_faces[f] < 2)
+                        break;
+                    for (int j = 0; j < 3; ++j) {
+                        int e1 = F2E[f][j];
+                        if (e1 != e && toUpper[e1] != -2) {
+                            e = e1;
+                            break;
+                        }
+                    }
+                }
+                toUpper[i] = numE;
+                toUpperOrients[i] = 0;
+                toUpper[e] = numE++;
+                int orient = 0;
+                auto& d1 = EdgeDiff[i];
+                auto& d2 = EdgeDiff[e];
+                while (orient < 4 && rshift90(d2, orient) != d1) {
+                    orient += 1;
+                }
+                if (orient == 4) {
+                    printf("It should not happen orient!\n");
+                    exit(0);
+                }
+                toUpperOrients[e] = orient;
+                nE2F.push_back(Vector2i(f0, f));
+            }
+        }
+        nEdgeDiff.resize(numE);
+        for (int i = 0; i < toUpper.size(); ++i) {
+            if (toUpper[i] >= 0 && toUpperOrients[i] == 0) {
+                nEdgeDiff[toUpper[i]] = EdgeDiff[i];
+            }
+        }
+        std::vector<int> upperface(F2E.size(), -1);
+
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector3i eid;
+            for (int j = 0; j < 3; ++j) {
+                eid[j] = toUpper[F2E[i][j]];
+            }
+            if (eid[0] >= 0 && eid[1] >= 0 && eid[2] >= 0) {
+                Vector3i eid_orient;
+                for (int j = 0; j < 3; ++j) {
+                    eid_orient[j] = (FQ[i][j] + 4 - toUpperOrients[F2E[i][j]]) % 4;
+                }
+                upperface[i] = nF2E.size();
+                nF2E.push_back(eid);
+                nFQ.push_back(eid_orient);
+            }
+        }
+        for (int i = 0; i < nE2F.size(); ++i) {
+            for (int j = 0; j < 2; ++j) {
+                nE2F[i][j] = upperface[nE2F[i][j]];
+            }
+        }
+        for (auto& s : Sing) {
+            nSing.push_back(upperface[s]);
+        }
+    }
+    
+    for (int i = 0; i < levels; ++i) {
+        printf("<F E> = <%d %d>\n", mF2E[i].size(), mE2F[i].size());
+    }
+    exit(0);
+}
+
+
+
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 
@@ -532,6 +694,5 @@ void Hierarchy::CopyToHost()
 {
 
 }
-
 
 #endif

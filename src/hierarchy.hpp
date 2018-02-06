@@ -1,7 +1,7 @@
 #ifndef HIERARCHY_H_
 #define HIERARCHY_H_
 #include "config.hpp"
-
+#include <map>
 #include <vector>
 #include <glm/glm.hpp>
 #include "adjacent-matrix.hpp"
@@ -24,7 +24,7 @@ public:
 	enum {
 		MAX_DEPTH = 25
 	};
-
+    
 	void SaveToFile(FILE* fp);
 	void LoadFromFile(FILE* fp);
 
@@ -47,6 +47,15 @@ public:
 
     int with_scale;
 
+    void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff);
+
+    std::vector<std::vector<int> > mSing;
+    std::vector<std::vector<int> > mToUpperEdges, mToUpperOrients;
+    std::vector<std::vector<Vector3i> > mFQ;
+    std::vector<std::vector<Vector3i> > mF2E;
+    std::vector<std::vector<Vector2i> > mE2F;
+    std::vector<std::vector<Vector2i> > mEdgeDiff;
+    
 #ifdef WITH_CUDA
 	std::vector<Link*> cudaAdj;
 	std::vector<int*> cudaAdjOffset;
