@@ -78,7 +78,6 @@ void Parametrizer::Initialize(int faces, int with_scale)
 		num_vertices = faces;
 		scale = std::sqrt(face_area) / 2;
 	}
-    int v0 = V.cols();
 	double target_len = std::min(scale / 2, average_edge_length * 2);
 	if (target_len < max_edge_length) {
 		compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
@@ -882,7 +881,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
     disajoint_tree.BuildCompactParent();
 
-//	ComputePosition(with_scale);
+	ComputePosition(with_scale);
 
 	int num_v = disajoint_tree.CompactNum();
 	O_compact.resize(num_v, Vector3d::Zero());
@@ -1486,76 +1485,9 @@ void Parametrizer::ComputeMaxFlow()
                 E2F[e][1] = i;
         }
     }
-//    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff);
-    
-	std::vector<std::pair<Vector2i, int> > arcs;
-	std::vector<int> arc_ids;
-	std::vector<int> singularity_edge;
-	for (auto& p : singularities) {
-		int f = p.first;
-		for (int j = 0; j < 3; ++j) {
-			edge_around_singularities.insert(face_edgeIds[f][j]);
-		}
-	}
-	for (int i = 0; i < variables.size(); ++i) {
-		if (variables[i].second == 0) {
-			int current_v = edge_diff[i / 2][i % 2];
-			int v1 = edge_values[i / 2].x;
-			int v2 = edge_values[i / 2].y;
-			arcs.push_back(std::make_pair(variables[i].first, current_v));
-			singularity_edge.push_back(edge_around_singularities.count(i / 2));
-			arc_ids.push_back(i);
-		}
-	}
-	int supply = 0;
-	int demand = 0;
-	for (int i = 0; i < constraints_index.size(); ++i) {
-		int diff = 0;
-		for (int j = 0; j < 3; ++j) {
-			int ind = constraints_index[i][j];
-			diff += constraints_sign[i][j] * edge_diff[ind / 2][ind % 2];
-		}
-		if (diff > 0) {
-			arcs.push_back(std::make_pair(Vector2i(-1, i), diff));
-			supply += diff;
-		}
-		else if (diff < 0) {
-			demand -= diff;
-			arcs.push_back(std::make_pair(Vector2i(i, constraints_index.size()), -diff));
-		}
-	}
-    
-	printf("begin flow...\n");
-	int t1 = GetCurrentTime64();
-	MaxFlowHelper flow;
-//	flow.resize(constraints_index.size() + 2, edge_diff.size() * 2);
-    flow.resize(constraints_index.size() + 2);
-	std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
-	for (int i = 0; i < arcs.size(); ++i) {
-		int v1 = arcs[i].first[0] + 1;
-		int v2 = arcs[i].first[1] + 1;
-		int c = arcs[i].second;
-		if (v1 == 0 || v2 == constraints_index.size() + 1) {
-//			flow.AddEdge(v1, v2, c, 0, -1);
-            flow.AddEdge(v1, v2, c, 0);
-		}
-		else {
-			int sing = singularity_edge[i];
-//			flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), arc_ids[i].first);
-            flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing));
-			edge_to_variable[(int64_t)v1 * (constraints_index.size() + 2) + v2] = std::make_pair(arc_ids[i], -1);
-			edge_to_variable[(int64_t)v2 * (constraints_index.size() + 2) + v1] = std::make_pair(arc_ids[i], 1);
-		}
-	}
-
-    int flow_count = flow.compute();
-    //flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
-//    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
-	flow.Apply(edge_to_variable, edge_diff);
-
-    int t2 = GetCurrentTime64();
-	printf("supply %d demand %d flow %d\n", supply, demand, flow_count);
-	printf("flow use %lf\n", (t2 - t1) * 1e-3);
+    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff);
+    Optimizer::optimize_integer_constraints(hierarchy, singularities);
+    hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, E2F, edge_diff);
 }
 
 void Parametrizer::WriteTestData()

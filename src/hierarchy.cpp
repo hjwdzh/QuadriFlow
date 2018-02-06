@@ -423,14 +423,23 @@ void Hierarchy::LoadFromFile(FILE* fp)
 	Read(fp, this->mPhases);
 }
 
+void Hierarchy::UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff)
+{
+    FQ = std::move(mFQ[0]);
+    F2E = std::move(mF2E[0]);
+    edge_diff = std::move(mEdgeDiff[0]);
+    E2F = std::move(mE2F[0]);
+}
+
 void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff)
 {
-    int levels = 8;
+    int levels = 5;
     mFQ.resize(levels);
     mF2E.resize(levels);
     mE2F.resize(levels);
     mEdgeDiff.resize(levels);
     mSing.resize(levels);
+    mFixed.resize(levels);
     mToUpperEdges.resize(levels - 1);
     mToUpperOrients.resize(levels - 1);
     for (int i = 0; i < FQ.size(); ++i) {
@@ -447,17 +456,35 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mF2E[0] = std::move(F2E);
     mE2F[0] = std::move(E2F);
     mEdgeDiff[0] = std::move(edge_diff);
-    
+    for (int i = 0; i < E2F.size(); ++i) {
+        int orient[2];
+        for (int j = 0; j < 2; ++j) {
+            int f = E2F[i][j];
+            for (int k = 0; k < 3; ++k) {
+                if (F2E[f][k] == i) {
+                    orient[j] = FQ[f][k];
+                    break;
+                }
+            }
+        }
+        if ((orient[1] - orient[0] + 4) % 4 != 2) {
+            mFixed[0].push_back(i);
+        }
+    }
     for (int l = 0; l < levels - 1; ++l) {
         auto& FQ = mFQ[l];
         auto& E2F = mE2F[l];
         auto& F2E = mF2E[l];
         auto& EdgeDiff = mEdgeDiff[l];
         auto& Sing = mSing[l];
-
+        auto& Fixed = mFixed[l];
         std::vector<int> fixed_faces(F2E.size(), 0);
         for (auto& s : Sing) {
             fixed_faces[s] = 1;
+        }
+        for (auto& e : Fixed) {
+            fixed_faces[E2F[e][0]] = 1;
+            fixed_faces[E2F[e][1]] = 1;
         }
 
         auto& toUpper = mToUpperEdges[l];
@@ -470,7 +497,8 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         auto& nF2E = mF2E[l + 1];
         auto& nEdgeDiff = mEdgeDiff[l + 1];
         auto& nSing = mSing[l + 1];
-
+        auto& nFixed = mFixed[l + 1];
+        
         for (int i = 0; i < E2F.size(); ++i) {
             if (EdgeDiff[i] != Vector2i::Zero())
                 continue;
@@ -512,37 +540,58 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 int f0 = fixed_faces[E2F[i][0]] < 2 ? E2F[i][0] : E2F[i][1];
                 int e = i;
                 int f = f0;
-                toUpper[i] = numE;
-                toUpperOrients[i] = 0;
-                auto& d1 = EdgeDiff[i];
+                std::vector<std::pair<int, int> > paths;
+                paths.push_back(std::make_pair(i, 0));
                 while (true) {
                     if (E2F[e][0] == f)
                         f = E2F[e][1];
                     else
                         f = E2F[e][0];
-                    if (fixed_faces[f] < 2)
+                    if (fixed_faces[f] < 2) {
+                        for (int j = 0; j < paths.size(); ++j) {
+                            auto& p = paths[j];
+                            toUpper[p.first] = numE;
+                            int orient = p.second;
+                            if (j > 0)
+                                orient = (orient + toUpperOrients[paths[j - 1].first]) % 4;
+                            toUpperOrients[p.first] = orient;
+                        }
+                        nE2F.push_back(Vector2i(f0, f));
+                        numE += 1;
                         break;
+                    }
+                    int ind0 = -1, ind1 = -1;
+                    for (int j = 0; j < 3; ++j) {
+                        if (F2E[f][j] == e) {
+                            ind0 = j;
+                            break;
+                        }
+                    }
                     for (int j = 0; j < 3; ++j) {
                         int e1 = F2E[f][j];
                         if (e1 != e && toUpper[e1] != -2) {
                             e = e1;
+                            ind1 = j;
                             break;
                         }
                     }
-                    int orient = 0;
-                    auto& d2 = EdgeDiff[e];
-                    while (orient < 4 && rshift90(d2, orient) != d1) {
-                        orient += 1;
+                    
+                    if (ind1 != -1) {
+                        paths.push_back(std::make_pair(e, (FQ[f][ind1] - FQ[f][ind0] + 6) % 4));
+                    } else {
+                        if (EdgeDiff[e] != Vector2i::Zero()) {
+                            printf("Unsatisfied...\n");
+                            exit(0);
+                        }
+                        for (auto& p : paths) {
+                            toUpper[p.first] = numE;
+                            toUpperOrients[p.first] = 0;
+                        }
+                        numE += 1;
+                        nE2F.push_back(Vector2i(f0, f0));
+                        break;
                     }
-                    if (orient == 4) {
-                        printf("It should not happen orient!\n");
-                        exit(0);
-                    }
-                    toUpper[e] = numE;
-                    toUpperOrients[e] = orient;
                 }
-                numE += 1;
-                nE2F.push_back(Vector2i(f0, f));
             }
         }
         nEdgeDiff.resize(numE);
@@ -574,14 +623,15 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             }
         }
         for (auto& s : Sing) {
-            nSing.push_back(upperface[s]);
+            if (upperface[s] >= 0)
+                nSing.push_back(upperface[s]);
         }
+        for (auto& e : Fixed) {
+            if (toUpper[e] >= 0)
+                nFixed.push_back(toUpper[e]);
+        }
+        mToUpperFaces.push_back(std::move(upperface));
     }
-    
-    for (int i = 0; i < levels; ++i) {
-        printf("<F E> = <%d %d>\n", mF2E[i].size(), mE2F[i].size());
-    }
-    exit(0);
 }
 
 

@@ -48,8 +48,10 @@ public:
     int with_scale;
 
     void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff);
-
+    void UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff);
+    std::vector<std::vector<int> > mToUpperFaces;
     std::vector<std::vector<int> > mSing;
+    std::vector<std::vector<int> > mFixed;
     std::vector<std::vector<int> > mToUpperEdges, mToUpperOrients;
     std::vector<std::vector<Vector3i> > mFQ;
     std::vector<std::vector<Vector3i> > mF2E;

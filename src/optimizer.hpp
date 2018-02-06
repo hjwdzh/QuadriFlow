@@ -10,7 +10,8 @@ public:
 	static void optimize_orientations(Hierarchy &mRes);
 	static void optimize_scale(Hierarchy &mRes);
 	static void optimize_positions(Hierarchy &mRes, int with_scale = 0);
-
+    static void optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>& singularities);
+    
 #ifdef WITH_CUDA
 	static void optimize_orientations_cuda(Hierarchy &mRes);
 	static void optimize_positions_cuda(Hierarchy &mRes);

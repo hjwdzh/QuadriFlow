@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "optimizer.hpp"
 #include "field-math.hpp"
+#include "flow.hpp"
 #include <fstream>
 #include <Eigen/Sparse>
 #ifdef WITH_CUDA
@@ -314,6 +315,138 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 	}
 #endif
 }
+
+void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>& singularities)
+{
+    std::vector<std::set<int> > singular_edges(mRes.mF2E.size());
+    for (auto& f : singularities) {
+        for (int j = 0; j < 3; ++j)
+            singular_edges[0].insert(mRes.mF2E[0][f.first][j]);
+    }
+    for (int level = 0; level < mRes.mToUpperEdges.size(); ++level) {
+        auto& toUpper = mRes.mToUpperEdges[level];
+        auto& SingEdges = singular_edges[level];
+        auto& nSingEdges = singular_edges[level + 1];
+        for (auto& e : SingEdges) {
+            if (toUpper[e] >= 0)
+                nSingEdges.insert(toUpper[e]);
+        }
+    }
+    
+    bool FullFlow = false;
+    for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
+        printf("flow %d...\n", level);
+        auto& EdgeDiff = mRes.mEdgeDiff[level];
+        auto& FQ = mRes.mFQ[level];
+        auto& F2E = mRes.mF2E[level];
+        auto& E2F = mRes.mE2F[level];
+        auto& SingEdges = singular_edges[level];
+        if (!FullFlow) {
+            std::vector<Vector4i> edge_to_constraints(E2F.size() * 2, Vector4i(-1, 0, -1, 0));
+            std::vector<int> initial(F2E.size() * 2, 0);
+            for (int i = 0; i < F2E.size(); ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    int e = F2E[i][j];
+                    Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2),
+                                          FQ[i][j]);
+                    for (int k = 0; k < 2; ++k) {
+                        int l = abs(index[k]);
+                        int s = index[k] / l;
+                        int ind = l - 1;
+                        int equationID = i * 2 + k;
+                        if (edge_to_constraints[ind][0] == -1) {
+                            edge_to_constraints[ind][0] = equationID;
+                            edge_to_constraints[ind][1] = s;
+                        } else {
+                            edge_to_constraints[ind][2] = equationID;
+                            edge_to_constraints[ind][3] = s;
+                        }
+                        initial[equationID] += s * EdgeDiff[ind/2][ind%2];
+                    }
+                }
+            }
+            std::vector<std::pair<Vector2i, int> > arcs;
+            std::vector<int> arc_ids;
+            std::vector<int> singularity_edge;
+            for (int i = 0; i < edge_to_constraints.size(); ++i) {
+                if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
+                    int v1 = edge_to_constraints[i][0];
+                    int v2 = edge_to_constraints[i][2];
+                    if (edge_to_constraints[i][1] < 0)
+                        std::swap(v1, v2);
+                    int current_v = EdgeDiff[i / 2][i % 2];
+                    arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
+                    singularity_edge.push_back(SingEdges.count(i / 2));
+                    arc_ids.push_back(i);
+                }
+            }
+            int supply = 0;
+            int demand = 0;
+            for (int i = 0; i < initial.size(); ++i) {
+                int init_val = initial[i];
+                if (init_val > 0) {
+                    arcs.push_back(std::make_pair(Vector2i(-1, i), initial[i]));
+                    supply += init_val;
+                }
+                else if (init_val < 0) {
+                    demand -= init_val;
+                    arcs.push_back(std::make_pair(Vector2i(i, initial.size()), -init_val));
+                }
+            }
+            
+            int t1 = GetCurrentTime64();
+            MaxFlowHelper* flow = 0;
+            if (supply < 5)
+                flow = new ECMaxFlowHelper;
+            else
+                flow = new BoykovMaxFlowHelper;
+
+            //    flow.resize(constraints_index.size() + 2, edge_diff.size() * 2);
+            flow->resize(initial.size() + 2, arc_ids.size());
+            std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
+            for (int i = 0; i < arcs.size(); ++i) {
+                int v1 = arcs[i].first[0] + 1;
+                int v2 = arcs[i].first[1] + 1;
+                int c = arcs[i].second;
+                if (v1 == 0 || v2 == initial.size() + 1) {
+                    flow->AddEdge(v1, v2, c, 0, -1);
+                }
+                else {
+                    int sing = singularity_edge[i];
+                    //            flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), arc_ids[i].first);
+                    flow->AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), 0);
+
+                    edge_to_variable[(int64_t)v1 * (initial.size() + 2) + v2] = std::make_pair(arc_ids[i], -1);
+                    edge_to_variable[(int64_t)v2 * (initial.size() + 2) + v1] = std::make_pair(arc_ids[i], 1);
+                }
+            }
+            
+            printf("compute....\n");
+            int flow_count = flow->compute();
+            printf("finish...\n");
+            //flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
+            //    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
+            flow->Apply(edge_to_variable, EdgeDiff);
+            delete flow;
+            printf("%d %d %d\n", flow_count, supply, demand);
+            if (flow_count == supply) {
+                FullFlow = true;
+            }
+        }
+        if (level != 0) {
+            auto& nEdgeDiff = mRes.mEdgeDiff[level - 1];
+            auto& toUpper = mRes.mToUpperEdges[level - 1];
+            auto& toUpperOrients = mRes.mToUpperOrients[level - 1];
+            for (int i = 0; i < toUpper.size(); ++i) {
+                if (toUpper[i] >= 0) {
+                    int orient = (4 - toUpperOrients[i]) % 4;
+                    nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
+                }
+            }
+        }
+    }
+}
+
 
 #ifdef WITH_CUDA
 
