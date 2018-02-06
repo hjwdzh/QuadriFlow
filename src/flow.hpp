@@ -43,6 +43,7 @@ class MaxFlowHelper
 {
 public:
     MaxFlowHelper() {}
+    virtual ~MaxFlowHelper() {};
     virtual void resize(int n, int m) = 0;
     virtual int compute() = 0;
     virtual void AddEdge(int x, int y, int c, int rc, int v) = 0;

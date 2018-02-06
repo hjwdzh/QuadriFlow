@@ -56,8 +56,8 @@ void Parametrizer::Load(const char* filename)
 		}
 	}
 #ifdef LOG_OUTPUT
-	printf("vertices size: %d\n", V.cols());
-	printf("faces size: %d\n", F.cols());
+	printf("vertices size: %d\n", (int)V.cols());
+	printf("faces size: %d\n", (int)F.cols());
 #endif
 
 	merge_close(V, F, 1e-6);
@@ -109,7 +109,7 @@ void Parametrizer::Initialize(int faces, int with_scale)
 			}
 		}
 	}
-	printf("V: %d F: %d\n", V.cols(), F.cols());
+	printf("V: %d F: %d\n", (int)V.cols(), (int)F.cols());
 	hierarchy.mA[0] = std::move(A);
 	hierarchy.mAdj[0] = std::move(adj);
 	hierarchy.mN[0] = std::move(N);
@@ -575,12 +575,7 @@ int get_parents_orient(std::vector<std::pair<int, int> >& parents, int j) {
 
 void Parametrizer::BuildEdgeInfo()
 {
-	auto& V = hierarchy.mV[0];
 	auto& F = hierarchy.mF;
-	auto& adj = hierarchy.mAdj[0];
-	auto& Q = hierarchy.mQ[0];
-	auto& N = hierarchy.mN[0];
-	auto& O = hierarchy.mO[0];
 	auto &E2E = hierarchy.mE2E;
 
 	edge_diff.clear();
@@ -622,85 +617,10 @@ void Parametrizer::BuildEdgeInfo()
 	}
 }
 
-void Parametrizer::SanityCheckDiff(int sing)
-{
-	return;
-	auto& V = hierarchy.mV[0];
-	auto& F = hierarchy.mF;
-	auto& adj = hierarchy.mAdj[0];
-	auto& Q = hierarchy.mQ[0];
-	auto& N = hierarchy.mN[0];
-	auto& O = hierarchy.mO[0];
-	printf("Check Sanity\n");
-	int pos_sings = 0;
-	for (int ff = 0; ff < F.cols(); ++ff) {
-		//			if (singularities.count(ff))
-		//				continue;
-		for (int j = 0; j < 3; ++j) {
-			int v0 = F(j, ff);
-			int v1 = F((j + 1) % 3, ff);
-			int v2 = F((j + 2) % 3, ff);
-			auto diff1 = edge_diff[face_edgeIds[ff][j]];
-			auto diff2 = edge_diff[face_edgeIds[ff][(j+1)%3]];
-			auto diff3 = edge_diff[face_edgeIds[ff][(j + 2) % 3]];;
-			auto index1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
-			auto index2 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
-			int rank1 = (index1.first - index1.second + 4) % 4;
-			int rank2 = (index2.first - index2.second + 4) % 4;
-			if (v1 < v0) {
-				diff1 = rshift90(-diff1, rank1);
-			}
-			if (v2 < v1) {
-				diff2 = rshift90(-diff2, rank2);
-			}
-			else {
-				diff2 = rshift90(diff2, rank1);
-			}
-			if (v0 < v2) {
-				diff3 = -diff3;
-			}
-			else {
-				diff3 = rshift90(diff3, rank2);
-			}
-			auto diff = diff1 + diff2 + diff3;
-
-			if (diff != Vector2i::Zero() && singularities.count(ff) == 0) {
-				if (pos_sing.count(ff) == 0) {
-					printf("additional %d !\n", ff);
-					printf("%d %d %d\n", F(0, ff), F(1, ff), F(2, ff));
-				}
-				pos_sings += 1;
-			}
-		}
-	}
-	int shift_edges = 0;
-	for (int f = 0; f < F.cols(); ++f) {
-		if (pos_sing.count(f))
-			continue;
-		for (int j = 0; j < 3; ++j) {
-			int v1 = F(j, f);
-			int v2 = F((j + 1) % 3, f);
-			int v3 = F((j + 2) % 3, f);
-			auto diff1 = edge_diff[face_edgeIds[f][j]];
-			auto diff2 = edge_diff[face_edgeIds[f][(j+2)%3]];
-			auto rank1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(v2), N.col(v2));
-			auto rank2 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(v3), N.col(v3));
-			if (v1 > v2)
-				diff1 = rshift90(-diff1, (rank1.first + 4 - rank1.second) % 4);
-			if (v1 > v3)
-				diff2 = rshift90(-diff2, (rank2.first + 4 - rank2.second) % 4);
-			if (diff1[0] * diff2[1] - diff1[1] * diff2[0] < 0)
-				shift_edges += 1;
-		}
-	}
-	printf("\nsingularity: %d    shift edges: %d    pos sing: %d\n", sing, shift_edges, pos_sings);
-}
-
 void Parametrizer::ComputePosition(int with_scale)
 {
 	auto& V = hierarchy.mV[0];
 	auto& F = hierarchy.mF;
-	auto& adj = hierarchy.mAdj[0];
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
@@ -836,7 +756,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	// build edge info
 	auto& V = hierarchy.mV[0];
 	auto& F = hierarchy.mF;
-	auto& adj = hierarchy.mAdj[0];
 	auto& Q = hierarchy.mQ[0];
 	auto& N = hierarchy.mN[0];
 	auto& O = hierarchy.mO[0];
@@ -851,7 +770,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 			}
 		}
 	}
-	SanityCheckDiff(0);
 	printf("Build Integer Constraints...\n");
 	BuildIntegerConstraints();
 
@@ -867,9 +785,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
             exit(0);
 		}
 	}
-	//	FixFlipComplete();
-    
-	SanityCheckDiff(0);
 	
 	disajoint_tree = DisajointTree(V.cols());
 	for (int i = 0; i < edge_diff.size(); ++i) {
@@ -1053,7 +968,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	std::swap(fixed, fixed_compact);
 
 	printf("flipped %d\n", count);
-	SanityCheckDiff(0);
 }
 
 void Parametrizer::FixHoles()
@@ -1131,7 +1045,7 @@ void Parametrizer::FixHoles()
                 break;
         }
         if (loop_edge.size() < 2) {
-            printf("irregular %d\n", loop_edge.size());
+            printf("irregular %d\n", (int)loop_edge.size());
             continue;
         }
         std::vector<int> loop_vertices;
@@ -1177,7 +1091,7 @@ void Parametrizer::FixHoles()
             int delete_v1 = (v_start + 1) % loop_vertices.size();
             int delete_v2 = (v_start + 2) % loop_vertices.size();
             if (delete_v1 > delete_v2)
-                std:swap(delete_v1, delete_v2);
+                std::swap(delete_v1, delete_v2);
             loop_vertices.erase(loop_vertices.begin() + delete_v2);
             loop_vertices.erase(loop_vertices.begin() + delete_v1);
         }
@@ -1335,7 +1249,7 @@ void Parametrizer::BuildIntegerConstraints()
 	}
 
 	printf("total flow %d\n", total_flow);
-	printf("sing diff size %d %d\n", sing_diff.size(), pos_sing.size());
+	printf("sing diff size %d %d\n", (int)sing_diff.size(), (int)pos_sing.size());
 	sing_maps.resize(sing_diff.size() + 1);
 	sing_maps[0][total_flow] = std::make_pair(0, 0);
 	for (int i = 0; i < sing_diff.size(); ++i) {
@@ -1581,7 +1495,6 @@ void Parametrizer::FixFlipAdvance()
 			int v0 = F(j, i);
 			int v1 = F((j + 1) % 3, i);
 			int eid = face_edgeIds[i][j];//edge_ids[DEdge(v0, v1)];
-			int orient = face_edgeOrients[i][j];
 			std::list<int> l;
 			l.push_back(eid);
 			vertices_to_edges[v0].insert(std::make_pair(v1, l));
@@ -1650,7 +1563,6 @@ void Parametrizer::FixFlipAdvance()
 		}
 		for (int f = 0; f < F.cols(); ++f) {
 			std::set<int> l;
-			int non_collapse = 0;
 			for (int j = 0; j < 3; ++j) {
 				int v1 = tree.Parent(F(j, f));
 				int v2 = tree.Parent(F((j + 1) % 3, f));
@@ -1663,7 +1575,7 @@ void Parametrizer::FixFlipAdvance()
 			}
 			
 			if (l.size() != faces_from_edge[f].size()) {
-				printf("inconsistent edge-face connection! -1 %d %d\n", l.size(), faces_from_edge[f].size());
+				printf("inconsistent edge-face connection! -1 %d %d\n", (int)l.size(), (int)faces_from_edge[f].size());
 				for (auto& p : l) {
 					printf("%d ", p);
 				}

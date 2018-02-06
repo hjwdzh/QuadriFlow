@@ -59,15 +59,15 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad,
     //Information for the quad mesh
     printf("Quad mesh info:\n");
     printf("Number of vertices with normals and orientations: %d = %d = %d\n",
-           O_quad.size(), N_quad.size(), Q_quad.size());
-    printf("Number of faces: %d\n", F_quad.size());
-    printf("Number of directed edges: %d\n", E2E_quad.size());
+           (int)O_quad.size(), (int)N_quad.size(), (int)Q_quad.size());
+    printf("Number of faces: %d\n", (int)F_quad.size());
+    printf("Number of directed edges: %d\n", (int)E2E_quad.size());
     //Information for the original mesh
     printf("Triangle mesh info:\n");
     printf("Number of vertices with normals, orientations and associated quad positions: %d = %d = %d = %d\n",
-           V.cols(), N.cols(), Q.cols(), O.cols());
-    printf("Number of faces: %d\n", F.cols());
-    printf("Number of directed edges: %d\n", E2E.size());
+           (int)V.cols(), (int)N.cols(), (int)Q.cols(), (int)O.cols());
+    printf("Number of faces: %d\n", (int)F.cols());
+    printf("Number of directed edges: %d\n", (int)E2E.size());
     
     /* initial quad flips
      currently there are many flips, (82 flips in hand.obj)

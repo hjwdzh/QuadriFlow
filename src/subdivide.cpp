@@ -71,7 +71,6 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E,
 		/* Update F and E2E */
 		int f2 = is_boundary ? -1 : (nF++);
 		int f3 = nF++;
-		int f20, f30;
 		if (nF > F.cols()) {
 			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
 			E2E.conservativeResize(F.cols() * 3);
@@ -166,7 +165,6 @@ void subdivide_diff(MatrixXi &F,
 
 	std::vector<EdgeInfo> queue;
 	int qid = 0;
-	bool debug = false;
 	auto sanity = [&](int c) {
 		printf("check sanity %d\n", c);
 		for (int i = 0; i < face_edgeIds.size(); ++i) {
@@ -216,8 +214,8 @@ void subdivide_diff(MatrixXi &F,
 				if ((c || singularities.count(i)) &&
 					(abs(edge_diff[face_edgeIds[i][j]][0]) > 1 || abs(edge_diff[face_edgeIds[i][j]][1]) > 1))
 				{
-					printf("long edge %d!\n", singularities.count(i));
-					printf("%d %d\n", i, j);
+					printf("long edge %d!\n",  (int)singularities.count(i));
+					printf("%d %d\n",  (int)i,  (int)j);
                     exit(0);
 				}
 			}
@@ -232,7 +230,7 @@ void subdivide_diff(MatrixXi &F,
 	auto AnalyzeOrients = [&](int f0, int orients[3]) {
 		int vo = F(0, f0);
 		for (int j = 0; j < 3; ++j) {
-			int od0, od1;
+			int od0;
 			int v0 = F(j, f0), v1 = F((j + 1) % 3, f0);
 			if (v0 < v1) {
 				auto value1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(vo), N.col(vo));
@@ -314,7 +312,6 @@ void subdivide_diff(MatrixXi &F,
 		/* Update V */
 		V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5;
 		N.col(vn) = N.col(v0);
-		auto value = compat_orientation_extrinsic_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
 		Q.col(vn) = Q.col(v0);
 		O.col(vn) = (O.col(v0) + O.col(v1)) * 0.5;
 
@@ -328,7 +325,6 @@ void subdivide_diff(MatrixXi &F,
 		}
 		nonmanifold[vn] = false;
 		boundary[vn] = is_boundary;
-		int orient0, orient1, orient0p, orient1p;
 		eid0 = eid;
 		edge_values[eid0] = DEdge(v0, vn);
 		
@@ -350,7 +346,6 @@ void subdivide_diff(MatrixXi &F,
 		edge_values.push_back(DEdge(vn, v0p));
 
 		/* Update F and E2E */
-		int f20, f30;
 		if (nF > F.cols()) {
 			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
 			E2E.conservativeResize(F.cols() * 3);
@@ -358,7 +353,6 @@ void subdivide_diff(MatrixXi &F,
 
 		/* Update F */
 		F.col(f0) << vn, v0p, v0;
-		int vo = F(0, f0);
 		face_edgeIds[f0] = Vector3i(eid0p, eid02, eid0);
 
 		int orients[3];

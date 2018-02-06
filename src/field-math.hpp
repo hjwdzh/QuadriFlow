@@ -255,7 +255,6 @@ inline Vector3d Travel(Vector3d p, const Vector3d& dir, double& len, int& f, Vec
 		lens[0] = -coord.y() / dirs.y();
 		lens[1] = (1 - coord.x() - coord.y()) / (dirs.x() + dirs.y());
 		lens[2] = -coord.x() / dirs.x();
-		int chosen_id = 0;
 		for (int fid = 0; fid < 3; ++fid) {
 			if (fid + edge_id == prev_id)
 				continue;
@@ -363,10 +362,6 @@ inline Vector3d TravelField(Vector3d p, Vector3d& pt, double& len, int& f, Vecto
 		lens[0] = -coord.y() / dirs.y();
 		lens[1] = (1 - coord.x() - coord.y()) / (dirs.x() + dirs.y());
 		lens[2] = -coord.x() / dirs.x();
-		int chosen_id = 0;
-		if (count >= 2) {
-			count = count;
-		}
 		for (int fid = 0; fid < 3; ++fid) {
 			if (fid + edge_id == prev_id)
 				continue;

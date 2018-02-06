@@ -20,7 +20,7 @@ void merge_close(MatrixXd& V, MatrixXi& F, double threshold)
 			vid_maps[key] = vid_compress[i];
 		}
 	}
-	printf("Compress Vertex from %d to %d...\n", V.cols(), vid_maps.size());
+	printf("Compress Vertex from %d to %d...\n", (int)V.cols(), (int)vid_maps.size());
 	MatrixXd newV(3, vid_maps.size());
 	memcpy(newV.data(), V.data(), sizeof(double) * 3 * vid_maps.size());
 	V = std::move(newV);
@@ -33,7 +33,7 @@ void merge_close(MatrixXd& V, MatrixXi& F, double threshold)
 			f_num++;
 		}
 	}
-	printf("Compress Face from %d to %d...\n", F.cols(), f_num);
+	printf("Compress Face from %d to %d...\n", (int)F.cols(), f_num);
 	MatrixXi newF(3, f_num);
 	memcpy(newF.data(), F.data(), sizeof(int) * 3 * f_num);
 	F = std::move(newF);

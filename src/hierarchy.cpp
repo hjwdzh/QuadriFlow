@@ -274,7 +274,6 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd &V,
 #pragma omp parallel for
 #endif
 	for (int i = 0; i < V.cols(); ++i) {
-		int num = adj[i].size();
 		int base = bases[i];
 		auto& ad = adj[i];
 		auto entry_it = entries.begin() + base;

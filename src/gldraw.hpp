@@ -1,9 +1,9 @@
 #ifndef GL_DRAW_H_
 #define GL_DRAW_H_
+#include "config.hpp"
 
-void gldraw(void(*mouse_callback)(int, int, int, int),
-	void(*render_callback)(void),
-	void(*motion_callback)(int, int),
-	void(*keyboard_callback)(unsigned char, int, int));
+#ifdef WITH_OPENGL
+void gldraw();
+#endif
 
 #endif

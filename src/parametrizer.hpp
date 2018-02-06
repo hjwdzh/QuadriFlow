@@ -33,7 +33,7 @@ struct DEdge
 			x = _x, y = _y;
 	}
 	bool operator<(const DEdge& e) const {
-		return x < e.x || x == e.x && y < e.y;
+		return (x < e.x) || (x == e.x && y < e.y);
 	}
 	bool operator==(const DEdge& e) const {
 		return x == e.x && y == e.y;
@@ -79,10 +79,8 @@ public:
 
 
 	void WriteTestData();
-	// sanity check
-	void SanityCheckDiff(int sing);
 
-	// File IO
+    // File IO
 	void SaveToFile(FILE* fp);
 	void LoadFromFile(FILE* fp);
 	void ExtractMesh(const char* obj_name);

@@ -116,7 +116,6 @@ void Optimizer::optimize_orientations(Hierarchy &mRes)
 
 void Optimizer::optimize_scale(Hierarchy &mRes)
 {
-	AdjacentMatrix &adj = mRes.mAdj[0];
 	const MatrixXd &N = mRes.mN[0];
 	MatrixXd &Q = mRes.mQ[0];
 	MatrixXd &V = mRes.mV[0];
@@ -224,10 +223,6 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 	cudaMemcpy(mRes.mO[0].data(), mRes.cudaO[0], sizeof(glm::dvec3) * mRes.mO[0].cols(), cudaMemcpyDeviceToHost);
 #else
 	for (int level = mRes.mAdj.size() - 1; level >= 0; --level) {
-		AdjacentMatrix &adj = mRes.mAdj[level];
-		const MatrixXd &N = mRes.mN[level];
-		MatrixXd &Q = mRes.mQ[level];
-//		MatrixXd &S = mRes.mS[level];
 		for (int iter = 0; iter < levelIterations; ++iter) {
 			AdjacentMatrix &adj = mRes.mAdj[level];
 			const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
@@ -394,7 +389,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                 }
             }
             
-            int t1 = GetCurrentTime64();
             MaxFlowHelper* flow = 0;
             if (supply < 5)
                 flow = new ECMaxFlowHelper;
