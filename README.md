@@ -6,5 +6,5 @@ Require: GLUT, Boost, GLM, Eigen
 Optional: TBB, OpenMP, CUDA
 
 ## Run
-Parametrize input.obj output.obj
+Parametrize -f 1500 -i input_path.obj -o output_path.obj
 
