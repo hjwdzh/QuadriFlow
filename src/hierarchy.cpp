@@ -512,6 +512,9 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 int f0 = fixed_faces[E2F[i][0]] < 2 ? E2F[i][0] : E2F[i][1];
                 int e = i;
                 int f = f0;
+                toUpper[i] = numE;
+                toUpperOrients[i] = 0;
+                auto& d1 = EdgeDiff[i];
                 while (true) {
                     if (E2F[e][0] == f)
                         f = E2F[e][1];
@@ -526,21 +529,19 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                             break;
                         }
                     }
+                    int orient = 0;
+                    auto& d2 = EdgeDiff[e];
+                    while (orient < 4 && rshift90(d2, orient) != d1) {
+                        orient += 1;
+                    }
+                    if (orient == 4) {
+                        printf("It should not happen orient!\n");
+                        exit(0);
+                    }
+                    toUpper[e] = numE;
+                    toUpperOrients[e] = orient;
                 }
-                toUpper[i] = numE;
-                toUpperOrients[i] = 0;
-                toUpper[e] = numE++;
-                int orient = 0;
-                auto& d1 = EdgeDiff[i];
-                auto& d2 = EdgeDiff[e];
-                while (orient < 4 && rshift90(d2, orient) != d1) {
-                    orient += 1;
-                }
-                if (orient == 4) {
-                    printf("It should not happen orient!\n");
-                    exit(0);
-                }
-                toUpperOrients[e] = orient;
+                numE += 1;
                 nE2F.push_back(Vector2i(f0, f));
             }
         }

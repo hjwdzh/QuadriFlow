@@ -1486,7 +1486,7 @@ void Parametrizer::ComputeMaxFlow()
                 E2F[e][1] = i;
         }
     }
-    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff);
+//    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff);
     
 	std::vector<std::pair<Vector2i, int> > arcs;
 	std::vector<int> arc_ids;
