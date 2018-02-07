@@ -9,75 +9,64 @@
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
 
-struct AngleDifference {
-    AngleDifference() = default;
+struct FaceConstraint {
+    FaceConstraint(double alpha, double beta, Vector3d normal[4], double bias, double length)
+        : alpha(alpha),
+          beta(beta),
+          normal0{normal[0], normal[1], normal[2], normal[3]},
+          bias0(bias),
+          length0(length) {}
 
     template <typename T>
-    bool operator()(const T* p, T* residuals) const {
+    T dot(const T a[3], const T b[3]) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
+
+    template <typename T>
+    T length2(const T a[3]) {
+        return dot(a, a);
+    }
+
+    template <typename T>
+    bool operator()(const T* p0, T* residuals) const {
+        const T* p[] = {p0, p0 + 3, p0 + 6, p0 + 9};
+        for (int k = 0; k < 4; ++k) {
+            auto pc = p[k];
+            auto pa = p[(k + 1) % 4];
+            auto pb = p[(k + 2) % 4];
+
+            T a[3]{pa[0] - pc[0], pa[1] - pc[1], pa[2] - pc[2]};
+            T b[3]{pb[0] - pc[0], pb[1] - pc[1], pb[2] - pc[2]};
+            T normal[3];
+            ceres::CrossProduct(a, b, normal);
+            // length2(normal);
+            // T l2normal = ceres::sqrt();
+        }
         return true;
     }
 
-    static ceres::CostFunction* create() {
-        return new ceres::AutoDiffCostFunction<AngleDifference, 1, 16>(new AngleDifference());
+    static ceres::CostFunction* create(double alpha, double beta, Vector3d normal[4], double bias,
+                                       double length) {
+        return new ceres::AutoDiffCostFunction<FaceConstraint, 1, 4 * 3>(
+            new FaceConstraint(alpha, beta, normal, bias, length));
     }
+
+    double alpha;
+    double beta;
+    Vector3d normal0[4];
+    double bias0;
+    double length0;
 };
 
-/*
- * TODO: Optimize O_quad, and possibly N_quad
- * Input:
- *  O_quad[i]: initialized i-th vertex position of the quad mesh
- *  N_quad[i]: initialized i-th vertex normal of the quad mesh
- *  Q_quad[i]: initialized i-th vertex orientation of the quad mesh, guaranteed to be orthogonal to
- *             N_quad[i]
- *  F_quad[i]: 4 vertex index of the i-th quad face
- *
- *  Concept: i-th directed edge is the (i%4)-th edge of the (i/4)-th face of the quad mesh
- *    V2E_quad[i]: one directed edge from i-th vertex of the quad mesh
- *    E2E_quad[i]: the reverse directed edge's index of the i-th directed edge of the quad mesh
- *
- *  V.col(i): i-th vertex position of the triangle mesh
- *  N.col(i): i-th vertex normal of the triangle mesh
- *  Q.col(i): i-th vertex orientation of the triangle mesh, guaranteed to be orthogonal to N.col(i)
- *  O.col(i): "quad position" associated with the i-th vertex in the triangle mesh (see InstantMesh
- *            position field)
- *  F.col(i): i-th triangle of the triangle mesh
- *
- *  V2E[i]: one directed edge from the i-th vertex of the triangle mesh
- *  E2E[i]: the reverse directed edge's index of the i-th directed edge of the triangle mesh
- *
- *  j = disajoint_tree.Index(i)
- *      the j-th vertex of the quad mesh is corresponding to the i-th vertex of the triangle mesh
- *      the relation is one-to-multiple
- *      O_quad can be viewed as an average of corresponding O
- *      N_quad can be viewed as an average of corresponding N
- *      Q_quad can be viewed as aggregation of corresponding Q
- *          Method that aggregates qi to qj with weights wi and wj:
- *              value = compat_orientation_extrinsic_4(qj, nj, qi, ni)
- *              result = (value.first * wj + value.second * wi).normalized()
- *
- * Output:
- *  Optimized O_quad, (possibly N_quad)
- */
-void optimize_quad_positions(std::vector<Vector3d>& O_quad,
-                             std::vector<Vector3d>& N_quad,
-                             std::vector<Vector3d>& Q_quad,
-                             std::vector<Vector4i>& F_quad,
-                             VectorXi& V2E_quad,
-                             VectorXi& E2E_quad,
-                             MatrixXd& V,
-                             MatrixXd& N,
-                             MatrixXd& Q,
-                             MatrixXd& O,
-                             MatrixXi& F,
-                             VectorXi& V2E,
-                             VectorXi& E2E,
+void optimize_quad_positions(std::vector<Vector3d>& O_quad, std::vector<Vector3d>& N_quad,
+                             std::vector<Vector3d>& Q_quad, std::vector<Vector4i>& F_quad,
+                             VectorXi& V2E_quad, VectorXi& E2E_quad, MatrixXd& V, MatrixXd& N,
+                             MatrixXd& Q, MatrixXd& O, MatrixXi& F, VectorXi& V2E, VectorXi& E2E,
                              DisajointTree& disajoint_tree) {
     // Information for the quad mesh
     printf("Quad mesh info:\n");
-    printf("Number of vertices with normals and orientations: %d = %d = %d\n",
-           (int)O_quad.size(),
-           (int)N_quad.size(),
-           (int)Q_quad.size());
+    printf("Number of vertices with normals and orientations: %d = %d = %d\n", (int)O_quad.size(),
+           (int)N_quad.size(), (int)Q_quad.size());
     printf("Number of faces: %d\n", (int)F_quad.size());
     printf("Number of directed edges: %d\n", (int)E2E_quad.size());
     // Information for the original mesh
@@ -86,10 +75,7 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad,
         "Number of vertices with normals,"
         "orientations and associated quad positions: "
         "%d = %d = %d = %d\n",
-        (int)V.cols(),
-        (int)N.cols(),
-        (int)Q.cols(),
-        (int)O.cols());
+        (int)V.cols(), (int)N.cols(), (int)Q.cols(), (int)O.cols());
     printf("Number of faces: %d\n", (int)F.cols());
     printf("Number of directed edges: %d\n", (int)E2E.size());
 
