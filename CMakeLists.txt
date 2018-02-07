@@ -6,23 +6,33 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
 find_package(TBB REQUIRED)
+find_package(Eigen REQUIRED)
+find_package(glm REQUIRED)
+find_package(Ceres REQUIRED)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-int-in-bool-context")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-int-in-bool-context")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -fsanitize=address")
+    set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
+endif()
 
 include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(3rd/pss)
-include_directories(3rd/glm)
-include_directories(3rd/eigen)
-include_directories(${GLM_INCLUDE_DIRS})
+# include_directories(3rd/glm)
+# include_directories(3rd/eigen)
+include_directories(${CERES_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
-include_directories(${OPENGL_INCLUDE_DIRS})
+include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
+include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
 
 set(
@@ -62,4 +72,10 @@ add_executable(
     parametrize
     ${parametrize_SRC}
 )
-target_link_libraries(parametrize ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES} ${TBB_LIBRARIES})
+target_link_libraries(
+    parametrize
+    ${CERES_LIBRARIES}
+    ${GLUT_LIBRARIES}
+    ${OPENGL_LIBRARIES}
+    ${TBB_LIBRARIES}
+)

@@ -8,12 +8,11 @@
 #ifndef post_solver_h
 #define post_solver_h
 
-#include "disajoint-tree.hpp"
-#include <vector>
 #include <Eigen/Core>
-#include <Eigen/Dense>
-using namespace Eigen;
+#include <vector>
+#include "disajoint-tree.hpp"
 
+using namespace Eigen;
 
 void optimize_quad_positions(std::vector<Vector3d>& O_quad,
                              std::vector<Vector3d>& N_quad,
