@@ -15,7 +15,7 @@
 #include "optimizer.hpp"
 
 #define LOG_OUTPUT
-
+//#define PERFORM_TEST
 extern void generate_adjacency_matrix_uniform(
 	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,
 	const VectorXi &nonManifold, AdjacentMatrix& adj);
@@ -67,7 +67,11 @@ void Parametrizer::Load(const char* filename)
 void Parametrizer::Initialize(int faces, int with_scale)
 {
 	ComputeMeshStatus();
-
+#ifdef PERFORM_TEST
+    num_vertices = V.cols() * 10;
+    num_faces = num_vertices;
+    scale = sqrt(surface_area / num_faces);
+#else
 	if (faces == -1) {
 		num_vertices = V.cols();
 		num_faces = num_vertices;
@@ -78,7 +82,11 @@ void Parametrizer::Initialize(int faces, int with_scale)
 		num_vertices = faces;
 		scale = std::sqrt(face_area) / 2;
 	}
+#endif
 	double target_len = std::min(scale / 2, average_edge_length * 2);
+#ifdef PERFORM_TEST
+    scale = sqrt(surface_area / V.cols());
+#endif
 	if (target_len < max_edge_length) {
 		compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold);
 		subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
@@ -774,8 +782,11 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	BuildIntegerConstraints();
 
 	ComputeMaxFlow();
-	printf("Fix flip advance...\n");
+
+    printf("Fix flip advance...\n");
+    printf("thanks %d %d %d\n", V.cols(), O.cols(), disajoint_tree.indices.size());
 	subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, singularities);
+
 	FixFlipAdvance();
 	subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, singularities);
     
@@ -785,7 +796,6 @@ void Parametrizer::ComputeIndexMap(int with_scale)
             exit(0);
 		}
 	}
-	
 	disajoint_tree = DisajointTree(V.cols());
 	for (int i = 0; i < edge_diff.size(); ++i) {
 		if (edge_diff[i] == Vector2i::Zero()) {
@@ -796,8 +806,7 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
     disajoint_tree.BuildCompactParent();
 
-	ComputePosition(with_scale);
-
+//	ComputePosition(with_scale);
 	int num_v = disajoint_tree.CompactNum();
 	O_compact.resize(num_v, Vector3d::Zero());
     Q_compact.resize(num_v, Vector3d::Zero());
@@ -931,8 +940,11 @@ void Parametrizer::ComputeIndexMap(int with_scale)
 	}
     printf("Fix holes...\n");
     FixHoles();
+    
+    // potential bug, not guarantee to have quads at holes!
     printf("Direct Quad Graph...\n");
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
+    printf("Direct Quad Graph finish...\n");
     optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
                          V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree);
     
@@ -1471,17 +1483,11 @@ void Parametrizer::FixFlipAdvance()
 {
 	auto& V = hierarchy.mV[0];
 	auto& F = hierarchy.mF;
-	
 	std::vector<std::pair<int, int> > parent_edge(edge_values.size());
 	std::vector<std::set<int> > edge_to_faces(edge_values.size());
 	for (int i = 0; i < face_edgeIds.size(); ++i) {
 		for (int j = 0; j < 3; ++j) {
 			edge_to_faces[face_edgeIds[i][j]].insert(i);
-		}
-	}
-	for (int i = 0; i < edge_to_faces.size(); ++i) {
-		if (edge_to_faces[i].size() == 0) {
-			printf("interesting...\n");
 		}
 	}
 	disajoint_tree = DisajointTree(V.cols());
@@ -1539,13 +1545,13 @@ void Parametrizer::FixFlipAdvance()
 //                    exit(0);
                 }
 				for (auto& li : l.second) {
-					if (get_parents(parent_edge, li) != li) {
+/*					if (get_parents(parent_edge, li) != li) {
 						printf("%d %d %d\n", i, tree.Parent(i), li);
 						printf("(%d %d): <%d %d> ==> <%d %d>\n", li, get_parents(parent_edge, li), edge_values[li].x, edge_values[li].y,
 							edge_values[get_parents(parent_edge, li)].x, edge_values[get_parents(parent_edge, li)].y);
 						printf("edge index not root!\n");
 //                        exit(0);
-					}
+					}*/
 					if (tree.Parent(edge_values[li].x) == tree.Parent(edge_values[li].y) &&
 						edge_diff[li] == Vector2i::Zero()) {
 						printf("%d %d %d %d\n", i, l.first, edge_values[li].x, edge_values[li].y);
@@ -1897,7 +1903,7 @@ void Parametrizer::FixFlipAdvance()
 		}
 	}
 	sanity(100);
-	
+
 	for (; edge_len < 2; edge_len += 1) {
 		int counter = 0;
 		while (true) {

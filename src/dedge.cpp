@@ -260,7 +260,6 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
     boundary.resize(V.size());
     boundary.setConstant(false);
     
-    printf("step3...\n");
     /* Detect boundary regions of the mesh and adjust vertex->edge pointers*/
 #ifdef WITH_OMP
 #pragma omp parallel for

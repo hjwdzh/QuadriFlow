@@ -7,7 +7,7 @@
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 #endif
-
+#include "parametrizer.hpp"
 Optimizer::Optimizer()
 {}
 
@@ -391,13 +391,13 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             
             MaxFlowHelper* flow = 0;
             if (supply < 5)
-                flow = new ECMaxFlowHelper;
+                flow = new BoykovMaxFlowHelper;
             else
                 flow = new BoykovMaxFlowHelper;
 
             //    flow.resize(constraints_index.size() + 2, edge_diff.size() * 2);
             flow->resize(initial.size() + 2, arc_ids.size());
-            std::unordered_map<int64_t, std::pair<int, int> > edge_to_variable;
+            std::set<int> ids;
             for (int i = 0; i < arcs.size(); ++i) {
                 int v1 = arcs[i].first[0] + 1;
                 int v2 = arcs[i].first[1] + 1;
@@ -406,12 +406,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                     flow->AddEdge(v1, v2, c, 0, -1);
                 }
                 else {
-                    int sing = singularity_edge[i];
-                    //            flow.AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), arc_ids[i].first);
-                    flow->AddEdge(v1, v2, std::max(0, c + 2 - sing), std::max(0, -c + 2 - sing), 0);
-
-                    edge_to_variable[(int64_t)v1 * (initial.size() + 2) + v2] = std::make_pair(arc_ids[i], -1);
-                    edge_to_variable[(int64_t)v2 * (initial.size() + 2) + v1] = std::make_pair(arc_ids[i], 1);
+                    flow->AddEdge(v1, v2, std::max(0, c + 2), std::max(0, -c + 2), arc_ids[i]);
                 }
             }
             
@@ -420,7 +415,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             printf("finish...\n");
             //flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
             //    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
-            flow->Apply(edge_to_variable, EdgeDiff);
+            flow->Apply(EdgeDiff);
             delete flow;
             printf("%d %d %d\n", flow_count, supply, demand);
             if (flow_count == supply) {
@@ -438,7 +433,23 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                 }
             }
         }
+        if (FullFlow) {
+            auto& EdgeDiff = mRes.mEdgeDiff[level];
+            auto& F2E = mRes.mF2E[level];
+            auto& FQ = mRes.mFQ[level];
+            for (int i = 0; i < FQ.size(); ++i) {
+                Vector2i d(0, 0);
+                for (int j = 0; j < 3; ++j) {
+                    d += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
+                }
+                if (d != Vector2i::Zero()) {
+                    printf("wrong..\n");
+                    exit(0);
+                }
+            }
+        }
     }
+    printf("finish...\n");
 }
 
 

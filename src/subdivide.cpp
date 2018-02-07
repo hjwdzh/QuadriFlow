@@ -145,304 +145,344 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E,
 #include "field-math.hpp"
 
 void subdivide_diff(MatrixXi &F,
-	MatrixXd &V, 
-	MatrixXd &N,
-	MatrixXd &Q,
-	MatrixXd &O,
-	VectorXi &V2E, VectorXi &E2E,
-	VectorXi &boundary, VectorXi &nonmanifold, 
-	std::vector<Vector2i>& edge_diff,
-	std::vector<DEdge>& edge_values,
-	std::vector<Vector3i>& face_edgeOrients,
-	std::vector<Vector3i>& face_edgeIds,
-	std::map<int, int>& singularities
-	) {
-	struct EdgeInfo
-	{
-		int e2eid;
-		DEdge edge;
-	};
+                     MatrixXd &V,
+                     MatrixXd &N,
+                     MatrixXd &Q,
+                     MatrixXd &O,
+                     VectorXi &V2E, VectorXi &E2E,
+                     VectorXi &boundary, VectorXi &nonmanifold,
+                     std::vector<Vector2i>& edge_diff,
+                     std::vector<DEdge>& edge_values,
+                     std::vector<Vector3i>& face_edgeOrients,
+                     std::vector<Vector3i>& face_edgeIds,
+                     std::map<int, int>& singularities
+                     ) {
+    struct EdgeLink
+    {
+        int id;
+        double length;
+        Vector2i diff;
+    };
+    
+    struct FaceOrient
+    {
+        int orient;
+        Vector3i d;
+        Vector3d q;
+        Vector3d n;
+    };
+    
+    std::vector<FaceOrient> face_spaces(F.cols());
+    std::queue<EdgeLink> queue;
+    std::vector<Vector2i> diffs(E2E.size());
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int eid = i * 3 + j;
+            diffs[eid] = rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
+            if (abs(diffs[eid][0]) > 2 || abs(diffs[eid][1]) > 2) {
+                printf(".....\n");
+                exit(0);
+            }
+        }
+    }
+    for (int i = 0; i < F.cols(); ++i) {
+        FaceOrient orient;
+        orient.q = Q.col(F(0, i));
+        orient.n = N.col(F(0, i));
+        int orient_diff[3];
+        for (int j = 0; j < 3; ++j) {
+            int final_orient = face_edgeOrients[i][j];
+            int eid = face_edgeIds[i][j];
+            auto value = compat_orientation_extrinsic_index_4(Q.col(edge_values[eid].x), N.col(edge_values[eid].x), orient.q, orient.n);
+            int target_orient = (value.second - value.first + 4) % 4;
+            if (F(j, i) == edge_values[eid].y)
+                target_orient = (target_orient + 2) % 4;
+            orient_diff[j] = (final_orient - target_orient + 4) % 4;
+        }
+        if (orient_diff[0] == orient_diff[1])
+            orient.orient = orient_diff[0];
+        else if (orient_diff[0] == orient_diff[2])
+            orient.orient = orient_diff[2];
+        else if (orient_diff[1] == orient_diff[2])
+            orient.orient = orient_diff[1];
+        orient.d = Vector3i((orient_diff[0] - orient.orient + 4)%4,
+                            (orient_diff[1] - orient.orient + 4)%4,
+                            (orient_diff[2] - orient.orient + 4)%4);
+        face_spaces[i] = (orient);
+    }
+    for (int i = 0; i < E2E.size(); ++i) {
+        int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
+        if (nonmanifold[v0] || nonmanifold[v1])
+            continue;
+        double length = (V.col(v0) - V.col(v1)).squaredNorm();
+        Vector2i diff = diffs[i];
+        if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+            int other = E2E[i];
+            if (other == -1 || other > i) {
+                EdgeLink e;
+                e.id = i;
+                e.length = length;
+                e.diff = diff;
+                queue.push(e);
+            }
+        }
+    }
+    auto AnalyzeOrient = [&](int f0, const Vector3i& d) {
+        for (int j = 0; j < 3; ++j) {
+            int orient = face_spaces[f0].orient + d[j];
+            int v = std::min(F(j, f0), F((j + 1) % 3, f0));
+            auto value = compat_orientation_extrinsic_index_4(Q.col(v), N.col(v), face_spaces[f0].q, face_spaces[f0].n);
+            if (F(j, f0) != v)
+                orient += 2;
+            face_edgeOrients[f0][j] = (orient + value.second - value.first + 4) % 4;
+        }
+        face_spaces[f0].d = d;
+        for (int j = 0; j < 3; ++j) {
+            int eid = face_edgeIds[f0][j];
+            int orient = face_edgeOrients[f0][j];
+            auto diff = rshift90(diffs[f0 * 3 + j], (4 - orient) % 4);
+            edge_diff[eid] = diff;
+        }
+    };
+    auto FixOrient = [&](int f0) {
+        for (int j = 0; j < 3; ++j) {
+            auto diff = edge_diff[face_edgeIds[f0][j]];
+            if (rshift90(diff, face_edgeOrients[f0][j]) != diffs[f0 * 3 + j]) {
+                int orient = 0;
+                while (orient < 4 && rshift90(diff, orient) != diffs[f0 * 3 + j])
+                    orient += 1;
+                face_spaces[f0].d[j] = (face_spaces[f0].d[j] + orient - face_edgeOrients[f0][j]) % 4;
+                face_edgeOrients[f0][j] = orient;
+            }
+        }
+    };
+    auto Length = [&](int f0) {
+        int l = 0;
+        for (int j = 0; j < 3; ++j) {
+            for (int k = 0; k < 2; ++k) {
+                l += abs(diffs[f0*3+j][k]);
+            }
+            printf("<%d %d> ", diffs[f0*3+j][0], diffs[f0*3+j][1]);
+        }
+        printf("\n");
+        return l;
+    };
+    int nV = V.cols(), nF = F.cols(), nSplit = 0;
+    /*
+     /   v0  \
+     v1p 1 | 0 v0p
+     \   v1  /
+     
+     /   v0  \
+     /  1 | 0  \
+     v1p - vn - v0p
+     \  2 | 3  /
+     \   v1  /
+     
+     f0: vn, v0p, v0
+     f1: vn, v0, v1p
+     f2: vn, v1p, v1
+     f3: vn, v1, v0p
+     */
+    int counter = 0;
+    while (!queue.empty()) {
+        counter += 1;
+        EdgeLink edge = queue.front();
+        queue.pop();
+        int e0 = edge.id, e1 = E2E[e0];
+        bool is_boundary = e1 == -1;
+        int f0 = e0 / 3, f1 = is_boundary ? -1 : (e1 / 3);
+        int v0 = F(e0 % 3, f0), v0p = F((e0 + 2) % 3, f0), v1 = F((e0 + 1) % 3, f0);
+        if ((V.col(v0) - V.col(v1)).squaredNorm() != edge.length) {
+            continue;
+        }
+        if (abs(diffs[e0][0]) < 2 && abs(diffs[e0][1]) < 2)
+            continue;
+        if (f1 != -1) {
+            face_edgeOrients.push_back(Vector3i());
+            face_edgeIds.push_back(Vector3i());
+        }
+        int v1p = is_boundary ? -1 : F((e1 + 2) % 3, f1);
+        int vn = nV++;
+        nSplit++;
+        if (nV > V.cols()) {
+            V.conservativeResize(V.rows(), V.cols() * 2);
+            N.conservativeResize(N.rows(), N.cols() * 2);
+            Q.conservativeResize(Q.rows(), Q.cols() * 2);
+            O.conservativeResize(O.rows(), O.cols() * 2);
+            V2E.conservativeResize(V.cols());
+            boundary.conservativeResize(V.cols());
+            nonmanifold.conservativeResize(V.cols());
+        }
+        
+        
+        V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5f;
+        N.col(vn) = N.col(v0);
+        Q.col(vn) = Q.col(v0);
+        O.col(vn) = (O.col(v0) + O.col(v1)) * 0.5;
+        nonmanifold[vn] = false;
+        boundary[vn] = is_boundary;
+        
+        int eid = face_edgeIds[f0][e0 % 3];
+        int eid01 = face_edgeIds[f0][(e0 + 1) % 3];
+        int eid02 = face_edgeIds[f0][(e0 + 2) % 3];
+        int eid11 = face_edgeIds[f1][(e1 + 1) % 3];
+        int eid12 = face_edgeIds[f1][(e1 + 2) % 3];
+        
+        int eid0, eid1, eid0p, eid1p;
 
-	std::vector<EdgeInfo> queue;
-	int qid = 0;
-	auto sanity = [&](int c) {
-		printf("check sanity %d\n", c);
-		for (int i = 0; i < face_edgeIds.size(); ++i) {
-			for (int j = 0; j < 3; ++j) {
-				if (edge_values[face_edgeIds[i][j]] != DEdge(F(j, i), F((j + 1) % 3, i))) {
-					printf("edge id wrong!\n");
-                    exit(0);
-				}
-			}
-		}
-		for (int i = 0; i < face_edgeOrients.size(); ++i) {
-			if (singularities.count(i))
-				continue;
-			for (int j = 0; j < 3; ++j) {
-				int od0, od1;
-				int orient0 = face_edgeOrients[i][j];
-				int orient1 = face_edgeOrients[i][(j + 1) % 3];
-				int v0 = F(j, i), v1 = F((j + 1) % 3, i), v2 = F((j + 2) % 3, i);
-				if (v0 < v1) {
-					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(F(0, i)), N.col(F(0, i)));
-					od0 = (value1.second - value1.first + 4) % 4;
-				}
-				else {
-					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(F(0, i)), N.col(F(0, i)));
-					od0 = (value1.second - value1.first + 6) % 4;
-				}
-				if (v1 < v2) {
-					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(F(0, i)), N.col(F(0, i)));
-					od1 = (value1.second - value1.first + 4) % 4;
-				}
-				else {
-					auto value1 = compat_orientation_extrinsic_index_4(Q.col(v2), N.col(v2), Q.col(F(0, i)), N.col(F(0, i)));
-					od1 = (value1.second - value1.first + 6) % 4;
-				}
+        
+        eid0 = eid;
+        edge_values[eid0] = DEdge(v0, vn);
+        
+        eid1 = edge_values.size();
+        edge_values.push_back(DEdge(vn, v1));
+        edge_diff.push_back(Vector2i());
+        
+        eid0p = edge_values.size();
+        edge_values.push_back(DEdge(vn, v0p));
+        edge_diff.push_back(Vector2i());
 
-				if ((orient0 - od0 + 4) % 4 != (orient1 - od1 + 4) % 4) {
-					printf("%d %d %d %d\n", orient0, od0, orient1, od1);
-					printf("orient wrong!\n");
-                    exit(0);
-                }
-			}
-		}
-		for (int i = 0; i < face_edgeIds.size(); ++i) {
-			Vector2i total_diff(0, 0);
-			for (int j = 0; j < 3; ++j) {
-				total_diff += rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
-				if ((c || singularities.count(i)) &&
-					(abs(edge_diff[face_edgeIds[i][j]][0]) > 1 || abs(edge_diff[face_edgeIds[i][j]][1]) > 1))
-				{
-					printf("long edge %d!\n",  (int)singularities.count(i));
-					printf("%d %d\n",  (int)i,  (int)j);
-                    exit(0);
-				}
-			}
-			if (total_diff != Vector2i(0, 0)) {
-				printf("non zero diff\n");
-//                exit(0);
-			}
-		}
-		printf("finish check!\n");
-	};
 
-	auto AnalyzeOrients = [&](int f0, int orients[3]) {
-		int vo = F(0, f0);
-		for (int j = 0; j < 3; ++j) {
-			int od0;
-			int v0 = F(j, f0), v1 = F((j + 1) % 3, f0);
-			if (v0 < v1) {
-				auto value1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(vo), N.col(vo));
-				od0 = (value1.second - value1.first + 4) % 4;
-			}
-			else {
-				auto value1 = compat_orientation_extrinsic_index_4(Q.col(v1), N.col(v1), Q.col(vo), N.col(vo));
-				od0 = (value1.second - value1.first + 6) % 4;
-			}
-			orients[j] = od0;
-		}
-	};
+        int f2 = is_boundary ? -1 : (nF++);
+        int f3 = nF++;
+        face_edgeIds.push_back(Vector3i());
+        face_edgeOrients.push_back(Vector3i());
 
-	sanity(0);
-	for (int i = 0; i < E2E.size(); ++i) {
-		if (singularities.count(i / 3) || singularities.count(E2E[i] / 3)) {
-			continue;
-		}
-		int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
-		if (nonmanifold[v0] || nonmanifold[v1])
-			continue;
-		Vector2i diff = edge_diff[face_edgeIds[i/3][i%3]];
-		if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
-			int other = E2E[i];
-			if (other == -1 || other > i) {
-				EdgeInfo info;
-				info.e2eid = i;
-				info.edge = DEdge(v0, v1);
-				queue.push_back(info);
-			}
-		}
-	}
+        if (nF > F.cols()) {
+            F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
+            face_spaces.resize(F.cols());
+            E2E.conservativeResize(F.cols() * 3);
+            diffs.resize(F.cols() * 3);
+        }
 
-	int nV = V.cols(), nF = F.cols(), nSplit = 0;
-	int counter = 0;
+        auto D01 = diffs[e0];
+        auto D1p = diffs[e0/3*3+(e0+1)%3];
+        auto Dp0 = diffs[e0/3*3+(e0+2)%3];
+        auto D0n = D01 / 2;
+        auto Ds10 = diffs[e1];
+        auto Ds0p = diffs[e1/3*3+(e1+1)%3];
+        auto Dsp1 = diffs[e1/3*3+(e1+2)%3];
+        int orient = 0;
+        while (rshift90(D01, orient) != Ds10)
+            orient += 1;
+        auto Dsn0 = rshift90(D0n, orient);
+        
+        auto orients1 = face_spaces[f0];
+        auto orients2 = face_spaces[f1];
+        F.col(f0) << vn, v0p, v0;
+        face_edgeIds[f0] = Vector3i(eid0p, eid02, eid0);
+        diffs[f0*3] = D01 + D1p - D0n;
+        diffs[f0*3+1] = Dp0;
+        diffs[f0*3+2] = D0n;
+        int o1 = e0 % 3, o2 = e1 % 3;
+        AnalyzeOrient(f0, Vector3i(0, orients1.d[(o1 + 2) % 3], orients1.d[o1]));
+        if (!is_boundary) {
+            F.col(f1) << vn, v0, v1p;
+            eid1p = edge_values.size();
+            edge_values.push_back(DEdge(vn, v1p));
+            edge_diff.push_back(Vector2i());
+            face_edgeIds[f1] = (Vector3i(eid0, eid11, eid1p));
+            diffs[f1*3] = Dsn0;
+            diffs[f1*3+1] = Ds0p;
+            diffs[f1*3+2] = Dsp1 + (Ds10 - Dsn0);
+            AnalyzeOrient(f1, Vector3i(orients2.d[o2], orients2.d[(o2 + 1) % 3], 0));
 
-	while (qid != queue.size()) {
-		counter += 1;
-		EdgeInfo edge = queue[qid];
-		qid++;
-		int e0 = edge.e2eid, e1 = E2E[e0];
-		if (edge.edge != edge_values[face_edgeIds[e0 / 3][e0 % 3]]) {
-			continue;
-		}
-		bool is_boundary = e1 == -1;
-		int f0 = e0 / 3, f1 = is_boundary ? -1 : (e1 / 3);
-		int f2 = is_boundary ? -1 : (nF++);
-		if (f2 != -1) {
-			face_edgeOrients.push_back(Vector3i());
-			face_edgeIds.push_back(Vector3i());
-		}
-		int f3 = nF++;
-		face_edgeOrients.push_back(Vector3i());
-		face_edgeIds.push_back(Vector3i());
-		int v0 = F(e0 % 3, f0), v0p = F((e0 + 2) % 3, f0), v1 = F((e0 + 1) % 3, f0);
-		int v1p = is_boundary ? -1 : F((e1 + 2) % 3, f1);
-
-		int eid = face_edgeIds[f0][e0 % 3];
-		int eid01 = face_edgeIds[f0][(e0 + 1) % 3];
-		int eid02 = face_edgeIds[f0][(e0 + 2) % 3];
-		int eid11 = face_edgeIds[f1][(e1 + 1) % 3];
-		int eid12 = face_edgeIds[f1][(e1 + 2) % 3];
-
-		int eid0, eid1, eid0p, eid1p;
-
-		int vn = nV++;
-		nSplit++;
-		/* Update V */
-		if (nV > V.cols()) {
-			V.conservativeResize(V.rows(), V.cols() * 2);
-			N.conservativeResize(N.rows(), N.cols() * 2);
-			Q.conservativeResize(Q.rows(), Q.cols() * 2);
-			O.conservativeResize(O.rows(), O.cols() * 2);
-			V2E.conservativeResize(V.cols());
-			boundary.conservativeResize(V.cols());
-			nonmanifold.conservativeResize(V.cols());
-		}
-
-		/* Update V */
-		V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5;
-		N.col(vn) = N.col(v0);
-		Q.col(vn) = Q.col(v0);
-		O.col(vn) = (O.col(v0) + O.col(v1)) * 0.5;
-
-		auto id1 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(vn), N.col(vn));
-		auto id2 = compat_orientation_extrinsic_index_4(Q.col(vn), N.col(vn), Q.col(v1), N.col(v1));
-		auto id3 = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
-		int t1 = id1.second - id1.first;
-		int t2 = id2.second - id2.first;
-		if ((t1 + t2 + 8) % 4 != (id3.second - id3.first + 4) % 4) {
-			printf("inconsistent orients!\n");
-		}
-		nonmanifold[vn] = false;
-		boundary[vn] = is_boundary;
-		eid0 = eid;
-		edge_values[eid0] = DEdge(v0, vn);
-		
-		eid1 = edge_values.size();
-		edge_values.push_back(DEdge(vn, v1));
-		auto index = compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
-		if (v0 < v1) {
-			auto diff = edge_diff[eid];
-			edge_diff[eid0] = diff / 2;
-			edge_diff.push_back(rshift90(diff / 2 - diff, (index.second - index.first + 4) % 4));
-		}
-		else {
-			auto diff = edge_diff[eid];
-			edge_diff[eid0] = rshift90(-diff / 2, (index.first - index.second + 4) % 4);
-			edge_diff.push_back(diff - diff / 2);
-		}
-
-		eid0p = edge_values.size();
-		edge_values.push_back(DEdge(vn, v0p));
-
-		/* Update F and E2E */
-		if (nF > F.cols()) {
-			F.conservativeResize(F.rows(), std::max(nF, (int)F.cols() * 2));
-			E2E.conservativeResize(F.cols() * 3);
-		}
-
-		/* Update F */
-		F.col(f0) << vn, v0p, v0;
-		face_edgeIds[f0] = Vector3i(eid0p, eid02, eid0);
-
-		int orients[3];
-		AnalyzeOrients(f0, orients);
-		face_edgeOrients[f0] = Vector3i(orients[0], orients[1], orients[2]);
-		edge_diff.push_back(rshift90(-rshift90(edge_diff[eid02], orients[1]) - rshift90(edge_diff[eid0], orients[2]), (4 - orients[0]) % 4));
-
-		if (!is_boundary) {
-			F.col(f1) << vn, v0, v1p;
-			AnalyzeOrients(f1, orients);
-			eid1p = edge_values.size();
-			edge_values.push_back(DEdge(vn, v1p));
-
-			face_edgeOrients[f1] = Vector3i(orients[0], orients[1], orients[2]);
-			face_edgeIds[f1] = (Vector3i(eid0, eid11, eid1p));
-			edge_diff.push_back(rshift90(-rshift90(edge_diff[eid0], orients[0]) - rshift90(edge_diff[eid11], orients[1]), (4 - orients[2]) % 4));
-
-			F.col(f2) << vn, v1p, v1;
-			AnalyzeOrients(f2, orients);
-			face_edgeIds[f2] = (Vector3i(eid1p, eid12, eid1));
-			face_edgeOrients[f2] = Vector3i(orients[0], orients[1], orients[2]);
-		}
-		F.col(f3) << vn, v1, v0p;
-		AnalyzeOrients(f3, orients);
-		face_edgeIds[f3] = (Vector3i(eid1, eid01, eid0p));
-		face_edgeOrients[f3] = Vector3i(orients[0], orients[1], orients[2]);
-
-		/* Update E2E */
-		const int e0p = E2E[dedge_prev_3(e0)],
-			e0n = E2E[dedge_next_3(e0)];
-		const int e1p = E2E[dedge_prev_3(e1)],
-			e1n = E2E[dedge_next_3(e1)];
+            face_spaces[f2] = face_spaces[f1];
+            face_edgeIds[f2] = (Vector3i(eid1p, eid12, eid1));
+            F.col(f2) << vn, v1p, v1;
+            diffs[f2*3] = -Dsp1 - (Ds10 - Dsn0);
+            diffs[f2*3+1] = Dsp1;
+            diffs[f2*3+2] = Ds10 - Dsn0;
+            AnalyzeOrient(f2, Vector3i(0, orients2.d[(o2 + 2) % 3], orients2.d[o2]));
+        }
+        face_spaces[f3] = face_spaces[f0];
+        face_edgeIds[f3] = (Vector3i(eid1, eid01, eid0p));
+        F.col(f3) << vn, v1, v0p;
+        diffs[f3*3] = D01 - D0n;
+        diffs[f3*3+1] = D1p;
+        diffs[f3*3+2] = D0n - (D01 + D1p);
+        AnalyzeOrient(f3, Vector3i(orients1.d[o1], orients1.d[(o1 + 1) % 3], 0));
+        
+        FixOrient(f0);
+        FixOrient(f1);
+        FixOrient(f2);
+        FixOrient(f3);
+        
+        const int e0p = E2E[dedge_prev_3(e0)],
+        e0n = E2E[dedge_next_3(e0)];
 
 #define sE2E(a, b) E2E[a] = b; if (b != -1) E2E[b] = a;
-		sE2E(3 * f0 + 0, 3 * f3 + 2);
-		sE2E(3 * f0 + 1, e0p);
-		sE2E(3 * f3 + 1, e0n);
-		if (is_boundary) {
-			sE2E(3 * f0 + 2, -1);
-			sE2E(3 * f3 + 0, -1);
-		}
-		else {
-			sE2E(3 * f0 + 2, 3 * f1 + 0);
-			sE2E(3 * f1 + 1, e1n);
-			sE2E(3 * f1 + 2, 3 * f2 + 0);
-			sE2E(3 * f2 + 1, e1p);
-			sE2E(3 * f2 + 2, 3 * f3 + 0);
-		}
+        sE2E(3 * f0 + 0, 3 * f3 + 2);
+        sE2E(3 * f0 + 1, e0p);
+        sE2E(3 * f3 + 1, e0n);
+        if (is_boundary) {
+            sE2E(3 * f0 + 2, -1);
+            sE2E(3 * f3 + 0, -1);
+        }
+        else {
+            const int e1p = E2E[dedge_prev_3(e1)],
+            e1n = E2E[dedge_next_3(e1)];
+            sE2E(3 * f0 + 2, 3 * f1 + 0);
+            sE2E(3 * f1 + 1, e1n);
+            sE2E(3 * f1 + 2, 3 * f2 + 0);
+            sE2E(3 * f2 + 1, e1p);
+            sE2E(3 * f2 + 2, 3 * f3 + 0);
+        }
 #undef sE2E
-
-		/* Update V2E */
-		V2E[v0] = 3 * f0 + 2;
-		V2E[vn] = 3 * f0 + 0;
-		V2E[v1] = 3 * f3 + 1;
-		V2E[v0p] = 3 * f0 + 1;
-		if (!is_boundary)
-			V2E[v1p] = 3 * f1 + 2;
-
-		auto schedule = [&](int f) {
-			for (int i = 0; i<3; ++i) {
-				Vector2i diff = edge_diff[face_edgeIds[f][i]];
-				if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
-					EdgeInfo info;
-					info.e2eid = f * 3 + i;
-					info.edge = edge_values[face_edgeIds[f][i]];
-					queue.push_back(info);
-
-				}
-			}
-		};
-
-		schedule(f0);
-		if (!is_boundary) {
-			schedule(f2);
-			schedule(f1);
-		};
-		schedule(f3);
-	}
-	sanity(1);
-
-	F.conservativeResize(F.rows(), nF);
-	V.conservativeResize(V.rows(), nV);
-	N.conservativeResize(N.rows(), nV);
-	Q.conservativeResize(Q.rows(), nV);
-	O.conservativeResize(O.rows(), nV);
-
-	V2E.conservativeResize(nV);
-	boundary.conservativeResize(nV);
-	nonmanifold.conservativeResize(nV);
-	E2E.conservativeResize(nF * 3);
-
-
+        
+         
+        V2E[v0] = 3 * f0 + 2;
+        V2E[vn] = 3 * f0 + 0;
+        V2E[v1] = 3 * f3 + 1;
+        V2E[v0p] = 3 * f0 + 1;
+        if (!is_boundary)
+            V2E[v1p] = 3 * f1 + 2;
+        
+        auto schedule = [&](int f) {
+            for (int i = 0; i<3; ++i) {
+                if (abs(diffs[f*3+i][0]) > 1 || abs(diffs[f*3+i][1]) > 1) {
+                    EdgeLink e;
+                    e.id = f * 3 + i;
+                    e.length = (V.col(F((i+1)%3, f)) - V.col(F(i, f))).squaredNorm();
+                    e.diff = diffs[f*3+i];
+                    queue.push(e);
+                }
+            }
+        };
+        
+        schedule(f0);
+        if (!is_boundary) {
+            schedule(f2);
+            schedule(f1);
+        };
+        schedule(f3);
+    }
+    
+    F.conservativeResize(F.rows(), nF);
+    V.conservativeResize(V.rows(), nV);
+    N.conservativeResize(V.rows(), nV);
+    Q.conservativeResize(V.rows(), nV);
+    O.conservativeResize(V.rows(), nV);
+    V2E.conservativeResize(nV);
+    boundary.conservativeResize(nV);
+    nonmanifold.conservativeResize(nV);
+    E2E.conservativeResize(nF * 3);
+    
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            auto diff = edge_diff[face_edgeIds[i][j]];
+            if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+                printf("wrong init %d %d!\n", face_edgeIds[i][j], i * 3 + j);
+                exit(0);
+            }
+        }
+    }
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
+            printf("wrong...\n");
+            exit(0);
+        }
+    }
+    printf("finish subdivide!\n");
 }
