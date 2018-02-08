@@ -460,5 +460,4 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
             exit(0);
         }
     }
-    printf("finish subdivide!\n");
 }

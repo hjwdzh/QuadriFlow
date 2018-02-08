@@ -93,7 +93,6 @@ int main(int argc, char** argv) {
     t2 = GetCurrentTime64();
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
     fflush(stdout);
-
     printf("Writing the file...\n");
     fflush(stdout);
     if (output_obj.size() < 1)

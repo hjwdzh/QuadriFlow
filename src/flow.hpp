@@ -257,9 +257,6 @@ public:
                     if (flow.flow > 0) {
                         edge_diff[flow.v / 2][flow.v % 2] += flow.d * flow.flow;
                         if (abs(edge_diff[flow.v/2][flow.v%2]) > 2) {
-                            printf("%d %d %d\n", flow.v, flow.flow, flow.capacity);
-                            printf("Apply error 2\n");
-                            exit(0);
                         }
                     }
                 }

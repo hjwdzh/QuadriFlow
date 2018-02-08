@@ -330,7 +330,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
     
     bool FullFlow = false;
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
-        printf("flow %d...\n", level);
         auto& EdgeDiff = mRes.mEdgeDiff[level];
         auto& FQ = mRes.mFQ[level];
         auto& F2E = mRes.mF2E[level];
@@ -410,14 +409,11 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                 }
             }
             
-            printf("compute....\n");
             int flow_count = flow->compute();
-            printf("finish...\n");
             //flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
             //    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
             flow->Apply(EdgeDiff);
             delete flow;
-            printf("%d %d %d\n", flow_count, supply, demand);
             if (flow_count == supply) {
                 FullFlow = true;
             }
@@ -449,7 +445,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             }
         }
     }
-    printf("finish...\n");
 }
 
 
