@@ -20,9 +20,10 @@ T Length2(const T a[3]) {
 }
 
 struct FaceConstraint {
-    FaceConstraint(double alpha, double beta, Vector3d normal[4], double bias[4], double length)
-        : alpha(alpha),
-          beta(beta),
+    FaceConstraint(double coeff_length, double coeff_bias, Vector3d normal[4], double bias[4],
+                   double length)
+        : coeff_length(coeff_length),
+          coeff_bias(coeff_bias),
           length0(length),
           bias0{
               bias[0],
@@ -47,7 +48,7 @@ struct FaceConstraint {
 
             T a[3]{pa[0] - pc[0], pa[1] - pc[1], pa[2] - pc[2]};
             T b[3]{pb[0] - pc[0], pb[1] - pc[1], pb[2] - pc[2]};
-            r[3 * k + 0] = alpha * (ceres::sqrt(Length2(a)) - length0);
+            r[3 * k + 0] = coeff_length * (ceres::sqrt(Length2(a)) - length0);
 
             T normal[3];
             ceres::CrossProduct(a, b, normal);
@@ -55,7 +56,7 @@ struct FaceConstraint {
             if (l2normal == T()) continue;
             for (int i = 0; i < 3; ++i) normal[i] /= l2normal;
             r[3 * k + 1] = ceres::acos(Dot(normal, &normal0[k][0]));
-            r[3 * k + 2] = beta * (Dot(pc, normal) - bias0[k]);
+            r[3 * k + 2] = coeff_bias * (Dot(pc, normal) - bias0[k]);
         }
         return true;
     }
@@ -66,8 +67,8 @@ struct FaceConstraint {
             new FaceConstraint(alpha, beta, normal, bias, length));
     }
 
-    double alpha;
-    double beta;
+    double coeff_length;
+    double coeff_bias;
     double length0;
 
     double bias0[4];
@@ -94,6 +95,7 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad, std::vector<Vector3d
         (int)V.cols(), (int)N.cols(), (int)Q.cols(), (int)O.cols());
     printf("Number of faces: %d\n", (int)F.cols());
     printf("Number of directed edges: %d\n", (int)E2E.size());
+    printf("Reference length: %.2f\n", reference_length);
 
     /* initial quad flips
      currently there are many flips, (82 flips in hand.obj)
@@ -156,7 +158,7 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad, std::vector<Vector3d
             normal[k] = N_quad[k];
         }
         ceres::CostFunction* cost_function =
-            FaceConstraint::create(0.1, 1, normal, bias, reference_length);
+            FaceConstraint::create(0.01, 0.5, normal, bias, reference_length);
         problem.AddResidualBlock(cost_function, nullptr, var);
     }
 
@@ -167,4 +169,12 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad, std::vector<Vector3d
     ceres::Solve(options, &problem, &summary);
 
     std::cout << summary.BriefReport() << std::endl;
+
+    return;
+
+    for (int vquad = 0; vquad < n_quad; ++vquad) {
+        O_quad[vquad][0] = solution[3 * vquad + 0];
+        O_quad[vquad][1] = solution[3 * vquad + 1];
+        O_quad[vquad][2] = solution[3 * vquad + 2];
+    }
 }
