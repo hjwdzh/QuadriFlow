@@ -54,6 +54,6 @@ void optimize_quad_positions(std::vector<Vector3d>& O_quad, std::vector<Vector3d
                              std::vector<Vector3d>& Q_quad, std::vector<Vector4i>& F_quad,
                              VectorXi& V2E_quad, VectorXi& E2E_quad, MatrixXd& V, MatrixXd& N,
                              MatrixXd& Q, MatrixXd& O, MatrixXi& F, VectorXi& V2E, VectorXi& E2E,
-                             DisajointTree& disajoint_tree);
+                             DisajointTree& disajoint_tree, double reference_length);
 
 #endif /* post_solver_h */

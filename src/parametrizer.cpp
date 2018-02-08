@@ -16,10 +16,8 @@
 
 #define LOG_OUTPUT
 //#define PERFORM_TEST
-extern void generate_adjacency_matrix_uniform(const MatrixXi& F,
-                                              const VectorXi& V2E,
-                                              const VectorXi& E2E,
-                                              const VectorXi& nonManifold,
+extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,
+                                              const VectorXi& E2E, const VectorXi& nonManifold,
                                               AdjacentMatrix& adj);
 
 inline double fast_acos(double x) {
@@ -318,23 +316,9 @@ void Parametrizer::ComputePositionSingularities(int with_scale) {
             }
             double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y,
                    inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
-            std::pair<Vector2i, Vector2i> value = compat_position_extrinsic_index_4(v[k],
-                                                                                    n[k],
-                                                                                    q[k],
-                                                                                    o[k],
-                                                                                    v[kn],
-                                                                                    n[kn],
-                                                                                    q[kn],
-                                                                                    o[kn],
-                                                                                    scale_x,
-                                                                                    scale_y,
-                                                                                    inv_scale_x,
-                                                                                    inv_scale_y,
-                                                                                    scale_x_1,
-                                                                                    scale_y_1,
-                                                                                    inv_scale_x_1,
-                                                                                    inv_scale_y_1,
-                                                                                    nullptr);
+            std::pair<Vector2i, Vector2i> value = compat_position_extrinsic_index_4(
+                v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
+                inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
             auto diff = value.first - value.second;
             index += diff;
             pos_index(k * 2, f) = diff[0];
@@ -389,75 +373,23 @@ void Parametrizer::EstimateScale() {
 
         f = i;
         len = step;
-        TravelField(p,
-                    q_xl,
-                    len,
-                    f,
-                    hierarchy.mE2E,
-                    mV,
-                    mF,
-                    Nf,
-                    FQ,
-                    mQ,
-                    mN,
-                    triangle_space,
-                    &tx,
-                    &ty,
-                    &q_yl_unfold);
+        TravelField(p, q_xl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
+                    &ty, &q_yl_unfold);
 
         f = i;
         len = step;
-        TravelField(p,
-                    q_xr,
-                    len,
-                    f,
-                    hierarchy.mE2E,
-                    mV,
-                    mF,
-                    Nf,
-                    FQ,
-                    mQ,
-                    mN,
-                    triangle_space,
-                    &tx,
-                    &ty,
-                    &q_yr_unfold);
+        TravelField(p, q_xr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
+                    &ty, &q_yr_unfold);
 
         f = i;
         len = step;
-        TravelField(p,
-                    q_yl,
-                    len,
-                    f,
-                    hierarchy.mE2E,
-                    mV,
-                    mF,
-                    Nf,
-                    FQ,
-                    mQ,
-                    mN,
-                    triangle_space,
-                    &tx,
-                    &ty,
-                    &q_xl_unfold);
+        TravelField(p, q_yl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
+                    &ty, &q_xl_unfold);
 
         f = i;
         len = step;
-        TravelField(p,
-                    q_yr,
-                    len,
-                    f,
-                    hierarchy.mE2E,
-                    mV,
-                    mF,
-                    Nf,
-                    FQ,
-                    mQ,
-                    mN,
-                    triangle_space,
-                    &tx,
-                    &ty,
-                    &q_xr_unfold);
+        TravelField(p, q_yr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
+                    &ty, &q_xr_unfold);
         double dSx = (q_yr_unfold - q_yl_unfold).dot(q_x) / (2.0f * step);
         double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
         FS.col(i) = Vector2d(dSx, dSy);
@@ -469,8 +401,8 @@ void Parametrizer::EstimateScale() {
         Vector3d p2 = mV.col(mF(2, i)) - mV.col(mF(0, i));
         double area = p1.cross(p2).norm();
         for (int j = 0; j < 3; ++j) {
-            auto index = compat_orientation_extrinsic_index_4(
-                FQ.col(i), Nf.col(i), mQ.col(mF(j, i)), mN.col(mF(j, i)));
+            auto index = compat_orientation_extrinsic_index_4(FQ.col(i), Nf.col(i),
+                                                              mQ.col(mF(j, i)), mN.col(mF(j, i)));
             double scaleX = FS.col(i).x(), scaleY = FS.col(i).y();
             if (index.first != index.second % 2) {
                 std::swap(scaleX, scaleY);
@@ -831,36 +763,12 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     printf("Fix flip advance...\n");
     printf("thanks %ld %ld %zd\n", V.cols(), O.cols(), disajoint_tree.indices.size());
-    subdivide_diff(F,
-                   V,
-                   N,
-                   Q,
-                   O,
-                   V2E,
-                   hierarchy.mE2E,
-                   boundary,
-                   nonManifold,
-                   edge_diff,
-                   edge_values,
-                   face_edgeOrients,
-                   face_edgeIds,
-                   singularities);
+    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
+                   edge_values, face_edgeOrients, face_edgeIds, singularities);
 
     FixFlipAdvance();
-    subdivide_diff(F,
-                   V,
-                   N,
-                   Q,
-                   O,
-                   V2E,
-                   hierarchy.mE2E,
-                   boundary,
-                   nonManifold,
-                   edge_diff,
-                   edge_values,
-                   face_edgeOrients,
-                   face_edgeIds,
-                   singularities);
+    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
+                   edge_values, face_edgeOrients, face_edgeIds, singularities);
 
     for (int i = 0; i < edge_diff.size(); ++i) {
         if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
@@ -892,8 +800,8 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         if (counter[compact_v] == 0)
             Q_compact[compact_v] = Q.col(i);
         else {
-            auto pairs = compat_orientation_extrinsic_4(
-                Q_compact[compact_v], N_compact[compact_v], Q.col(i), N.col(i));
+            auto pairs = compat_orientation_extrinsic_4(Q_compact[compact_v], N_compact[compact_v],
+                                                        Q.col(i), N.col(i));
             Q_compact[compact_v] = (pairs.first * counter[compact_v] + pairs.second).normalized();
         }
         counter[compact_v] += 1;
@@ -1002,8 +910,8 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     for (auto& c : quad_cells) {
         if (c.second.second != Vector3i(-100, -100, -100)) {
-            F_compact.push_back(Vector4i(
-                c.second.first[0], c.second.second[2], c.second.first[1], c.second.first[2]));
+            F_compact.push_back(Vector4i(c.second.first[0], c.second.second[2], c.second.first[1],
+                                         c.second.first[2]));
         }
     }
     printf("Fix holes...\n");
@@ -1011,24 +919,12 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     // potential bug, not guarantee to have quads at holes!
     printf("Direct Quad Graph...\n");
-    compute_direct_graph_quad(
-        O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                              nonManifold_compact);
     printf("Direct Quad Graph finish...\n");
 
-    optimize_quad_positions(O_compact,
-                            N_compact,
-                            Q_compact,
-                            F_compact,
-                            V2E_compact,
-                            E2E_compact,
-                            V,
-                            N,
-                            Q,
-                            O,
-                            F,
-                            V2E,
-                            hierarchy.mE2E,
-                            disajoint_tree);
+    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
+                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale);
 
     int count = 0;
     for (int i = 0; i < F.cols(); ++i) {
@@ -1149,11 +1045,11 @@ void Parametrizer::FixHoles() {
         while (!loop_vertices.empty()) {
             if (loop_vertices.size() <= 4) {
                 if (loop_vertices.size() == 4)
-                    F_compact.push_back(Vector4i(
-                        loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[3]));
+                    F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1],
+                                                 loop_vertices[2], loop_vertices[3]));
                 else
-                    F_compact.push_back(Vector4i(
-                        loop_vertices[0], loop_vertices[1], loop_vertices[2], loop_vertices[2]));
+                    F_compact.push_back(Vector4i(loop_vertices[0], loop_vertices[1],
+                                                 loop_vertices[2], loop_vertices[2]));
 
                 if (directed_edges.count((long long)loop_vertices[0] * numV + loop_vertices[1])) {
                     std::swap(F_compact.back()[1], F_compact.back()[3]);
@@ -1600,12 +1496,8 @@ void Parametrizer::FixFlipAdvance() {
                 auto& l2 = vertices_to_edges[ny][nx];
                 if (std::find(l1.begin(), l1.end(), i) == l1.end() ||
                     std::find(l2.begin(), l2.end(), i) == l2.end()) {
-                    printf("edge %d not indexed in vertices (%d %d) %d %d\n",
-                           i,
-                           nx,
-                           ny,
-                           edge_values[i].x,
-                           edge_values[i].y);
+                    printf("edge %d not indexed in vertices (%d %d) %d %d\n", i, nx, ny,
+                           edge_values[i].x, edge_values[i].y);
                     for (auto& m : l1) {
                         printf("<%d %d>  ", edge_values[m].x, edge_values[m].y);
                     }
@@ -1668,8 +1560,7 @@ void Parametrizer::FixFlipAdvance() {
             }
 
             if (l.size() != faces_from_edge[f].size()) {
-                printf("inconsistent edge-face connection! -1 %d %d\n",
-                       (int)l.size(),
+                printf("inconsistent edge-face connection! -1 %d %d\n", (int)l.size(),
                        (int)faces_from_edge[f].size());
                 for (auto& p : l) {
                     printf("%d ", p);
@@ -1679,10 +1570,7 @@ void Parametrizer::FixFlipAdvance() {
                     printf("%d ", faces_from_edge[f][i]);
                 }
                 printf("\n");
-                printf("face %d %d %d %d\n",
-                       f,
-                       tree.Parent(F(0, f)),
-                       tree.Parent(F(1, f)),
+                printf("face %d %d %d %d\n", f, tree.Parent(F(0, f)), tree.Parent(F(1, f)),
                        tree.Parent(F(2, f)));
                 printf("face origin %d %d %d\n", F(0, f), F(1, f), F(2, f));
                 //                exit(0);
@@ -1713,25 +1601,11 @@ void Parametrizer::FixFlipAdvance() {
             Vector2i total = diff[0] + diff[1] + diff[2];
             if (total != Vector2i::Zero()) {
                 printf("zero face constraint violated %d\n", i);
-                printf("<%d %d> (%d eid %d) <%d %d> (%d eid %d) <%d %d> (%d eid %d)\n",
-                       diff[0][0],
-                       diff[0][1],
-                       orients[0],
-                       pids[0],
-                       diff[1][0],
-                       diff[1][1],
-                       orients[1],
-                       pids[1],
-                       diff[2][0],
-                       diff[2][1],
-                       orients[2],
-                       pids[2]);
-                printf("f %d (%d %d %d):  %d %d %d",
-                       i,
-                       tree.Parent(F(0, i)),
-                       tree.Parent(F(1, i)),
-                       tree.Parent(F(2, i)),
-                       get_parents(parent_edge, face_edgeIds[i][0]),
+                printf("<%d %d> (%d eid %d) <%d %d> (%d eid %d) <%d %d> (%d eid %d)\n", diff[0][0],
+                       diff[0][1], orients[0], pids[0], diff[1][0], diff[1][1], orients[1],
+                       pids[1], diff[2][0], diff[2][1], orients[2], pids[2]);
+                printf("f %d (%d %d %d):  %d %d %d", i, tree.Parent(F(0, i)), tree.Parent(F(1, i)),
+                       tree.Parent(F(2, i)), get_parents(parent_edge, face_edgeIds[i][0]),
                        get_parents(parent_edge, face_edgeIds[i][1]),
                        get_parents(parent_edge, face_edgeIds[i][2]));
                 //                exit(0);
@@ -1743,77 +1617,76 @@ void Parametrizer::FixFlipAdvance() {
         printf("finish...\n");
     };
 
-    auto ExtractEdgeSet =
-        [&](int v1, int v2, int pid, std::vector<std::pair<int, Vector2i>>& edge_change) {
-            std::unordered_map<int, Vector2i> edge_set;
-            edge_change.push_back(std::make_pair(pid, edge_diff[pid]));
+    auto ExtractEdgeSet = [&](int v1, int v2, int pid,
+                              std::vector<std::pair<int, Vector2i>>& edge_change) {
+        std::unordered_map<int, Vector2i> edge_set;
+        edge_change.push_back(std::make_pair(pid, edge_diff[pid]));
+        edge_set.insert(edge_change.back());
+        std::queue<int> faces;
+        for (auto& f : edge_to_faces[pid]) {
+            faces.push(f);
+        }
+        std::set<int> modified;
+        while (!faces.empty()) {
+            int f = faces.front();
+            modified.insert(f);
+            faces.pop();
+            int eids[3];
+            int orient[3];
+            Vector2i total_diff(0, 0);
+            for (int i = 0; i < 3; ++i) {
+                int eid = face_edgeIds[f][i];
+                int pid = get_parents(parent_edge, eid);
+                orient[i] = (get_parents_orient(parent_edge, eid) + face_edgeOrients[f][i]) % 4;
+                eids[i] = pid;
+                Vector2i diff = edge_diff[pid];
+                if (edge_set.count(pid)) diff -= edge_set[pid];
+                total_diff += rshift90(diff, orient[i]);
+            }
+            int count = 0;
+            for (int i = 0; i < 3; ++i) {
+                if (!((tree.Parent(edge_values[eids[i]].x) != v1 &&
+                       tree.Parent(edge_values[eids[i]].y) != v1) ||
+                      edge_set.count(eids[i]))) {
+                    count += 1;
+                }
+            }
+            int next_e = 0;
+            while ((tree.Parent(edge_values[eids[next_e]].x) != v1 &&
+                    tree.Parent(edge_values[eids[next_e]].y) != v1) ||
+                   edge_set.count(eids[next_e])) {
+                next_e += 1;
+                if (next_e == 3) break;
+            }
+            if (total_diff == Vector2i::Zero()) {
+                continue;
+            }
+            if (next_e == 3) {
+                edge_change.clear();
+                return;
+            }
+            int e = next_e + 1;
+            while (e < 3 && eids[next_e] != eids[e]) e += 1;
+            if (e != 3) {
+                edge_change.clear();
+                return;
+            }
+            int change_pid = eids[next_e];
+            auto new_diff = rshift90(total_diff, (4 - orient[next_e]) % 4);
+            if (abs(edge_diff[change_pid][0] - new_diff[0]) > edge_len ||
+                abs(edge_diff[change_pid][1] - new_diff[1]) > edge_len) {
+                edge_change.clear();
+                return;
+            }
+            edge_change.push_back(std::make_pair(change_pid, new_diff));
             edge_set.insert(edge_change.back());
-            std::queue<int> faces;
-            for (auto& f : edge_to_faces[pid]) {
-                faces.push(f);
-            }
-            std::set<int> modified;
-            while (!faces.empty()) {
-                int f = faces.front();
-                modified.insert(f);
-                faces.pop();
-                int eids[3];
-                int orient[3];
-                Vector2i total_diff(0, 0);
-                for (int i = 0; i < 3; ++i) {
-                    int eid = face_edgeIds[f][i];
-                    int pid = get_parents(parent_edge, eid);
-                    orient[i] =
-                        (get_parents_orient(parent_edge, eid) + face_edgeOrients[f][i]) % 4;
-                    eids[i] = pid;
-                    Vector2i diff = edge_diff[pid];
-                    if (edge_set.count(pid)) diff -= edge_set[pid];
-                    total_diff += rshift90(diff, orient[i]);
-                }
-                int count = 0;
-                for (int i = 0; i < 3; ++i) {
-                    if (!((tree.Parent(edge_values[eids[i]].x) != v1 &&
-                           tree.Parent(edge_values[eids[i]].y) != v1) ||
-                          edge_set.count(eids[i]))) {
-                        count += 1;
-                    }
-                }
-                int next_e = 0;
-                while ((tree.Parent(edge_values[eids[next_e]].x) != v1 &&
-                        tree.Parent(edge_values[eids[next_e]].y) != v1) ||
-                       edge_set.count(eids[next_e])) {
-                    next_e += 1;
-                    if (next_e == 3) break;
-                }
-                if (total_diff == Vector2i::Zero()) {
-                    continue;
-                }
-                if (next_e == 3) {
-                    edge_change.clear();
-                    return;
-                }
-                int e = next_e + 1;
-                while (e < 3 && eids[next_e] != eids[e]) e += 1;
-                if (e != 3) {
-                    edge_change.clear();
-                    return;
-                }
-                int change_pid = eids[next_e];
-                auto new_diff = rshift90(total_diff, (4 - orient[next_e]) % 4);
-                if (abs(edge_diff[change_pid][0] - new_diff[0]) > edge_len ||
-                    abs(edge_diff[change_pid][1] - new_diff[1]) > edge_len) {
-                    edge_change.clear();
-                    return;
-                }
-                edge_change.push_back(std::make_pair(change_pid, new_diff));
-                edge_set.insert(edge_change.back());
-                for (auto& nf : edge_to_faces[change_pid]) {
-                    if (nf != f) {
-                        faces.push(nf);
-                    }
+            for (auto& nf : edge_to_faces[change_pid]) {
+                if (nf != f) {
+                    faces.push(nf);
                 }
             }
-        };
+        }
+    };
     auto collapse = [&](int v1, int v2) {
         if (v1 == v2) return;
         std::set<int> collapsed_faces;
@@ -1892,20 +1765,12 @@ void Parametrizer::FixFlipAdvance() {
                                         while (orient < 4 && rshift90(diff1, orient) != diff2)
                                             orient += 1;
                                         if (orient == 4) {
-                                            printf("v %d %d %d %d\n",
-                                                   F(j, f),
-                                                   F((j + 1) % 3, f),
-                                                   F(nj, nf),
-                                                   F((nj + 1) % 3, nf));
+                                            printf("v %d %d %d %d\n", F(j, f), F((j + 1) % 3, f),
+                                                   F(nj, nf), F((nj + 1) % 3, nf));
                                             printf("edge fail to collapse %d %d %d %d\n",
-                                                   edge_values[peid].x,
-                                                   edge_values[peid].y,
-                                                   edge_values[npeid].x,
-                                                   edge_values[npeid].y);
-                                            printf("%d %d %d %d\n",
-                                                   diff1[0],
-                                                   diff1[1],
-                                                   diff2[0],
+                                                   edge_values[peid].x, edge_values[peid].y,
+                                                   edge_values[npeid].x, edge_values[npeid].y);
+                                            printf("%d %d %d %d\n", diff1[0], diff1[1], diff2[0],
                                                    diff2[1]);
                                             printf("no orient solution!\n");
                                             exit(0);

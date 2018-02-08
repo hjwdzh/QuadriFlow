@@ -3,5 +3,3 @@ BasedOnStyle:    Google
 IndentWidth:     4
 Standard:        Cpp11
 ColumnLimit:     99
-BinPackArguments: false
-BinPackParameters: false
