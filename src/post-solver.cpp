@@ -14,7 +14,7 @@
 #include "serialize.hpp"
 
 const double COEFF_AREA = 1;
-const double COEFF_BIAS = 0.5;
+const double COEFF_BIAS = 1;
 const double COEFF_NORMAL = 1;
 const int N_ITER = 100;
 
@@ -128,6 +128,7 @@ void solve(std::vector<Vector3d>& O_quad, std::vector<Vector3d>& N_quad,
     }
 
     ceres::Solver::Options options;
+    options.num_threads = 1;
     options.max_num_iterations = N_ITER;
     options.initial_trust_region_radius = 1;
     options.linear_solver_type = ceres::CGNR;
