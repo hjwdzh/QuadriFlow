@@ -13,13 +13,15 @@ find_package(Ceres REQUIRED)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wall -Wno-sign-compare")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wall -Wno-sign-compare -Wno-maybe-uninitialized")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-int-in-bool-context")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -fsanitize=address")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+    set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
     set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 endif()
 
@@ -72,6 +74,14 @@ add_executable(
     parametrize
     ${parametrize_SRC}
 )
+
+add_executable(
+    postsolver
+    src/post-solver.hpp
+    src/post-solver.cpp
+    src/disajoint-tree.hpp
+)
+
 target_link_libraries(
     parametrize
     ${CERES_LIBRARIES}
@@ -79,3 +89,12 @@ target_link_libraries(
     ${OPENGL_LIBRARIES}
     ${TBB_LIBRARIES}
 )
+
+target_link_libraries(
+    postsolver
+    ${CERES_LIBRARIES}
+)
+
+target_compile_definitions(postsolver PRIVATE POST_SOLVER=1)
+
+

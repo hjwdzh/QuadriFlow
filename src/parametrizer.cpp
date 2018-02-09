@@ -788,7 +788,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     }
     disajoint_tree.BuildCompactParent();
 
-//    ComputePosition(with_scale);
+    ComputePosition(with_scale);
     int num_v = disajoint_tree.CompactNum();
     O_compact.resize(num_v, Vector3d::Zero());
     Q_compact.resize(num_v, Vector3d::Zero());

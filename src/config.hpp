@@ -3,7 +3,7 @@
 
 // #define WITH_SCALE
 // #define WITH_CUDA
-#define WITH_OMP
+// #define WITH_OMP
 // #define WITH_TBB
 // #define WITH_OPENGL
 
