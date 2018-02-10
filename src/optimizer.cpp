@@ -429,27 +429,10 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                 }
             }
         }
-        if (FullFlow) {
-            auto& EdgeDiff = mRes.mEdgeDiff[level];
-            auto& F2E = mRes.mF2E[level];
-            auto& FQ = mRes.mFQ[level];
-            for (int i = 0; i < FQ.size(); ++i) {
-                Vector2i d(0, 0);
-                for (int j = 0; j < 3; ++j) {
-                    d += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
-                }
-                if (d != Vector2i::Zero()) {
-                    printf("wrong..\n");
-                    exit(0);
-                }
-            }
-        }
     }
     if (!FullFlow) {
         printf("Flow not full...\n");
         exit(0);
-    } else {
-        printf("Flow success...\n");
     }
 }
 

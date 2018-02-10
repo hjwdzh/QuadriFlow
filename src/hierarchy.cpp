@@ -7,6 +7,7 @@
 #endif
 #include "pss/parallel_stable_sort.h"
 #include "pcg32/pcg32.h"
+#include <queue>
 Hierarchy::Hierarchy()
 {
 	mAdj.resize(MAX_DEPTH + 1);
@@ -422,23 +423,31 @@ void Hierarchy::LoadFromFile(FILE* fp)
 	Read(fp, this->mPhases);
 }
 
-void Hierarchy::UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff)
+void Hierarchy::UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& edge_diff)
 {
     FQ = std::move(mFQ[0]);
     F2E = std::move(mF2E[0]);
     edge_diff = std::move(mEdgeDiff[0]);
-    E2F = std::move(mE2F[0]);
 }
 
-void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff, int level)
+void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& edge_diff, int level)
 {
+    std::vector<Vector2i> E2F(edge_diff.size(), Vector2i(-1, -1));
+    for (int i = 0; i < F2E.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int e = F2E[i][j];
+            if (E2F[e][0] == -1)
+                E2F[e][0] = i;
+            else
+                E2F[e][1] = i;
+        }
+    }
     int levels = (level == -1) ? 100 : level;
     mFQ.resize(levels);
     mF2E.resize(levels);
     mE2F.resize(levels);
     mEdgeDiff.resize(levels);
     mSing.resize(levels);
-    mFixed.resize(levels);
     mToUpperEdges.resize(levels - 1);
     mToUpperOrients.resize(levels - 1);
     for (int i = 0; i < FQ.size(); ++i) {
@@ -466,9 +475,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 }
             }
         }
-        if ((orient[1] - orient[0] + 4) % 4 != 2) {
-            mFixed[0].push_back(i);
-        }
     }
     for (int l = 0; l < levels - 1; ++l) {
         auto& FQ = mFQ[l];
@@ -476,14 +482,9 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         auto& F2E = mF2E[l];
         auto& EdgeDiff = mEdgeDiff[l];
         auto& Sing = mSing[l];
-        auto& Fixed = mFixed[l];
         std::vector<int> fixed_faces(F2E.size(), 0);
         for (auto& s : Sing) {
             fixed_faces[s] = 1;
-        }
-        for (auto& e : Fixed) {
-            fixed_faces[E2F[e][0]] = 1;
-            fixed_faces[E2F[e][1]] = 1;
         }
 
         auto& toUpper = mToUpperEdges[l];
@@ -496,7 +497,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         auto& nF2E = mF2E[l + 1];
         auto& nEdgeDiff = mEdgeDiff[l + 1];
         auto& nSing = mSing[l + 1];
-        auto& nFixed = mFixed[l + 1];
         
         for (int i = 0; i < E2F.size(); ++i) {
             if (EdgeDiff[i] != Vector2i::Zero())
@@ -625,13 +625,9 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             if (upperface[s] >= 0)
                 nSing.push_back(upperface[s]);
         }
-        for (auto& e : Fixed) {
-            if (toUpper[e] >= 0)
-                nFixed.push_back(toUpper[e]);
-        }
         mToUpperFaces.push_back(std::move(upperface));
         if (nEdgeDiff.size() == EdgeDiff.size()) {
-            levels = l;
+            levels = l + 1;
             break;
         }
     }
@@ -641,11 +637,151 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mE2F.resize(levels);
     mEdgeDiff.resize(levels);
     mSing.resize(levels);
-    mFixed.resize(levels);
     mToUpperEdges.resize(levels - 1);
     mToUpperOrients.resize(levels - 1);
 }
 
+void Hierarchy::FixFlip()
+{
+    int l = mF2E.size() - 1;
+    auto& F2E = mF2E[l];
+    auto& E2F = mE2F[l];
+    auto& FQ = mFQ[l];
+    auto& EdgeDiff = mEdgeDiff[l];
+    std::vector<int> E2E(F2E.size() * 3, -1);
+    for (int i = 0; i < E2F.size(); ++i) {
+        int v1 = E2F[i][0];
+        int v2 = E2F[i][1];
+        int t1 = 0;
+        int t2 = 0;
+        while (F2E[v1][t1] != i)
+            t1 += 1;
+        while (F2E[v2][t2] != i)
+            t2 += 1;
+        t1 += v1 * 3;
+        t2 += v2 * 3;
+        E2E[t1] = t2;
+        E2E[t2] = t1;
+    }
+    auto Area = [&] (int f) {
+        Vector2i diff1 = rshift90(EdgeDiff[F2E[f][0]], FQ[f][0]);
+        Vector2i diff2 = rshift90(EdgeDiff[F2E[f][2]], FQ[f][2]);
+        int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
+        return area;
+    };
+    auto CheckShrink = [&] (int deid) {
+        if (deid == -1)
+            return false;
+        std::vector<int> corresponding_faces;
+        std::vector<int> corresponding_edges;
+        std::vector<Vector2i> corresponding_diff;
+        Vector2i diff = EdgeDiff[F2E[deid/3][deid%3]];
+        do {
+            corresponding_diff.push_back(diff);
+            corresponding_edges.push_back(deid);
+            corresponding_faces.push_back(deid / 3);
+            if (corresponding_faces.size() > 100) {
+                for (int i = 0; i < corresponding_edges.size(); ++i) {
+                    printf("%d %d\n", corresponding_edges[i], E2E[corresponding_edges[i]]);
+                }
+                exit(0);
+            }
+            // transform to the next face
+            deid = E2E[deid];
+            if (deid == -1)
+                return false;
+            // transform for the target incremental diff
+            diff = -rshift90(diff, FQ[deid/3][deid%3]);
+            deid = deid / 3 * 3 + (deid + 1) % 3;
+            // transform to local
+            diff = rshift90(diff, (4 - FQ[deid/3][deid%3]) % 4);
+        } while (deid != corresponding_edges.front());
+        // check diff
+        if (diff != corresponding_diff.front())
+            return false;
+        for (int i = 0; i < corresponding_diff.size(); ++i) {
+            int deid = corresponding_edges[i];
+            int eid = F2E[deid/3][deid%3];
+            corresponding_diff[i] = -corresponding_diff[i] + EdgeDiff[eid];
+            if (abs(corresponding_diff[i][0]) > 1 || abs(corresponding_diff[i][1]) > 1)
+                return false;
+        }
+        int prev_area = 0, current_area = 0;
+        for (int f = 0; f < corresponding_faces.size(); ++f) {
+            int area = Area(corresponding_faces[f]);
+            if (area < 0)
+                prev_area -= area;
+        }
+        for (int i = 0; i < corresponding_edges.size(); ++i) {
+            int deid = corresponding_edges[i];
+            int eid = F2E[deid / 3][deid % 3];
+            std::swap(EdgeDiff[eid], corresponding_diff[i]);
+        }
+        for (int f = 0; f < corresponding_faces.size(); ++f) {
+            int area = Area(corresponding_faces[f]);
+            if (area < 0) {
+                current_area -= area;
+            }
+        }
+        if (current_area < prev_area) {
+            return true;
+        }
+        for (int i = 0; i < corresponding_edges.size(); ++i) {
+            int deid = corresponding_edges[i];
+            int eid = F2E[deid / 3][deid % 3];
+            std::swap(EdgeDiff[eid], corresponding_diff[i]);
+        }
+        return false;
+    };
+    std::queue<int> flipped;
+    for (int i = 0; i < F2E.size(); ++i) {
+        int area = Area(i);
+        if (area < 0) {
+            flipped.push(i);
+        }
+    }
+
+    bool update = false;
+    while (!flipped.empty()) {
+        int f = flipped.front();
+        if (Area(f) >= 0) {
+            flipped.pop();
+            continue;
+        }
+        for (int i = 0; i < 3; ++i) {
+            if (CheckShrink(f * 3 + i) || CheckShrink(E2E[f * 3 + i])) {
+                update = true;
+                break;
+            }
+        }
+        flipped.pop();
+    }
+    for (int i = 0; i < F2E.size(); ++i) {
+        int area = Area(i);
+        if (area < 0)
+            flipped.push(i);
+    }
+
+    if (update) {
+        Hierarchy flip_hierarchy;
+        flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(), -1);
+        flip_hierarchy.FixFlip();
+        flip_hierarchy.UpdateGraphValue(mFQ.back(), mF2E.back(), mEdgeDiff.back());
+    }
+    
+    for (int level = mToUpperEdges.size(); level > 0; --level) {
+        auto& EdgeDiff = mEdgeDiff[level];
+        auto& nEdgeDiff = mEdgeDiff[level - 1];
+        auto& toUpper = mToUpperEdges[level - 1];
+        auto& toUpperOrients = mToUpperOrients[level - 1];
+        for (int i = 0; i < toUpper.size(); ++i) {
+            if (toUpper[i] >= 0) {
+                int orient = (4 - toUpperOrients[i]) % 4;
+                nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
+            }
+        }
+    }
+}
 
 
 #ifdef WITH_CUDA

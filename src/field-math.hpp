@@ -8,6 +8,20 @@
 #include <vector>
 using namespace Eigen;
 
+inline int get_parents(std::vector<std::pair<int, int>>& parents, int j) {
+    if (j == parents[j].first) return j;
+    int k = get_parents(parents, parents[j].first);
+    parents[j].second = (parents[j].second + parents[parents[j].first].second) % 4;
+    parents[j].first = k;
+    return k;
+}
+
+inline int get_parents_orient(std::vector<std::pair<int, int>>& parents, int j) {
+    if (j == parents[j].first) return parents[j].second;
+    return (parents[j].second + get_parents_orient(parents, parents[j].first)) % 4;
+}
+
+
 inline double signum(double value) { return std::copysign((double)1, value); }
 
 /// Always-positive modulo function (assumes b > 0)

@@ -75,6 +75,7 @@ public:
 	void BuildIntegerConstraints();
 	void ComputePosition(int with_scale = 0);
 	void FixFlipAdvance();
+    void FixFlipHierarchy();
     void FixHoles();
     double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);
 

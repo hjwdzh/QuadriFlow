@@ -14,7 +14,7 @@
 #include "optimizer.hpp"
 #include "subdivide.hpp"
 
-//#define LOG_OUTPUT
+#define LOG_OUTPUT
 //#define PERFORM_TEST
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,
                                               const VectorXi& E2E, const VectorXi& nonManifold,
@@ -556,19 +556,6 @@ void Parametrizer::LoadFromFile(FILE* fp) {
     //	Read(fp, cuts);
 }
 
-int get_parents(std::vector<std::pair<int, int>>& parents, int j) {
-    if (j == parents[j].first) return j;
-    int k = get_parents(parents, parents[j].first);
-    parents[j].second = (parents[j].second + parents[parents[j].first].second) % 4;
-    parents[j].first = k;
-    return k;
-}
-
-int get_parents_orient(std::vector<std::pair<int, int>>& parents, int j) {
-    if (j == parents[j].first) return parents[j].second;
-    return (parents[j].second + get_parents_orient(parents, parents[j].first)) % 4;
-}
-
 void Parametrizer::BuildEdgeInfo() {
     auto& F = hierarchy.mF;
     auto& E2E = hierarchy.mE2E;
@@ -770,9 +757,11 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                    edge_values, face_edgeOrients, face_edgeIds, singularities);
-
+    
     int t1 = GetCurrentTime64();
-    FixFlipAdvance();
+    FixFlipHierarchy();
+
+//    FixFlipAdvance();
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
 //    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
@@ -1060,7 +1049,8 @@ void Parametrizer::FixHoles() {
         for (int i = 0; i < loop_vertices_array.size(); ++i) {
             auto& loop_vertices = loop_vertices_array[i];
             std::vector<Vector4i> quads;
-            double energy = QuadEnergy(loop_vertices, quads, 0);
+            printf("Compute energy for loop: %d\n", loop_vertices.size());
+            QuadEnergy(loop_vertices, quads, 0);
             for (auto& p : quads) {
                 F_compact.push_back(p);
             }
@@ -1347,21 +1337,9 @@ void Parametrizer::BuildIntegerConstraints() {
 }
 
 void Parametrizer::ComputeMaxFlow() {
-    //(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F,
-    // std::vector<Vector2i>& edge_diff, std::vector<int>& sing);
-    std::vector<Vector2i> E2F(edge_diff.size(), Vector2i(-1, -1));
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            int e = face_edgeIds[i][j];
-            if (E2F[e][0] == -1)
-                E2F[e][0] = i;
-            else
-                E2F[e][1] = i;
-        }
-    }
-    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, E2F, edge_diff, 6);
+    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, 6);
     Optimizer::optimize_integer_constraints(hierarchy, singularities);
-    hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, E2F, edge_diff);
+    hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 
 void Parametrizer::WriteTestData() {
@@ -1434,6 +1412,13 @@ void Parametrizer::WriteTestData() {
         os << F(0, i) << " " << F(1, i) << " " << F(2, i) << "\n";
     }
     os.close();
+}
+
+void Parametrizer::FixFlipHierarchy() {
+    Hierarchy fh;
+    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);
+    fh.FixFlip();
+    fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 
 void Parametrizer::FixFlipAdvance() {
