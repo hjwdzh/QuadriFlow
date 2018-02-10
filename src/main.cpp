@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     fflush(stdout);
 
+#ifdef WITH_SCALE
     if (with_scale == 1) {
         printf("estimate for scale...\n");
         fflush(stdout);
@@ -77,7 +78,8 @@ int main(int argc, char** argv) {
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     }
-
+#endif
+    
     printf("Solve for position field...\n");
     fflush(stdout);
     t1 = GetCurrentTime64();
@@ -96,9 +98,9 @@ int main(int argc, char** argv) {
     printf("Writing the file...\n");
     fflush(stdout);
     if (output_obj.size() < 1)
-        field.ExtractMesh((std::string(DATA_PATH) + "/result.obj").c_str());
+        field.OutputMesh((std::string(DATA_PATH) + "/result.obj").c_str());
     else
-        field.ExtractMesh(output_obj.c_str());
+        field.OutputMesh(output_obj.c_str());
     printf("finish...\n");
     fflush(stdout);
     //	field.LoopFace(2);

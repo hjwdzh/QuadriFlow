@@ -62,6 +62,10 @@ set(
     src/Optimizer.cu
     src/optimizer.hpp
     src/parametrizer.cpp
+    src/parametrizer-flip.cpp
+    src/parametrizer-int.cpp
+    src/parametrizer-mesh.cpp
+    src/parametrizer-sing.cpp
     src/parametrizer.hpp
     src/post-solver.cpp
     src/post-solver.hpp

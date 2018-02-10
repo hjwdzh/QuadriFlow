@@ -197,15 +197,6 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
                       );
 #else
     for (int f = 0; f < F.size(); ++f) {
-        for (int i = 0; i < 4; ++i) {
-            int vid = F[f][i];
-            if (vid < 0 || vid >= V.size()) {
-                printf("Wrong %d %d\n", vid, V.size());
-                exit(0);
-            }
-        }
-    }
-    for (int f = 0; f < F.size(); ++f) {
         for (unsigned int i = 0; i < deg; ++i) {
             unsigned int idx_cur = F[f][i],
             idx_next = F[f][(i + 1) % deg],

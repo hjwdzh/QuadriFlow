@@ -8,6 +8,29 @@
 #include <vector>
 using namespace Eigen;
 
+struct DEdge
+{
+    DEdge()
+    : x(0), y(0)
+    {}
+    DEdge(int _x, int _y) {
+        if (_x > _y)
+            x = _y, y = _x;
+        else
+            x = _x, y = _y;
+    }
+    bool operator<(const DEdge& e) const {
+        return (x < e.x) || (x == e.x && y < e.y);
+    }
+    bool operator==(const DEdge& e) const {
+        return x == e.x && y == e.y;
+    }
+    bool operator!=(const DEdge& e) const {
+        return x != e.x || y != e.y;
+    }
+    int x, y;
+};
+
 inline int get_parents(std::vector<std::pair<int, int>>& parents, int j) {
     if (j == parents[j].first) return j;
     int k = get_parents(parents, parents[j].first);
@@ -21,6 +44,20 @@ inline int get_parents_orient(std::vector<std::pair<int, int>>& parents, int j) 
     return (parents[j].second + get_parents_orient(parents, parents[j].first)) % 4;
 }
 
+inline double fast_acos(double x) {
+    double negate = double(x < 0.0f);
+    x = std::abs(x);
+    double ret = -0.0187293f;
+    ret *= x;
+    ret = ret + 0.0742610f;
+    ret *= x;
+    ret = ret - 0.2121144f;
+    ret *= x;
+    ret = ret + 1.5707288f;
+    ret = ret * std::sqrt(1.0f - x);
+    ret = ret - 2.0f * negate * ret;
+    return negate * (double)M_PI + ret;
+}
 
 inline double signum(double value) { return std::copysign((double)1, value); }
 

@@ -311,6 +311,137 @@ void Optimizer::optimize_positions(Hierarchy &mRes, int with_scale)
 #endif
 }
 
+void Optimizer::optimize_positions_fixed(Hierarchy &mRes, std::vector<DEdge>& edge_values,
+                                         std::vector<Vector2i>& edge_diff, int with_scale) {
+    auto& V = mRes.mV[0];
+    auto& F = mRes.mF;
+    auto& Q = mRes.mQ[0];
+    auto& N = mRes.mN[0];
+    auto& O = mRes.mO[0];
+    //    auto &S = hierarchy.mS[0];
+    int t1 = GetCurrentTime64();
+    std::vector<std::unordered_map<int, double>> entries(V.cols() * 2);
+    std::vector<double> b(V.cols() * 2);
+    for (int e = 0; e < edge_diff.size(); ++e) {
+        int v1 = edge_values[e].x;
+        int v2 = edge_values[e].y;
+        Vector3d q_1 = Q.col(v1);
+        Vector3d q_2 = Q.col(v2);
+        Vector3d n_1 = N.col(v1);
+        Vector3d n_2 = N.col(v2);
+        Vector3d q_1_y = n_1.cross(q_1);
+        Vector3d q_2_y = n_2.cross(q_2);
+        Vector3d weights[] = {q_2, q_2_y, -q_1, -q_1_y};
+        auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
+        //        double s_x1 = S(0, v1), s_y1 = S(1, v1);
+        //        double s_x2 = S(0, v2), s_y2 = S(1, v2);
+        int rank_diff = (index.second + 4 - index.first) % 4;
+        Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
+        Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
+        double scale_x = /*(with_scale ? 0.5 * (s_x1 + s_x2) : 1) */ mRes.mScale;
+        double scale_y = /*(with_scale ? 0.5 * (s_y1 + s_y2) : 1) */ mRes.mScale;
+        Vector2i diff = edge_diff[e];
+        Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + V.col(v1) - V.col(v2);
+        int vid[] = {v2 * 2, v2 * 2 + 1, v1 * 2, v1 * 2 + 1};
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                auto it = entries[vid[i]].find(vid[j]);
+                if (it == entries[vid[i]].end()) {
+                    entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
+                } else {
+                    entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
+                }
+            }
+            b[vid[i]] += weights[i].dot(C);
+        }
+    }
+    
+    std::vector<double> D(V.cols() * 2);
+    for (int i = 0; i < D.size(); ++i) {
+        D[i] = 1.0 / entries[i][i];
+    }
+    std::vector<double> x(V.cols() * 2);
+    std::vector<double> R;
+    std::vector<int> R_ind;
+    std::vector<int> R_offset(V.cols() * 2 + 1);
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < O.cols(); ++i) {
+        Vector3d q = Q.col(i);
+        Vector3d n = N.col(i);
+        Vector3d q_y = n.cross(q);
+        x[i * 2] = (O.col(i) - V.col(i)).dot(q);
+        x[i * 2 + 1] = (O.col(i) - V.col(i)).dot(q_y);
+    }
+    for (int i = 0; i < entries.size(); ++i) {
+        R_offset[i] = R.size();
+        for (auto& p : entries[i]) {
+            if (p.first == i) continue;
+            R_ind.push_back(p.first);
+            R.push_back(p.second);
+        }
+    }
+    R_offset.back() = R.size();
+#ifdef WITH_CUDA
+    JacobiSolve(D, R, R_ind, R_offset, x, b);
+#else
+#ifndef WITH_JACOBI
+    std::vector<Eigen::Triplet<double>> lhsTriplets;
+    lhsTriplets.reserve(F.cols() * 6);
+    Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
+    VectorXd rhs(V.cols() * 2);
+    rhs.setZero();
+    for (int i = 0; i < entries.size(); ++i) {
+        rhs(i) = b[i];
+        for (auto& rec : entries[i]) {
+            lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
+        }
+    }
+    
+    A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
+    Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
+    solver.analyzePattern(A);
+    solver.factorize(A);
+    VectorXd x_new = solver.solve(rhs);
+    for (int i = 0; i < x.size(); ++i) x[i] = x_new[i];
+#else
+    std::vector<double> x_new(x.size(), 0);
+    for (int iter = 0; iter < 30; ++iter) {
+        double err = 0;
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
+        for (int i = 0; i < x.size(); ++i) {
+            x_new[i] = b[i];
+            for (int j = R_offset[i]; j < R_offset[i + 1]; ++j) {
+                x_new[i] -= R[j] * x[R_ind[j]];
+            }
+            x_new[i] *= D[i];
+            err += (x_new[i] - x[i]) * (x_new[i] - x[i]);
+        }
+        std::swap(x_new, x);
+    }
+    for (int i = 0; i < x.size(); ++i) {
+        if (abs(x[i] - x1[i]) > 1e-6) {
+            printf("fail %lf %lf\n", x[i], x1[i]);
+        }
+    }
+    printf("finish...\n");
+    exit(0);
+#endif
+#endif
+    for (int i = 0; i < O.cols(); ++i) {
+        Vector3d q = Q.col(i);
+        Vector3d n = N.col(i);
+        Vector3d q_y = n.cross(q);
+        O.col(i) = V.col(i) + q * x[i * 2] + q_y * x[i * 2 + 1];
+    }
+    
+    int t2 = GetCurrentTime64();
+    printf("Use %lf seconds.\n", (t2 - t1) * 1e-3);
+}
+
 void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>& singularities)
 {
     std::vector<std::set<int> > singular_edges(mRes.mF2E.size());

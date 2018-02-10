@@ -12,6 +12,7 @@
 #include <map>
 #include <set>
 #include "adjacent-matrix.hpp"
+#include "field-math.hpp"
 #include "hierarchy.hpp"
 #include "post-solver.hpp"
 #include "serialize.hpp"
@@ -21,28 +22,6 @@ using namespace Eigen;
 typedef std::pair<unsigned int, unsigned int> Edge;
 typedef std::map<int, std::pair<int, int> > SingDictionary;
 
-struct DEdge
-{
-	DEdge()
-		: x(0), y(0)
-	{}
-	DEdge(int _x, int _y) {
-		if (_x > _y)
-			x = _y, y = _x;
-		else
-			x = _x, y = _y;
-	}
-	bool operator<(const DEdge& e) const {
-		return (x < e.x) || (x == e.x && y < e.y);
-	}
-	bool operator==(const DEdge& e) const {
-		return x == e.x && y == e.y;
-	}
-	bool operator!=(const DEdge& e) const {
-		return x != e.x || y != e.y;
-	}
-	int x, y;
-};
 struct ExpandInfo
 {
 	ExpandInfo()
@@ -57,34 +36,34 @@ struct ExpandInfo
 class Parametrizer
 {
 public:
+    // Mesh Initialization
 	void Load(const char* filename);
+    void ComputeMeshStatus();
+    void ComputeSmoothNormal();
+    void ComputeVertexArea();
 	void Initialize(int faces, int with_scale = 0);
 	
-	// member function
-	void ComputeMeshStatus();
-	void ComputeSmoothNormal();
-	void ComputeVertexArea();
+	// Singularity and Mesh property
 	void ComputeOrientationSingularities();
 	void ComputePositionSingularities(int with_scale = 0);
+#ifdef WITH_SCALE
 	void EstimateScale();
-
-	// index map
+#endif
+    
+	// Integer Grid Map Pipeline
 	void ComputeIndexMap(int with_scale = 0);
 	void BuildEdgeInfo();
 	void ComputeMaxFlow();
 	void BuildIntegerConstraints();
-	void ComputePosition(int with_scale = 0);
-	void FixFlipAdvance();
+
+    // Fix Flip
     void FixFlipHierarchy();
     void FixHoles();
     double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);
 
-	void WriteTestData();
-
-    // File IO
-	void SaveToFile(FILE* fp);
-	void LoadFromFile(FILE* fp);
-	void ExtractMesh(const char* obj_name);
+    // Quadmesh and IO
+    void ExtractQuadMesh();
+	void OutputMesh(const char* obj_name);
 
 	std::map<int, int> singularities;
 	std::map<int, Vector2i> pos_sing;
@@ -154,4 +133,10 @@ public:
 	std::set<int> edge_around_singularities;
 
 };
+
+extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,
+                                              const VectorXi& E2E, const VectorXi& nonManifold,
+                                              AdjacentMatrix& adj);
+
+
 #endif

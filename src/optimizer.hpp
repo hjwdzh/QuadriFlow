@@ -1,6 +1,7 @@
 #ifndef OPTIMIZER_H_
 #define OPTIMIZER_H_
 #include "config.hpp"
+#include "field-math.hpp"
 #include "hierarchy.hpp"
 
 class Optimizer
@@ -10,6 +11,8 @@ public:
 	static void optimize_orientations(Hierarchy &mRes);
 	static void optimize_scale(Hierarchy &mRes);
 	static void optimize_positions(Hierarchy &mRes, int with_scale = 0);
+    static void optimize_positions_fixed(Hierarchy &mRes, std::vector<DEdge>& edge_values,
+                                         std::vector<Vector2i>& edge_diff, int with_scale = 0);
     static void optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>& singularities);
     
 #ifdef WITH_CUDA
