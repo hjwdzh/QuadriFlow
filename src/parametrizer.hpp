@@ -76,7 +76,7 @@ public:
 	void ComputePosition(int with_scale = 0);
 	void FixFlipAdvance();
     void FixHoles();
-
+    double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);
 
 	void WriteTestData();
 
@@ -127,7 +127,7 @@ public:
     std::vector<Vector3d> N_compact;
 	std::vector<Vector4i> F_compact;
     VectorXi V2E_compact;
-    VectorXi E2E_compact;
+    std::vector<int> E2E_compact;
     VectorXi boundary_compact;
     VectorXi nonManifold_compact;
     

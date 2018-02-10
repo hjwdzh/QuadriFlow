@@ -159,8 +159,12 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 }
 
 void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,
-                          VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
+                               std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
+    V2E = VectorXi();
+    E2E.clear();
+    boundary = VectorXi();
+    nonManifold = VectorXi();
     V2E.resize(V.size());
     V2E.setConstant(INVALID);
     
@@ -193,6 +197,15 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
                       );
 #else
     for (int f = 0; f < F.size(); ++f) {
+        for (int i = 0; i < 4; ++i) {
+            int vid = F[f][i];
+            if (vid < 0 || vid >= V.size()) {
+                printf("Wrong %d %d\n", vid, V.size());
+                exit(0);
+            }
+        }
+    }
+    for (int f = 0; f < F.size(); ++f) {
         for (unsigned int i = 0; i < deg; ++i) {
             unsigned int idx_cur = F[f][i],
             idx_next = F[f][(i + 1) % deg],
@@ -218,8 +231,7 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
     nonManifold.resize(V.size());
     nonManifold.setConstant(false);
 
-    E2E.resize(F.size() * deg);
-    E2E.setConstant(INVALID);
+    E2E.resize(F.size() * deg, INVALID);
 
 #ifdef WITH_OMP
 #pragma omp parallel for

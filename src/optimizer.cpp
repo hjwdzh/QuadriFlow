@@ -445,6 +445,12 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             }
         }
     }
+    if (!FullFlow) {
+        printf("Flow not full...\n");
+        exit(0);
+    } else {
+        printf("Flow success...\n");
+    }
 }
 
 

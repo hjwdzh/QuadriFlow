@@ -45,7 +45,7 @@ class Hierarchy {
     int with_scale;
 
     void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
-                             std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff);
+                             std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff, int level);
     void UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
                           std::vector<Vector2i>& E2F, std::vector<Vector2i>& edge_diff);
     std::vector<std::vector<int>> mToUpperFaces;
