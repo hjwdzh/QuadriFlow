@@ -36,7 +36,7 @@ void Parametrizer::Load(const char* filename) {
     printf("faces size: %d\n", (int)F.cols());
 #endif
     
-    merge_close(V, F, 1e-6);
+    //    merge_close(V, F, 1e-6);
 }
 
 void Parametrizer::Initialize(int faces, int with_scale) {
@@ -214,7 +214,7 @@ void Parametrizer::ExtractQuadMesh()
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
     auto& O = hierarchy.mO[0];
-
+    
     disajoint_tree = DisajointTree(V.cols());
     for (int i = 0; i < edge_diff.size(); ++i) {
         if (edge_diff[i] == Vector2i::Zero()) {
@@ -247,7 +247,7 @@ void Parametrizer::ExtractQuadMesh()
     for (int i = 0; i < O_compact.size(); ++i) {
         O_compact[i] /= counter[i];
     }
-
+    
 #ifdef LOG_OUTPUT
     printf("extract graph...\n");
 #endif

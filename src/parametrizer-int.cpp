@@ -30,13 +30,14 @@ void Parametrizer::BuildEdgeInfo() {
             }
             int current_eid = i * 3 + k1;
             int eid = E2E[current_eid];
+            int eID1 = face_edgeIds[current_eid / 3][current_eid % 3];
             int eID2 = face_edgeIds[eid / 3][eid % 3];
-            if (eID2 == -1) {
+            if (eID1 == -1) {
                 eID2 = edge_values.size();
                 edge_values.push_back(e2);
                 edge_diff.push_back(diff2);
                 face_edgeIds[i][k1] = eID2;
-                if (eid != -1) face_edgeIds[eid / 3][eid % 3] = eID2;
+                face_edgeIds[eid / 3][eid % 3] = eID2;
             } else if (!singularities.count(i)) {
                 edge_diff[eID2] = diff2;
             }
@@ -177,10 +178,10 @@ void Parametrizer::BuildIntegerConstraints() {
             q.pop();
             for (int i = 0; i < 3; ++i) {
                 int e = face_edgeIds[v][i];
-                    if (abs(face_edgeOrients[E2F[e].first/3][E2F[e].first%3] -
-                            face_edgeOrients[E2F[e].second/3][E2F[e].second%3] + 4) % 4 != 2) {
-                        continue;
-                    }
+                if (abs(face_edgeOrients[E2F[e].first/3][E2F[e].first%3] -
+                        face_edgeOrients[E2F[e].second/3][E2F[e].second%3] + 4) % 4 != 2) {
+                    continue;
+                }
                 for (int k = 0; k < 2; ++k) {
                     int f = (k == 0) ? E2F[e].first/3 : E2F[e].second / 3;
                     if (colors[f] == -1) {
@@ -231,7 +232,7 @@ void Parametrizer::BuildIntegerConstraints() {
         }
         total_flows[segments.Index(colors[i])] += diff[0] + diff[1];
     }
-
+    
     variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -249,7 +250,7 @@ void Parametrizer::BuildIntegerConstraints() {
         }
     }
     cuts.clear();
-
+    
     std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
     for (int i = 0; i < variables.size(); ++i) {
         if (variables[i].second != 0) {
@@ -272,7 +273,7 @@ void Parametrizer::BuildIntegerConstraints() {
             }
         }
     }
-
+    
     for (auto& modified_var : modified_variables)
         std::random_shuffle(modified_var.begin(), modified_var.end());
     for (int j = 0; j < total_flows.size(); ++j) {
@@ -301,4 +302,3 @@ void Parametrizer::ComputeMaxFlow() {
     Optimizer::optimize_integer_constraints(hierarchy, singularities);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
-
