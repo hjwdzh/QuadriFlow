@@ -3,9 +3,12 @@
 #include <stdio.h> // printf
 #include <stdlib.h> // exit
 #include <string.h> // strlen
-
+#include <vector>
+#include "parametrizer.hpp"
 #ifdef WITH_OPENGL
-
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
+#include <Eigen/Core>
 #if defined __APPLE_CC__
 #include <GLUT/glut.h>
 #else
@@ -349,6 +352,10 @@ static void render_quadmesh()
         glLineWidth(1.0);
         glBegin(GL_LINES);
         for (int i = 0; i < ED.size(); ++i) {
+            if (abs(ED[i][0]) > 1 || abs(ED[i][1]) > 1) {
+                printf("Long edge!\n");
+                exit(0);
+            }
             int l = abs(ED[i][0]) + abs(ED[i][1]);
             if (l > 1) {
                 glColor3f(0, 0, 1);

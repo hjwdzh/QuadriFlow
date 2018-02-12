@@ -1,10 +1,3 @@
-#if defined __APPLE_CC__
-#include <GLUT/glut.h>
-#else
-#include <GL/glut.h>
-#endif
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
 #include "config.hpp"
 #include "field-math.hpp"
 #include "gldraw.hpp"

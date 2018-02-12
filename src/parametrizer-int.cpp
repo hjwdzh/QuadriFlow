@@ -219,9 +219,9 @@ void Parametrizer::BuildIntegerConstraints() {
             face_edgeOrients[f1][E2F[eid].first%3] = (face_edgeOrients[f2][E2F[eid].second%3] + 2) % 4;
         }
     }
-
+    
     segments.BuildCompactParent();
-
+    
     std::vector<int> total_flows(segments.CompactNum());
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         Vector2i diff(0, 0);
@@ -240,7 +240,7 @@ void Parametrizer::BuildIntegerConstraints() {
             Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), face_edgeOrients[i][j]);
             for (int k = 0; k < 2; ++k) {
                 auto& p = variables[abs(index[k])];
-                if (sign[k] > 0)
+                if (p.first[0] == -1)
                     p.first[0] = i * 2 + k;
                 else
                     p.first[1] = i * 2 + k;
@@ -279,6 +279,19 @@ void Parametrizer::BuildIntegerConstraints() {
         for (int i = 0; i < abs(total_flows[j]) / 2; ++i) {
             auto& info = modified_variables[j][i];
             edge_diff[info.first / 2][info.first % 2] += info.second;
+        }
+    }
+    
+    for (int i = 0; i < segments.CompactNum(); ++i) {
+        int sum = 0;
+        for (int j = 0; j < face_edgeIds.size(); ++j) {
+            if (segments.Index(colors[j]) != i)
+                continue;
+            Vector2i diff(0, 0);
+            for (int k = 0; k < 3; ++k) {
+                diff += rshift90(edge_diff[face_edgeIds[j][k]], face_edgeOrients[j][k]);
+            }
+            sum += diff[0] + diff[1];
         }
     }
 }

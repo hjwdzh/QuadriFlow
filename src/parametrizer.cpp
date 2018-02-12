@@ -40,12 +40,16 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     ComputeMaxFlow();
 
+    // potential bug
+#ifdef LOG_OUTPUT
+    printf("subdivide...\n");
+#endif
+    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
+                   edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
+
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
 #endif
-    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                   edge_values, face_edgeOrients, face_edgeIds, singularities);
-    
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
 
@@ -62,7 +66,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
 
-//    FixHoles();
+    FixHoles();
 
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);

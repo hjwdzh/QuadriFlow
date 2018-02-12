@@ -141,11 +141,19 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
                     VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
                     std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
                     std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
-                    std::map<int, int> &singularities) {
+                    std::map<int, int> &singularities, int max_len) {
     struct EdgeLink {
         int id;
         double length;
         Vector2i diff;
+        int maxlen() const
+        {
+            return std::max(abs(diff[0]), abs(diff[1]));
+        }
+        bool operator<(const EdgeLink& link) const
+        {
+            return maxlen() < link.maxlen();
+        }
     };
 
     struct FaceOrient {
@@ -156,7 +164,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
     };
 
     std::vector<FaceOrient> face_spaces(F.cols());
-    std::queue<EdgeLink> queue;
+    std::priority_queue<EdgeLink> queue;
     std::vector<Vector2i> diffs(E2E.size());
     for (int i = 0; i < F.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -194,7 +202,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         if (nonmanifold[v0] || nonmanifold[v1]) continue;
         double length = (V.col(v0) - V.col(v1)).squaredNorm();
         Vector2i diff = diffs[i];
-        if (abs(diff[0]) == 2 || abs(diff[1]) == 2) {
+        if (abs(diff[0]) > max_len || abs(diff[1]) > max_len) {
             int other = E2E[i];
             if (other == -1 || other > i) {
                 EdgeLink e;
@@ -267,7 +275,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
     int counter = 0;
     while (!queue.empty()) {
         counter += 1;
-        EdgeLink edge = queue.front();
+        EdgeLink edge = queue.top();
         queue.pop();
         int e0 = edge.id, e1 = E2E[e0];
         bool is_boundary = e1 == -1;
@@ -276,7 +284,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         if ((V.col(v0) - V.col(v1)).squaredNorm() != edge.length) {
             continue;
         }
-        if (abs(diffs[e0][0]) < 2 && abs(diffs[e0][1]) < 2) continue;
+        if (abs(diffs[e0][0]) != 2 && abs(diffs[e0][1]) != 2) continue;
         if (f1 != -1) {
             face_edgeOrients.push_back(Vector3i());
             face_edgeIds.push_back(Vector3i());
@@ -413,7 +421,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
 
         auto schedule = [&](int f) {
             for (int i = 0; i < 3; ++i) {
-                if (abs(diffs[f * 3 + i][0]) == 2 || abs(diffs[f * 3 + i][1]) == 2) {
+                if (abs(diffs[f * 3 + i][0]) > max_len || abs(diffs[f * 3 + i][1]) > max_len) {
                     EdgeLink e;
                     e.id = f * 3 + i;
                     e.length = (V.col(F((i + 1) % 3, f)) - V.col(F(i, f))).squaredNorm();
@@ -440,7 +448,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
     boundary.conservativeResize(nV);
     nonmanifold.conservativeResize(nV);
     E2E.conservativeResize(nF * 3);
-
+/*
     for (int i = 0; i < F.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
             auto diff = edge_diff[face_edgeIds[i][j]];
@@ -455,5 +463,5 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
             printf("wrong...\n");
             exit(0);
         }
-    }
+    }*/
 }
