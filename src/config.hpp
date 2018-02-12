@@ -12,7 +12,7 @@
 #define GRAIN_SIZE 1024
 
 //#define PERFORM_TEST
-#define LOG_OUTPUT
+//#define LOG_OUTPUT
 
 #include <chrono>
 

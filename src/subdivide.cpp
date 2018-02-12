@@ -277,6 +277,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         counter += 1;
         EdgeLink edge = queue.top();
         queue.pop();
+
         int e0 = edge.id, e1 = E2E[e0];
         bool is_boundary = e1 == -1;
         int f0 = e0 / 3, f1 = is_boundary ? -1 : (e1 / 3);
@@ -284,7 +285,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         if ((V.col(v0) - V.col(v1)).squaredNorm() != edge.length) {
             continue;
         }
-        if (abs(diffs[e0][0]) != 2 && abs(diffs[e0][1]) != 2) continue;
+        if (abs(diffs[e0][0]) < 2 && abs(diffs[e0][1]) < 2) continue;
         if (f1 != -1) {
             face_edgeOrients.push_back(Vector3i());
             face_edgeIds.push_back(Vector3i());
@@ -343,13 +344,14 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         auto D01 = diffs[e0];
         auto D1p = diffs[e0 / 3 * 3 + (e0 + 1) % 3];
         auto Dp0 = diffs[e0 / 3 * 3 + (e0 + 2) % 3];
-        auto D0n = D01 / 2;
         auto Ds10 = diffs[e1];
         auto Ds0p = diffs[e1 / 3 * 3 + (e1 + 1) % 3];
+
         auto Dsp1 = diffs[e1 / 3 * 3 + (e1 + 2) % 3];
         int orient = 0;
         while (rshift90(D01, orient) != Ds10) orient += 1;
-        auto Dsn0 = rshift90(D0n, orient);
+        
+        Vector2i D0n = D01 / 2, Dsn0 = rshift90(D0n, orient);
 
         auto orients1 = face_spaces[f0];
         auto orients2 = face_spaces[f1];
@@ -369,6 +371,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
             diffs[f1 * 3] = Dsn0;
             diffs[f1 * 3 + 1] = Ds0p;
             diffs[f1 * 3 + 2] = Dsp1 + (Ds10 - Dsn0);
+
             AnalyzeOrient(f1, Vector3i(orients2.d[o2], orients2.d[(o2 + 1) % 3], 0));
 
             face_spaces[f2] = face_spaces[f1];
@@ -377,6 +380,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
             diffs[f2 * 3] = -Dsp1 - (Ds10 - Dsn0);
             diffs[f2 * 3 + 1] = Dsp1;
             diffs[f2 * 3 + 2] = Ds10 - Dsn0;
+
             AnalyzeOrient(f2, Vector3i(0, orients2.d[(o2 + 2) % 3], orients2.d[o2]));
         }
         face_spaces[f3] = face_spaces[f0];
@@ -385,6 +389,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         diffs[f3 * 3] = D01 - D0n;
         diffs[f3 * 3 + 1] = D1p;
         diffs[f3 * 3 + 2] = D0n - (D01 + D1p);
+
         AnalyzeOrient(f3, Vector3i(orients1.d[o1], orients1.d[(o1 + 1) % 3], 0));
 
         FixOrient(f0);

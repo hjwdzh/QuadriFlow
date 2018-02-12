@@ -56,7 +56,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
 
-//    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
+    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
     
     ExtractQuadMesh();
 
