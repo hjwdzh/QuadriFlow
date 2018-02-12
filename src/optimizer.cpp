@@ -474,6 +474,10 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             for (int i = 0; i < F2E.size(); ++i) {
                 for (int j = 0; j < 3; ++j) {
                     int e = F2E[i][j];
+                    if (e == -1) {
+                        printf("OMG! %d\n");
+                        exit(0);
+                    }
                     Vector2i index = rshift90(Vector2i(e * 2 + 1, e * 2 + 2),
                                           FQ[i][j]);
                     for (int k = 0; k < 2; ++k) {
