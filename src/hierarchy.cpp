@@ -680,12 +680,6 @@ void Hierarchy::FixFlip()
             corresponding_diff.push_back(diff);
             corresponding_edges.push_back(deid);
             corresponding_faces.push_back(deid / 3);
-            if (corresponding_faces.size() > 100) {
-                for (int i = 0; i < corresponding_edges.size(); ++i) {
-                    printf("%d %d\n", corresponding_edges[i], E2E[corresponding_edges[i]]);
-                }
-                exit(0);
-            }
             // transform to the next face
             deid = E2E[deid];
             if (deid == -1)
