@@ -3,6 +3,7 @@
 #include "optimizer.hpp"
 #include <vector>
 #include <unordered_map>
+#include <queue>
 
 void Parametrizer::BuildEdgeInfo() {
     auto& F = hierarchy.mF;
@@ -13,8 +14,6 @@ void Parametrizer::BuildEdgeInfo() {
     face_edgeIds.resize(F.cols(), Vector3i(-1, -1, -1));
     for (int i = 0; i < F.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
-            //            if (face_edgeIds[i][j] != -1)
-            //                continue;
             int k1 = j, k2 = (j + 1) % 3;
             int v1 = F(k1, i);
             int v2 = F(k2, i);
@@ -49,11 +48,9 @@ void Parametrizer::BuildIntegerConstraints() {
     auto& F = hierarchy.mF;
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
-    std::vector<Vector2i> sign_indices;
     face_edgeOrients.resize(F.cols());
-    std::vector<Vector4i> edge_to_constraints;
-    edge_to_constraints.resize(edge_values.size(), Vector4i(-1, -1, -1, -1));
     
+    std::vector<std::pair<int, int> > E2F(edge_diff.size(), std::make_pair(-1, -1));
     for (int i = 0; i < F.cols(); ++i) {
         int v0 = F(0, i);
         int v1 = F(1, i);
@@ -90,233 +87,198 @@ void Parametrizer::BuildIntegerConstraints() {
             orients[2] = 2;
         }
         face_edgeOrients[i] = Vector3i(orients[0], orients[1], orients[2]);
-        edge_to_constraints[eid[0]][(v0 > v1) * 2] = i;
-        edge_to_constraints[eid[0]][(v0 > v1) * 2 + 1] = orients[0];
-        edge_to_constraints[eid[1]][(v1 > v2) * 2] = i;
-        edge_to_constraints[eid[1]][(v1 > v2) * 2 + 1] = orients[1];
-        edge_to_constraints[eid[2]][(v2 > v0) * 2] = i;
-        edge_to_constraints[eid[2]][(v2 > v0) * 2 + 1] = orients[2];
-        
-        for (int k = 0; k < 3; ++k) {
-            sign_indices.push_back(vid[k]);
+        for (int j = 0; j < 3; ++j) {
+            int eid = face_edgeIds[i][j];
+            if (E2F[eid].first == -1)
+                E2F[eid].first = i * 3 + j;
+            else
+                E2F[eid].second = i * 3 + j;
         }
     }
     
     DisajointOrientTree disajoint_orient_tree = DisajointOrientTree(F.cols());
-    for (int i = 0; i < edge_to_constraints.size(); ++i) {
-        auto& edge_c = edge_to_constraints[i];
-        int v0 = edge_c[0];
-        int v1 = edge_c[2];
+    for (int i = 0; i < E2F.size(); ++i) {
+        auto& edge_c = E2F[i];
+        int v0 = edge_c.first / 3;
+        int v1 = edge_c.second / 3;
         if (singularities.count(v0) || singularities.count(v1)) continue;
-        int orient1 = edge_c[1];
-        int orient0 = (edge_c[3] + 2) % 4;
+        int orient1 = face_edgeOrients[v0][edge_c.first % 3];
+        int orient0 = (face_edgeOrients[v1][edge_c.second % 3] + 2) % 4;
         disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
     }
     
-    std::vector<Vector3i> sing_diff;
-    std::vector<std::unordered_map<int, std::pair<int, int>>> sing_maps;
-    std::vector<Vector3i> sing_orients;
-    for (int i = 0; i < sign_indices.size(); i += 3) {
-        int f = i / 3;
-        int orient = disajoint_orient_tree.Orient(f);
-        for (int j = 0; j < 3; ++j) {
-            sign_indices[i + j] = rshift90(sign_indices[i + j], orient);
-        }
-        for (int j = 0; j < 2; ++j) {
-            Vector3i sign, ind;
-            for (int k = 0; k < 3; ++k) {
-                ind[k] = abs(sign_indices[i + k][j]);
-                if (ind[k] == 0) {
-                    printf("OMG!\n");
-                    exit(0);
-                }
-                sign[k] = sign_indices[i + k][j] / ind[k];
-                ind[k] -= 1;
-            }
-            constraints_index.push_back(ind);
-            constraints_sign.push_back(sign);
-        }
-        if (singularities.count(f)) {
-            int orient_base = singularities[f];
-            Vector3i diffs;
-            Vector3i orient_diffs;
-            for (int j = 0; j < 3; ++j) {
-                int eid = face_edgeIds[f][(j + 1) % 3];
-                int v0 = edge_to_constraints[eid][0];
-                int v1 = edge_to_constraints[eid][2];
-                int orientp0 = disajoint_orient_tree.Orient(v0) + edge_to_constraints[eid][1];
-                int orientp1 = disajoint_orient_tree.Orient(v1) + edge_to_constraints[eid][3];
-                int orient_diff = 0;
-                if (v1 == f)
-                    orient_diff = (orientp0 - orientp1 + 6) % 4;
-                else
-                    orient_diff = (orientp1 - orientp0 + 6) % 4;
-                Vector2i sign_index[3];
-                sign_index[0] = rshift90(sign_indices[i + j], (orient_base + orient_diff) % 4);
-                sign_index[1] = rshift90(sign_indices[i + (j + 1) % 3], orient_diff);
-                sign_index[2] = rshift90(sign_indices[i + (j + 2) % 3], orient_diff);
-                int total_diff = 0;
-                for (int k = 0; k < 2; ++k) {
-                    auto ind = constraints_index[f * 2 + k];
-                    auto sign = constraints_sign[f * 2 + k];
-                    for (int l = 0; l < 3; ++l) {
-                        ind[l] = abs(sign_index[l][k]);
-                        sign[l] = sign_index[l][k] / ind[l];
-                        ind[l] -= 1;
-                    }
-                    int diff1 = edge_diff[ind[0] / 2][ind[0] % 2];
-                    int diff2 = edge_diff[ind[1] / 2][ind[1] % 2];
-                    int diff3 = edge_diff[ind[2] / 2][ind[2] % 2];
-                    int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
-                    total_diff += diff;
-                }
-                orient_diffs[j] = orient_diff;
-                diffs[j] = total_diff;
-            }
-            sing_diff.push_back(diffs);
-            sing_orients.push_back(orient_diffs);
-        }
-    }
-    
-    int total_flow = 0;
-    for (int i = 0; i < constraints_index.size(); ++i) {
-        if (singularities.count(i / 2)) {
-            continue;
-        }
-        auto index = constraints_index[i];
-        auto sign = constraints_sign[i];
-        int diff1 = edge_diff[index[0] / 2][index[0] % 2];
-        int diff2 = edge_diff[index[1] / 2][index[1] % 2];
-        int diff3 = edge_diff[index[2] / 2][index[2] % 2];
-        int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
-        total_flow += diff;
-    }
-    
-    sing_maps.resize(sing_diff.size() + 1);
-    sing_maps[0][total_flow] = std::make_pair(0, 0);
-    for (int i = 0; i < sing_diff.size(); ++i) {
-        auto& prev = sing_maps[i];
-        auto& next = sing_maps[i + 1];
-        for (auto& p : prev) {
-            for (int j = 0; j < 3; ++j) {
-                int v = p.first + sing_diff[i][j];
-                int t = p.second.first + abs(sing_diff[i][j]);
-                auto it = next.find(v);
-                if (it == next.end())
-                    next[v] = std::make_pair(t, j);
-                else if (t < it->second.first)
-                    it->second = std::make_pair(t, j);
-            }
-        }
-    }
-    
-    std::vector<int> sing_selection;
-    int target_flow = 0;
-    while (sing_maps.back().count(target_flow) == 0 && sing_maps.back().count(-target_flow) == 0) {
-        target_flow += 2;
-    }
-    if (sing_maps.back().count(target_flow) == 0) target_flow = -target_flow;
-    int remain_flow = target_flow;
-    for (int i = sing_diff.size(); i > 0; i--) {
-        auto p = sing_maps[i][remain_flow];
-        remain_flow -= sing_diff[i - 1][p.second];
-        sing_selection.push_back(p.second);
-    }
-    std::reverse(sing_selection.begin(), sing_selection.end());
-    int sing_count = 0;
     for (auto& f : singularities) {
-        int select = sing_selection[sing_count];
-        int orient_diff = sing_orients[sing_count++][select];
-        auto& index1 = constraints_index[f.first * 2];
-        auto& index2 = constraints_index[f.first * 2 + 1];
-        auto& sign1 = constraints_sign[f.first * 2];
-        auto& sign2 = constraints_sign[f.first * 2 + 1];
-        
-        int eid0;
         for (int i = 0; i < 3; ++i) {
-            auto diff = Vector2i(sign1[i] * (index1[i] + 1), sign2[i] * (index2[i] + 1));
-            int t = orient_diff;
-            if (i == select) t = (t + f.second) % 4;
-            int v0 = F(i, f.first);
-            int v1 = F((i + 1) % 3, f.first);
-            int eid = face_edgeIds[f.first][i];
-            if ((select + 1) % 3 == i) eid0 = eid;
-            edge_to_constraints[eid][(v0 > v1) * 2] = f.first;
-            edge_to_constraints[eid][(v0 > v1) * 2 + 1] =
-            (edge_to_constraints[eid][(v0 > v1) * 2 + 1] + t) % 4;
-            face_edgeOrients[f.first][i] = (face_edgeOrients[f.first][i] + t) % 4;
-            
-            diff = rshift90(diff, t);
-            index1[i] = abs(diff[0]);
-            sign1[i] = diff[0] / abs(diff[0]);
-            index1[i] -= 1;
-            index2[i] = abs(diff[1]);
-            sign2[i] = diff[1] / abs(diff[1]);
-            index2[i] -= 1;
+            auto& edge_c = E2F[face_edgeIds[f.first][i]];
+            int v0 = edge_c.first / 3;
+            int v1 = edge_c.second / 3;
+            int orient1 = face_edgeOrients[v0][edge_c.first % 3];
+            int orient0 = (face_edgeOrients[v1][edge_c.second % 3] + 2) % 4;
+            disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
         }
-        auto& edge_c = edge_to_constraints[eid0];
-        int v0 = edge_c[0];
-        int v1 = edge_c[2];
-        
-        int orient1 = edge_c[1];
-        int orient0 = (edge_c[3] + 2) % 4;
-        
-        disajoint_orient_tree.Merge(v0, v1, orient0, orient1);
-    }
-    total_flow = 0;
-    
-    variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
-    for (int i = 0; i < constraints_index.size(); ++i) {
-        auto index = constraints_index[i];
-        auto sign = constraints_sign[i];
-        int diff1 = edge_diff[index[0] / 2][index[0] % 2];
-        int diff2 = edge_diff[index[1] / 2][index[1] % 2];
-        int diff3 = edge_diff[index[2] / 2][index[2] % 2];
-        int diff = sign[0] * diff1 + sign[1] * diff2 + sign[2] * diff3;
-        total_flow += diff;
-        for (int j = 0; j < 3; ++j) {
-            auto& p = variables[index[j]].first;
-            if (sign[j] > 0)
-                p[0] = i;
-            else
-                p[1] = i;
-            variables[index[j]].second += sign[j];
-        }
-    }
-    cuts.clear();
-    std::vector<std::pair<int, int>> modified_variables;
-    for (int i = 0; i < variables.size(); ++i) {
-        if (variables[i].second != 0) {
-            cuts.insert(edge_values[i / 2]);
-            if (target_flow > 0) {
-                if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
-                    modified_variables.push_back(std::make_pair(i, -1));
-                }
-                if (variables[i].second < 0 && edge_diff[i / 2][i % 2] < 1) {
-                    modified_variables.push_back(std::make_pair(i, 1));
-                }
-            } else if (target_flow < 0) {
-                if (variables[i].second < 0 && edge_diff[i / 2][i % 2] > -1) {
-                    modified_variables.push_back(std::make_pair(i, -1));
-                }
-                if (variables[i].second > 0 && edge_diff[i / 2][i % 2] < 1) {
-                    modified_variables.push_back(std::make_pair(i, 1));
-                }
-            }
-        }
-    }
-    
-    std::random_shuffle(modified_variables.begin(), modified_variables.end());
-    
-    for (int i = 0; i < abs(target_flow) / 2; ++i) {
-        auto& info = modified_variables[i];
-        edge_diff[info.first / 2][info.first % 2] += info.second;
     }
     
     for (int i = 0; i < face_edgeOrients.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
-            face_edgeOrients[i][j] =
-            (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
+            face_edgeOrients[i][j] = (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
+        }
+    }
+    
+    for (auto& f : singularities) {
+        Vector3i cuts[4];
+        for (int j = 0; j < 4; ++j) {
+            for (int i = 0; i < 3; ++i) {
+                int e = face_edgeIds[f.first][i];
+                int orient1 = face_edgeOrients[E2F[e].first/3][E2F[e].first%3];
+                int orient2 = face_edgeOrients[E2F[e].second/3][E2F[e].second%3];
+                if (E2F[e].first / 3 == f.first)
+                    orient1 += j;
+                else
+                    orient2 += j;
+                if (abs(orient1 - orient2 + 10) % 4 != 0)
+                    cuts[j][i] = 1;
+                else
+                    cuts[j][i] = 0;
+            }
+        }
+        int min_cuts = 3;
+        int ind = 4;
+        for (int j = 0; j < 4; ++j) {
+            int cut = cuts[j][0] + cuts[j][1] + cuts[j][2];
+            if (cut < min_cuts) {
+                min_cuts = cut;
+                ind = j;
+            }
+        }
+        int res = 0;
+        if (cuts[ind][0] != 0 || cuts[ind][1] != 0 || cuts[ind][2] != 0) {
+            while (cuts[ind][res] == 0)
+                res += 1;
+        }
+        for (int j = 0; j < 3; ++j) {
+            if (j == res)
+                face_edgeOrients[f.first][j] = (face_edgeOrients[f.first][j] + f.second + ind) % 4;
+            else
+                face_edgeOrients[f.first][j] = (face_edgeOrients[f.first][j] + ind) % 4;
+        }
+    }
+    
+    std::vector<int> colors(face_edgeIds.size(), -1);
+    int num_v = 0;
+    for (int i = 0; i < colors.size(); ++i) {
+        if (colors[i] != -1)
+            continue;
+        colors[i] = num_v;
+        std::queue<int> q;
+        q.push(i);
+        int counter = 0;
+        while (!q.empty()) {
+            int v = q.front();
+            q.pop();
+            for (int i = 0; i < 3; ++i) {
+                int e = face_edgeIds[v][i];
+                    if (abs(face_edgeOrients[E2F[e].first/3][E2F[e].first%3] -
+                            face_edgeOrients[E2F[e].second/3][E2F[e].second%3] + 4) % 4 != 2) {
+                        continue;
+                    }
+                for (int k = 0; k < 2; ++k) {
+                    int f = (k == 0) ? E2F[e].first/3 : E2F[e].second / 3;
+                    if (colors[f] == -1) {
+                        colors[f] = num_v;
+                        q.push(f);
+                    }
+                }
+            }
+            counter += 1;
+        }
+        num_v += 1;
+    }
+    
+    DisajointTree segments(num_v);
+    for (auto& f : singularities) {
+        for (int i = 0; i < 3; ++i) {
+            int eid = face_edgeIds[f.first][i];
+            int f1 = E2F[eid].first/3;
+            int f2 = E2F[eid].second/3;
+            if (segments.Parent(colors[f1]) != segments.Parent(colors[f2])) {
+                segments.Merge(colors[f1], colors[f2]);
+                if (f1 == f.first) {
+                    face_edgeOrients[f1][E2F[eid].first%3] = (face_edgeOrients[f2][E2F[eid].second%3] + 2) % 4;
+                } else {
+                    face_edgeOrients[f2][E2F[eid].second%3] = (face_edgeOrients[f1][E2F[eid].first%3] + 2) % 4;
+                }
+            }
+        }
+    }
+    
+    for (int eid = 0; eid < E2F.size(); ++eid) {
+        int f1 = E2F[eid].first/3;
+        int f2 = E2F[eid].second/3;
+        if (segments.Parent(colors[f1]) != segments.Parent(colors[f2])) {
+            segments.Merge(colors[f1], colors[f2]);
+            face_edgeOrients[f1][E2F[eid].first%3] = (face_edgeOrients[f2][E2F[eid].second%3] + 2) % 4;
+        }
+    }
+
+    segments.BuildCompactParent();
+
+    std::vector<int> total_flows(segments.CompactNum());
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            int orient = face_edgeOrients[i][j];
+            diff += rshift90(edge_diff[face_edgeIds[i][j]], orient);
+        }
+        total_flows[segments.Index(colors[i])] += diff[0] + diff[1];
+    }
+
+    variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            Vector2i sign = rshift90(Vector2i(1, 1), face_edgeOrients[i][j]);
+            int eid = face_edgeIds[i][j];
+            Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), face_edgeOrients[i][j]);
+            for (int k = 0; k < 2; ++k) {
+                auto& p = variables[abs(index[k])];
+                if (sign[k] > 0)
+                    p.first[0] = i * 2 + k;
+                else
+                    p.first[1] = i * 2 + k;
+                p.second += sign[k];
+            }
+        }
+    }
+    cuts.clear();
+
+    std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
+    for (int i = 0; i < variables.size(); ++i) {
+        if (variables[i].second != 0) {
+            int find = segments.Index(colors[variables[i].first[0]/2]);
+            cuts.insert(edge_values[i / 2]);
+            if (total_flows[find] > 0) {
+                if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
+                    modified_variables[find].push_back(std::make_pair(i, -1));
+                }
+                if (variables[i].second < 0 && edge_diff[i / 2][i % 2] < 1) {
+                    modified_variables[find].push_back(std::make_pair(i, 1));
+                }
+            } else if (total_flows[find] < 0) {
+                if (variables[i].second < 0 && edge_diff[i / 2][i % 2] > -1) {
+                    modified_variables[find].push_back(std::make_pair(i, -1));
+                }
+                if (variables[i].second > 0 && edge_diff[i / 2][i % 2] < 1) {
+                    modified_variables[find].push_back(std::make_pair(i, 1));
+                }
+            }
+        }
+    }
+
+    for (auto& modified_var : modified_variables)
+        std::random_shuffle(modified_var.begin(), modified_var.end());
+    for (int j = 0; j < total_flows.size(); ++j) {
+        for (int i = 0; i < abs(total_flows[j]) / 2; ++i) {
+            auto& info = modified_variables[j][i];
+            edge_diff[info.first / 2][info.first % 2] += info.second;
         }
     }
 }
@@ -326,3 +288,4 @@ void Parametrizer::ComputeMaxFlow() {
     Optimizer::optimize_integer_constraints(hierarchy, singularities);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
+

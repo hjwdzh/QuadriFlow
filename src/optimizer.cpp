@@ -3,6 +3,7 @@
 #include "field-math.hpp"
 #include "flow.hpp"
 #include <fstream>
+#include <queue>
 #include <Eigen/Sparse>
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
@@ -466,7 +467,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
         auto& F2E = mRes.mF2E[level];
         auto& E2F = mRes.mE2F[level];
         auto& SingEdges = singular_edges[level];
-        if (!FullFlow) {
+        int edge_capacity = 2;
+        while (!FullFlow) {
             std::vector<Vector4i> edge_to_constraints(E2F.size() * 2, Vector4i(-1, 0, -1, 0));
             std::vector<int> initial(F2E.size() * 2, 0);
             for (int i = 0; i < F2E.size(); ++i) {
@@ -521,7 +523,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             
             MaxFlowHelper* flow = 0;
             if (supply < 5)
-                flow = new BoykovMaxFlowHelper;
+                flow = new ECMaxFlowHelper;
             else
                 flow = new BoykovMaxFlowHelper;
 
@@ -536,7 +538,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
                     flow->AddEdge(v1, v2, c, 0, -1);
                 }
                 else {
-                    flow->AddEdge(v1, v2, std::max(0, c + 2), std::max(0, -c + 2), arc_ids[i]);
+                    flow->AddEdge(v1, v2, std::max(0, c + edge_capacity), std::max(0, -c + edge_capacity), arc_ids[i]);
                 }
             }
             
@@ -548,6 +550,9 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
             if (flow_count == supply) {
                 FullFlow = true;
             }
+            if (level != 0 || FullFlow)
+                break;
+            edge_capacity += 1;
         }
         if (level != 0) {
             auto& nEdgeDiff = mRes.mEdgeDiff[level - 1];
@@ -562,7 +567,58 @@ void Optimizer::optimize_integer_constraints(Hierarchy &mRes, std::map<int, int>
         }
     }
     if (!FullFlow) {
-        printf("Flow not full...\n");
+        auto& F2E = mRes.mF2E[0];
+        auto& E2F = mRes.mE2F[0];
+        auto& FQ = mRes.mFQ[0];
+        auto& EdgeDiff = mRes.mEdgeDiff[0];
+        std::vector<int> colors(F2E.size(), -1);
+        std::vector<std::pair<int, int> > EO(E2F.size(), std::make_pair(-1, -1));
+        for (int i = 0; i < F2E.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                int o = FQ[i][j];
+                int e = F2E[i][j];
+                if (EO[e].first == -1)
+                    EO[e].first = o;
+                else
+                    EO[e].second = o;
+            }
+        }
+        int num_v = 0;
+        for (int i = 0; i < colors.size(); ++i) {
+            if (colors[i] == -1) {
+                colors[i] = num_v;
+                std::queue<int> q;
+                q.push(i);
+                while (!q.empty()) {
+                    int v = q.front();
+                    q.pop();
+                    for (int j = 0; j < 3; ++j) {
+                        int e = F2E[v][j];
+                        if (abs(EO[e].first - EO[e].second) == 2) {
+                            for (int k = 0; k < 2; ++k) {
+                                int f = E2F[e][k];
+                                if (colors[f] == -1) {
+                                    colors[f] = num_v;
+                                    q.push(f);
+                                }
+                            }
+                        }
+                    }
+                }
+                num_v++;
+            }
+        }
+        printf("Different part: %d\n", num_v);
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector2i diff[3];
+            for (int j = 0; j < 3; ++j) {
+                diff[j] = rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
+            }
+            if (diff[0] + diff[1] + diff[2] != Vector2i::Zero()) {
+                printf("<%d %d> <%d %d> <%d %d>\n", diff[0][0], diff[0][1],
+                       diff[1][0], diff[1][1], diff[2][0], diff[2][1]);
+            }
+        }
         exit(0);
     }
 }

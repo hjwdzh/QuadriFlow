@@ -118,9 +118,6 @@ public:
 	std::vector<Vector3i> face_edgeIds;
 	std::vector<Vector3i> face_edgeOrients;
 
-
-	std::vector<Vector3i> constraints_index;
-	std::vector<Vector3i> constraints_sign;
 	std::vector<std::pair<Vector2i, int> > variables;
 
 	std::set<DEdge> cuts;

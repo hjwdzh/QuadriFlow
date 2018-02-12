@@ -767,6 +767,14 @@ void Hierarchy::FixFlip()
         flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(), -1);
         flip_hierarchy.FixFlip();
         flip_hierarchy.UpdateGraphValue(mFQ.back(), mF2E.back(), mEdgeDiff.back());
+    } else {
+        int count = 0;
+        for (int i = 0; i < mF2E[0].size(); ++i) {
+            int area = Area(i);
+            if (area < 0)
+                count -= area;
+        }
+        printf("Flipped: %d\n", count);
     }
     
     for (int level = mToUpperEdges.size(); level > 0; --level) {

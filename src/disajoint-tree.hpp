@@ -97,7 +97,9 @@ class DisajointOrientTree {
     void Merge(int v0, int v1, int orient0, int orient1) {
         int p0 = Parent(v0);
         int p1 = Parent(v1);
-        if (p0 == p1) return;
+        if (p0 == p1) {
+            return;
+        }
         int orientp0 = Orient(v0);
         int orientp1 = Orient(v1);
 

@@ -162,10 +162,6 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         for (int j = 0; j < 3; ++j) {
             int eid = i * 3 + j;
             diffs[eid] = rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
-            if (abs(diffs[eid][0]) > 2 || abs(diffs[eid][1]) > 2) {
-                printf(".....\n");
-                exit(0);
-            }
         }
     }
     for (int i = 0; i < F.cols(); ++i) {
@@ -198,7 +194,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         if (nonmanifold[v0] || nonmanifold[v1]) continue;
         double length = (V.col(v0) - V.col(v1)).squaredNorm();
         Vector2i diff = diffs[i];
-        if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+        if (abs(diff[0]) == 2 || abs(diff[1]) == 2) {
             int other = E2E[i];
             if (other == -1 || other > i) {
                 EdgeLink e;
@@ -417,7 +413,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
 
         auto schedule = [&](int f) {
             for (int i = 0; i < 3; ++i) {
-                if (abs(diffs[f * 3 + i][0]) > 1 || abs(diffs[f * 3 + i][1]) > 1) {
+                if (abs(diffs[f * 3 + i][0]) == 2 || abs(diffs[f * 3 + i][1]) == 2) {
                     EdgeLink e;
                     e.id = f * 3 + i;
                     e.length = (V.col(F((i + 1) % 3, f)) - V.col(F(i, f))).squaredNorm();

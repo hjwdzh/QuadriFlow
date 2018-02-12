@@ -52,7 +52,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
 
-    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
+//    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
     
     ExtractQuadMesh();
 
@@ -62,7 +62,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
 
-    FixHoles();
+//    FixHoles();
 
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
