@@ -671,7 +671,7 @@ void Hierarchy::FixFlip()
         int area = -diff1[0] * diff2[1] + diff1[1] * diff2[0];
         return area;
     };
-    auto CheckShrink = [&] (int deid) {
+    auto CheckShrink = [&] (int deid, int allowed_edge, bool debug) {
         if (deid == -1)
             return false;
         std::vector<int> corresponding_faces;
@@ -684,7 +684,9 @@ void Hierarchy::FixFlip()
             corresponding_faces.push_back(deid / 3);
             if (corresponding_faces.size() > F2E.size() * 10) {
                 for (int i = 0; i < corresponding_edges.size(); ++i) {
-                    printf("%d %d\n", corresponding_edges[i], E2E[corresponding_edges[i]]);
+                    if (debug) {
+                        printf("%d %d\n", corresponding_edges[i], E2E[corresponding_edges[i]]);
+                    }
                 }
                 exit(0);
             }
@@ -699,14 +701,22 @@ void Hierarchy::FixFlip()
             diff = rshift90(diff, (4 - FQ[deid/3][deid%3]) % 4);
         } while (deid != corresponding_edges.front());
         // check diff
-        if (diff != corresponding_diff.front())
+        if (diff != corresponding_diff.front()) {
+            if (debug) {
+                printf("Fail 1\n");
+            }
             return false;
+        }
         for (int i = 0; i < corresponding_diff.size(); ++i) {
             int deid = corresponding_edges[i];
             int eid = F2E[deid/3][deid%3];
             corresponding_diff[i] = -corresponding_diff[i] + EdgeDiff[eid];
-            if (abs(corresponding_diff[i][0]) > 1 || abs(corresponding_diff[i][1]) > 1)
+            if (abs(corresponding_diff[i][0]) > allowed_edge || abs(corresponding_diff[i][1]) > allowed_edge) {
+                if (debug) {
+                    printf("Fail 2\n");
+                }
                 return false;
+            }
         }
         int prev_area = 0, current_area = 0;
         for (int f = 0; f < corresponding_faces.size(); ++f) {
@@ -733,6 +743,9 @@ void Hierarchy::FixFlip()
             int eid = F2E[deid / 3][deid % 3];
             std::swap(EdgeDiff[eid], corresponding_diff[i]);
         }
+        if (debug) {
+            printf("Fail 3\n");
+        }
         return false;
     };
     std::queue<int> flipped;
@@ -744,24 +757,28 @@ void Hierarchy::FixFlip()
     }
     
     bool update = false;
-    while (!flipped.empty()) {
-        int f = flipped.front();
-        if (Area(f) >= 0) {
-            flipped.pop();
-            continue;
-        }
-        for (int i = 0; i < 3; ++i) {
-            if (CheckShrink(f * 3 + i) || CheckShrink(E2E[f * 3 + i])) {
-                update = true;
-                break;
+    int max_len = 1;
+    while (!update && max_len <= 2) {
+        while (!flipped.empty()) {
+            int f = flipped.front();
+            if (Area(f) >= 0) {
+                flipped.pop();
+                continue;
             }
+            for (int i = 0; i < 3; ++i) {
+                if (CheckShrink(f * 3 + i, max_len, 0) || CheckShrink(E2E[f * 3 + i], max_len, 0)) {
+                    update = true;
+                    break;
+                }
+            }
+            flipped.pop();
         }
-        flipped.pop();
-    }
-    for (int i = 0; i < F2E.size(); ++i) {
-        int area = Area(i);
-        if (area < 0)
-            flipped.push(i);
+        for (int i = 0; i < F2E.size(); ++i) {
+            int area = Area(i);
+            if (area < 0)
+                flipped.push(i);
+        }
+        max_len += 1;
     }
     
     if (update) {
@@ -770,13 +787,37 @@ void Hierarchy::FixFlip()
         flip_hierarchy.FixFlip();
         flip_hierarchy.UpdateGraphValue(mFQ.back(), mF2E.back(), mEdgeDiff.back());
     } else {
+        /*
+        printf("See.........................\n");
         int count = 0;
-        for (int i = 0; i < mF2E[0].size(); ++i) {
+        std::set<int> flipped;
+        for (int i = 0; i < mF2E.back().size(); ++i) {
             int area = Area(i);
-            if (area < 0)
+            if (area < 0) {
+                for (int j = 0; j < 3; ++j) {
+                    if (CheckShrink(i * 3 + j, 2, true) || CheckShrink(E2E[i * 3 + j], 2, true)) {
+                        printf("Fail...\n");
+                    }
+                }
+                flipped.insert(i);
+                printf("Flipped %d\n", i);
                 count -= area;
+            }
         }
-        printf("Flipped: %d\n", count);
+        printf("Flipped: %d\n", count);*/
+/*        auto& F2E = mF2E.back();
+        auto& E2F = mE2F.back();
+        auto& FQ = mFQ.back();
+        auto& EdgeDiff = mEdgeDiff.back();
+        for (int i = 0; i < F2E.size(); ++i) {
+            if (flipped.count(i)) {
+                for (int j = 0; j < 3; ++j) {
+                    int e = F2E[i][j];
+                }
+                printf("\n");
+            }
+        }*/
+//        printf("Passed...\n");
     }
     
     for (int level = mToUpperEdges.size(); level > 0; --level) {
