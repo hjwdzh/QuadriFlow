@@ -9,6 +9,7 @@ find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
 find_package(Ceres REQUIRED)
+FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
@@ -36,6 +37,7 @@ include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 set(
     parametrize_SRC
@@ -92,11 +94,13 @@ target_link_libraries(
     ${GLUT_LIBRARIES}
     ${OPENGL_LIBRARIES}
     ${TBB_LIBRARIES}
+    ${Boost_LIBRARIES}
 )
 
 target_link_libraries(
     postsolver
     ${CERES_LIBRARIES}
+    ${Boost_LIBRARIES}
 )
 
 target_compile_definitions(postsolver PRIVATE POST_SOLVER=1)
