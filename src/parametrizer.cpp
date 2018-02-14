@@ -47,6 +47,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     
     ComputeMaxFlow();
     
+    printf("Analyze Valence...\n");
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
@@ -75,9 +76,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
-
     FixHoles();
-
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
     // potential bug, not guarantee to have quads at holes!
@@ -89,5 +88,5 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
 
     optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
-                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale);
+                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale, false);    
 }

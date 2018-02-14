@@ -121,6 +121,9 @@ void Parametrizer::FixHoles() {
             printf("Compute energy for loop: %d\n", (int)loop_vertices.size());
 #endif
             QuadEnergy(loop_vertices, quads, 0);
+#ifdef LOG_OUTPUT
+            printf("quads: %d\n", quads.size());
+#endif
             for (auto& p : quads) {
                 F_compact.push_back(p);
             }

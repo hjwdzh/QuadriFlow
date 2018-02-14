@@ -306,6 +306,7 @@ void Parametrizer::ExtractQuadMesh()
             }
         }
     }
+    
 #ifdef LOG_OUTPUT
     printf("extract quad cells...\n");
 #endif

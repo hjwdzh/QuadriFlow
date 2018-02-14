@@ -44,6 +44,7 @@ public:
 	void Initialize(int faces, int with_scale = 0);
 	
 	// Singularity and Mesh property
+    void AnalyzeValence();
 	void ComputeOrientationSingularities();
 	void ComputePositionSingularities(int with_scale = 0);
 #ifdef WITH_SCALE

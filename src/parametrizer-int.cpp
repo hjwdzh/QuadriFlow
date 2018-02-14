@@ -66,12 +66,15 @@ void Parametrizer::BuildIntegerConstraints() {
         compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v1), N.col(v1));
         auto index2 =
         compat_orientation_extrinsic_index_4(Q.col(v0), N.col(v0), Q.col(v2), N.col(v2));
+        
         int rank1 = (index1.first - index1.second + 4) % 4;
         int rank2 = (index2.first - index2.second + 4) % 4;
         int orients[3] = {0};
         if (v1 < v0) {
             vid[0] = -rshift90(vid[0], rank1);
             orients[0] = (rank1 + 2) % 4;
+        } else {
+            orients[0] = 0;
         }
         if (v2 < v1) {
             vid[1] = -rshift90(vid[1], rank2);
@@ -96,7 +99,7 @@ void Parametrizer::BuildIntegerConstraints() {
                 E2F[eid].second = i * 3 + j;
         }
     }
-    
+
     DisajointOrientTree disajoint_orient_tree = DisajointOrientTree(F.cols());
     for (int i = 0; i < E2F.size(); ++i) {
         auto& edge_c = E2F[i];
@@ -124,46 +127,7 @@ void Parametrizer::BuildIntegerConstraints() {
             face_edgeOrients[i][j] = (face_edgeOrients[i][j] + disajoint_orient_tree.Orient(i)) % 4;
         }
     }
-    
-    for (auto& f : singularities) {
-        Vector3i cuts[4];
-        for (int j = 0; j < 4; ++j) {
-            for (int i = 0; i < 3; ++i) {
-                int e = face_edgeIds[f.first][i];
-                int orient1 = face_edgeOrients[E2F[e].first/3][E2F[e].first%3];
-                int orient2 = face_edgeOrients[E2F[e].second/3][E2F[e].second%3];
-                if (E2F[e].first / 3 == f.first)
-                    orient1 += j;
-                else
-                    orient2 += j;
-                if (abs(orient1 - orient2 + 10) % 4 != 0)
-                    cuts[j][i] = 1;
-                else
-                    cuts[j][i] = 0;
-            }
-        }
-        int min_cuts = 3;
-        int ind = 4;
-        for (int j = 0; j < 4; ++j) {
-            int cut = cuts[j][0] + cuts[j][1] + cuts[j][2];
-            if (cut < min_cuts) {
-                min_cuts = cut;
-                ind = j;
-            }
-        }
-        int res = 0;
-        if (cuts[ind][0] != 0 || cuts[ind][1] != 0 || cuts[ind][2] != 0) {
-            while (cuts[ind][res] == 0)
-                res += 1;
-        }
-        for (int j = 0; j < 3; ++j) {
-            if (j == res)
-                face_edgeOrients[f.first][j] = (face_edgeOrients[f.first][j] + f.second + ind) % 4;
-            else
-                face_edgeOrients[f.first][j] = (face_edgeOrients[f.first][j] + ind) % 4;
-        }
-    }
-    
+
     std::vector<int> colors(face_edgeIds.size(), -1);
     int num_v = 0;
     for (int i = 0; i < colors.size(); ++i) {
@@ -211,7 +175,7 @@ void Parametrizer::BuildIntegerConstraints() {
             }
         }
     }
-    
+
     for (int eid = 0; eid < E2F.size(); ++eid) {
         int f1 = E2F[eid].first/3;
         int f2 = E2F[eid].second/3;
@@ -295,6 +259,7 @@ void Parametrizer::BuildIntegerConstraints() {
             sum += diff[0] + diff[1];
         }
     }
+
 }
 
 void Parametrizer::ComputeMaxFlow() {

@@ -96,6 +96,49 @@ void Parametrizer::ComputePositionSingularities(int with_scale) {
     }
 }
 
+void Parametrizer::AnalyzeValence()
+{
+    auto& F = hierarchy.mF;
+    std::map<int, int> sing;
+    for (auto& f : singularities) {
+        for (int i = 0; i < 3; ++i) {
+            sing[F(i, f.first)] = f.second;
+        }
+    }
+    auto& F2E = face_edgeIds;
+    auto& E2E = hierarchy.mE2E;
+    auto& FQ = face_edgeOrients;
+    std::set<int> sing1, sing2;
+    for (int i = 0; i < F2E.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int deid = i * 3 + j;
+            int sum_int = 0;
+            std::vector<int> edges;
+            std::vector<double> angles;
+            do {
+                int deid1 = deid / 3 * 3 + (deid + 2) % 3;
+                deid = E2E[deid1];
+                sum_int += (FQ[deid/3][deid%3] + 6 - FQ[deid1/3][deid1%3]) % 4;
+            } while (deid != i * 3 + j);
+            if (sum_int % 4 == 2) {
+                printf("OMG! valence = 2\n");
+            }
+            if (sum_int % 4 == 1)
+                sing1.insert(F(j, i));
+            if (sum_int % 4 == 3)
+                sing2.insert(F(j, i));
+        }
+    }
+    int count3 = 0, count4 = 0;
+    for (auto& s : singularities) {
+        if (s.second == 1)
+            count3 += 1;
+        else
+            count4 += 1;
+    }
+    printf("singularity: <%d %d> <%d %d>\n", sing1.size(), sing2.size(), count3, count4);
+}
+
 #ifdef WITH_SCALE
 void Parametrizer::EstimateScale() {
     auto& mF = hierarchy.mF;
