@@ -21,7 +21,7 @@ const double COEFF_AREA = 1;
 /// Coefficient of tangent constraint.  The magnitude is 0.03 if the bais is reference_length.
 /// This is because current tangent constraint is not very accurate.
 /// This optimization conflicts with COEFF_AREA.
-const double COEFF_TANGENT = 0.1;
+const double COEFF_TANGENT = 2;
 /// Coefficient of normal constraint.  The magnitude is the arc angle.
 const double COEFF_NORMAL = 1;
 /// Coefficient of normal constraint.  The magnitude is the arc angle.

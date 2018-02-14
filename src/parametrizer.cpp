@@ -23,9 +23,9 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& N = hierarchy.mN[0];
     auto& O = hierarchy.mO[0];
     ComputeOrientationSingularities();
-    
+
     BuildEdgeInfo();
-    
+
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             if (face_edgeIds[i][j] == -1) {
@@ -44,9 +44,9 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     printf("Build Integer Constraints...\n");
 #endif
     BuildIntegerConstraints();
-    
+
     ComputeMaxFlow();
-    
+
     printf("Analyze Valence...\n");
     // potential bug
 #ifdef LOG_OUTPUT
@@ -54,7 +54,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                    edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
-    
+
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
 #endif
@@ -88,5 +88,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
 
     optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
-                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale, false);
+                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale,
+                            true);
 }

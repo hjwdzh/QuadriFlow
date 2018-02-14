@@ -1,9 +1,9 @@
-#include "parametrizer.hpp"
 #include "config.hpp"
 #include "dedge.hpp"
 #include "field-math.hpp"
 #include "loader.hpp"
 #include "merge-vertex.hpp"
+#include "parametrizer.hpp"
 #include "subdivide.hpp"
 
 #include <queue>
@@ -22,7 +22,7 @@ void Parametrizer::Load(const char* filename) {
         }
     }
     double scale =
-    std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
+        std::max(std::max(maxV[0] - minV[0], maxV[1] - minV[1]), maxV[2] - minV[2]) * 0.5;
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
@@ -41,7 +41,7 @@ void Parametrizer::Load(const char* filename) {
 
 void Parametrizer::Initialize(int faces, int with_scale) {
     ComputeMeshStatus();
-#ifdef PERFORM_TEST
+#ifdef PERFORMANCE_TEST
     num_vertices = V.cols() * 10;
     num_faces = num_vertices;
     scale = sqrt(surface_area / num_faces);
@@ -57,7 +57,7 @@ void Parametrizer::Initialize(int faces, int with_scale) {
     }
 #endif
     double target_len = std::min(scale / 2, average_edge_length * 2);
-#ifdef PERFORM_TEST
+#ifdef PERFORMANCE_TEST
     scale = sqrt(surface_area / V.cols());
 #endif
     if (target_len < max_edge_length) {
@@ -129,7 +129,7 @@ void Parametrizer::ComputeSmoothNormal() {
 #endif
     for (int f = 0; f < F.cols(); ++f) {
         Vector3d v0 = V.col(F(0, f)), v1 = V.col(F(1, f)), v2 = V.col(F(2, f)),
-        n = (v1 - v0).cross(v2 - v0);
+                 n = (v1 - v0).cross(v2 - v0);
         double norm = n.norm();
         if (norm < RCPOVERFLOW) {
             n = Vector3d::UnitX();
@@ -207,8 +207,7 @@ void Parametrizer::ComputeVertexArea() {
     }
 }
 
-void Parametrizer::ExtractQuadMesh()
-{
+void Parametrizer::ExtractQuadMesh() {
     auto& V = hierarchy.mV[0];
     auto& F = hierarchy.mF;
     auto& Q = hierarchy.mQ[0];
@@ -306,7 +305,7 @@ void Parametrizer::ExtractQuadMesh()
             }
         }
     }
-    
+
 #ifdef LOG_OUTPUT
     printf("extract quad cells...\n");
 #endif
@@ -374,8 +373,8 @@ void Parametrizer::OutputMesh(const char* obj_name) {
     }
     for (int i = 0; i < F_compact.size(); ++i) {
         os << "f " << compact_answer[F_compact[i][0]] << " " << compact_answer[F_compact[i][1]]
-        << " " << compact_answer[F_compact[i][2]] << " " << compact_answer[F_compact[i][3]]
-        << "\n";
+           << " " << compact_answer[F_compact[i][2]] << " " << compact_answer[F_compact[i][3]]
+           << "\n";
     }
     os.close();
 }
