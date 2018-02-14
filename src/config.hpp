@@ -1,9 +1,10 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+// Move settings to cmake to make git happy :)
+
 // #define WITH_SCALE
 // #define WITH_CUDA
-// #define WITH_OMP
 // #define WITH_TBB
 //#define WITH_OPENGL
 
@@ -11,7 +12,6 @@
 #define INVALID -1
 #define GRAIN_SIZE 1024
 
-//#define PERFORM_TEST
 #define LOG_OUTPUT
 
 #include <chrono>

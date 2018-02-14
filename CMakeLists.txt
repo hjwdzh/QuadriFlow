@@ -26,6 +26,9 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 endif()
 
+option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
+option(BUILD_OPENMP "Enable support for OpenMP" OFF)
+
 include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(3rd/pss)
@@ -37,7 +40,16 @@ include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
-INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
+
+if(BUILD_PERFORMANCE_TEST)
+    add_definitions(-DPERFORMANCE_TEST)
+endif(BUILD_PERFORMANCE_TEST)
+
+if(BUILD_OPENMP)
+    add_definitions(-DWITH_OMP)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+endif(BUILD_OPENMP)
 
 set(
     parametrize_SRC

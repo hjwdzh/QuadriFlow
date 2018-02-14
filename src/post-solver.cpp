@@ -91,8 +91,8 @@ struct FaceConstraint {
             T bb[3]{b[0] / length_b, b[1] / length_b, b[2] / length_b};
             r[3 * k + 0] = coeff_orth * DotProduct(aa, bb);
 
-            T degree_edge0 = ceres::acos(ceres::abs(DotProduct(aa, &Q0[k][0])));
-            T degree_edge1 = ceres::acos(ceres::abs(DotProduct(aa, &Q1[k][0])));
+            T degree_edge0 = ceres::abs(DotProduct(aa, &Q0[k][0]));
+            T degree_edge1 = ceres::abs(DotProduct(aa, &Q1[k][0]));
             T degree_edge = ceres::min(degree_edge0, degree_edge1);
             r[3 * k + 1] = coeff_flow * degree_edge;
 
@@ -103,7 +103,7 @@ struct FaceConstraint {
 
             assert(area != T());
             for (int i = 0; i < 3; ++i) normal[i] /= area;
-            T degree_normal = ceres::acos(DotProduct(normal, &normal0[k][0]));
+            T degree_normal = DotProduct(normal, &normal0[k][0]) - T(1);
             r[3 * k + 2] = coeff_normal * degree_normal * degree_normal;
         }
         r[12] = coeff_area * (r[12] / (4.0 * area0) - 1.0);
