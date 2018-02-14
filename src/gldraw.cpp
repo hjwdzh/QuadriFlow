@@ -239,7 +239,15 @@ static void render_mesh()
             glBegin(GL_TRIANGLES);
             for (int i = 0; i < mF.cols(); ++i) {
                 for (int j = 0; j < 3; ++j) {
-                    Vector3d c(1,1,1);
+                    int t1 = field.sing.count(mF(j, i));
+                    int t2 = field.flipped.count(mF(j, i));
+                    Vector3d c(0, 0, 0);
+                    if (t1 == 1 && t2 == 0)
+                        c[0] = 1;
+                    else if (t1 == 1 && t2 == 1)
+                        c[1] = 1;
+                    else if (t1 == 0 && t2 == 1)
+                        c[2] = 1;
                     glColor3f(c[0], c[1], c[2]);
                     glNormal3dv(&mN(0, mF(j, i)));
                     glVertex3dv(&mV(0, mF(j, i)));
@@ -380,13 +388,13 @@ static void render_quadmesh()
         glEnd();
         
         glColor3f(0.5, 0.5, 0.5);
-        glBegin(GL_TRIANGLES);
+/*        glBegin(GL_TRIANGLES);
         for (auto& p : field.flipped) {
             for (int j = 0; j < 3; ++j) {
                 glVertex3dv(&O[p[j]][0]);
             }
         }
-        glEnd();
+        glEnd();*/
     }
 }
 

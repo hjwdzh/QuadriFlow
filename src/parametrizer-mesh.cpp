@@ -267,6 +267,8 @@ void Parametrizer::ExtractQuadMesh() {
     printf("extract bad vertices...\n");
 #endif
     bad_vertices.resize(num_v, 0);
+    std::set<DEdge> bad_edges;
+    
     std::queue<int> badq;
     for (int i = 0; i < num_v; ++i) {
         if (vertices[i].size() < 3) {
@@ -285,7 +287,7 @@ void Parametrizer::ExtractQuadMesh() {
             }
         }
     }
-    std::set<DEdge> bad_edges;
+    /*
     for (int i = 0; i < F.cols(); ++i) {
         int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
         int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
@@ -305,7 +307,7 @@ void Parametrizer::ExtractQuadMesh() {
             }
         }
     }
-
+    */
 #ifdef LOG_OUTPUT
     printf("extract quad cells...\n");
 #endif
@@ -324,7 +326,7 @@ void Parametrizer::ExtractQuadMesh() {
             int orient2 = face_edgeOrients[i][2];
             auto d1 = rshift90(diff1, orient1);
             auto d2 = rshift90(-diff3, orient2);
-            if (d1[0] * d2[1] - d1[1] * d2[0] < 0) continue;
+//            if (d1[0] * d2[1] - d1[1] * d2[0] < 0) continue;
             DEdge eid;
             if (abs(diff1[0]) == 1 && abs(diff1[1]) == 1) {
                 eid = DEdge(p0, p1);

@@ -122,14 +122,14 @@ public:
 	std::vector<std::pair<Vector2i, int> > variables;
 
 	std::set<DEdge> cuts;
-	std::vector<Vector3i> flipped;
 
 	// fixed_vertices
 	std::vector<int> fixed;
 	std::set<DEdge> fixed_cuts;
 
 	std::set<int> edge_around_singularities;
-
+    std::set<int> sing;
+    std::set<int> flipped;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,

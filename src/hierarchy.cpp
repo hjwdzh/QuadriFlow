@@ -1,5 +1,6 @@
 #include "hierarchy.hpp"
 #include <fstream>
+#include <unordered_map>
 #include "config.hpp"
 #include "field-math.hpp"
 #ifdef WITH_TBB
@@ -662,20 +663,28 @@ void Hierarchy::FixFlip() {
             diff = rshift90(diff, (4 - FQ[deid / 3][deid % 3]) % 4);
         } while (deid != corresponding_edges.front());
         // check diff
-        if (diff != corresponding_diff.front() && !debug) {
+        if (diff != corresponding_diff.front()) {
             if (debug) {
                 printf("Fail 1\n");
             }
             return false;
         }
+        std::unordered_map<int, Vector2i> new_values;
         for (int i = 0; i < corresponding_diff.size(); ++i) {
             int deid = corresponding_edges[i];
             int eid = F2E[deid / 3][deid % 3];
-            corresponding_diff[i] = -corresponding_diff[i] + EdgeDiff[eid];
-            if (abs(corresponding_diff[i][0]) > allowed_edge ||
-                abs(corresponding_diff[i][1]) > allowed_edge) {
+            new_values[eid] = EdgeDiff[eid];
+        }
+        auto diffs = corresponding_diff;
+        for (int i = 0; i < corresponding_diff.size(); ++i) {
+            int deid = corresponding_edges[i];
+            int eid = F2E[deid / 3][deid % 3];
+            auto& res = new_values[eid];
+            res -= corresponding_diff[i];
+            if (abs(res[0]) > allowed_edge ||
+                abs(res[1]) > allowed_edge) {
                 if (debug) {
-                    printf("Fail 2 <%d %d> %d\n", corresponding_diff[i][0], corresponding_diff[i][1], allowed_edge);
+                    printf("Fail 2 <%d %d> %d\n", res[0], res[1], allowed_edge);
                 }
                 return false;
             }
@@ -685,10 +694,8 @@ void Hierarchy::FixFlip() {
             int area = Area(corresponding_faces[f]);
             if (area < 0) prev_area -= area;
         }
-        for (int i = 0; i < corresponding_edges.size(); ++i) {
-            int deid = corresponding_edges[i];
-            int eid = F2E[deid / 3][deid % 3];
-            std::swap(EdgeDiff[eid], corresponding_diff[i]);
+        for (auto& p : new_values) {
+            std::swap(EdgeDiff[p.first], p.second);
         }
         for (int f = 0; f < corresponding_faces.size(); ++f) {
             int area = Area(corresponding_faces[f]);
@@ -699,14 +706,13 @@ void Hierarchy::FixFlip() {
         if (current_area < prev_area) {
             return true;
         }
-        for (int i = 0; i < corresponding_edges.size(); ++i) {
-            int deid = corresponding_edges[i];
-            int eid = F2E[deid / 3][deid % 3];
-            std::swap(EdgeDiff[eid], corresponding_diff[i]);
+        for (auto& p : new_values) {
+            std::swap(EdgeDiff[p.first], p.second);
         }
         if (debug) {
             printf("Fail 3\n");
         }
+
         return false;
     };
     std::queue<int> flipped;
@@ -753,9 +759,8 @@ void Hierarchy::FixFlip() {
         for (int i = 0; i < mF2E.back().size(); ++i) {
             int area = Area(i);
             if (area < 0)
-                count -= area;
+                count += 1;
         }
-
         printf("Flipped %d\n", count);
 //        printf("Passed...\n");
     }
@@ -769,6 +774,8 @@ void Hierarchy::FixFlip() {
             if (toUpper[i] >= 0) {
                 int orient = (4 - toUpperOrients[i]) % 4;
                 nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
+            } else {
+                nEdgeDiff[i] = Vector2i(0, 0);
             }
         }
     }
