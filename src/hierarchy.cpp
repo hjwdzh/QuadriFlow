@@ -604,9 +604,9 @@ void Hierarchy::FixFlip() {
         int v1 = E2F[i][0];
         int v2 = E2F[i][1];
         int t1 = 0;
-        int t2 = 0;
+        int t2 = 2;
         while (F2E[v1][t1] != i) t1 += 1;
-        while (F2E[v2][t2] != i) t2 += 1;
+        while (F2E[v2][t2] != i) t2 -= 1;
         t1 += v1 * 3;
         t2 += v2 * 3;
         E2E[t1] = t2;
