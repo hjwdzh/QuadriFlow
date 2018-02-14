@@ -8,7 +8,7 @@ find_package(GLUT REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
-find_package(Ceres REQUIRED)
+find_package(ceres REQUIRED)
 FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
