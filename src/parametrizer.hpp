@@ -128,8 +128,19 @@ public:
 	std::set<DEdge> fixed_cuts;
 
 	std::set<int> edge_around_singularities;
-    std::set<int> sing;
-    std::set<int> flipped;
+    std::set<int> flipped, sing;
+    
+    struct QuadInfo
+    {
+        QuadInfo()
+        : patchId(-1), coordinate(0x10000000,0x10000000), singular(0), edge(0)
+        {}
+        int patchId;
+        Vector2i coordinate;
+        int singular;
+        int edge;
+    };
+    std::vector<QuadInfo> quad_info;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,

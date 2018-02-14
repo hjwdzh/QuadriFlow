@@ -600,6 +600,8 @@ void Hierarchy::FixFlip() {
     auto& E2F = mE2F[l];
     auto& FQ = mFQ[l];
     auto& EdgeDiff = mEdgeDiff[l];
+    std::set<int> singular_edges;
+    std::set<int> singular_faces;
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
         int v1 = E2F[i][0];
@@ -621,6 +623,30 @@ void Hierarchy::FixFlip() {
         int area2 = diff2[0] * diff3[1] - diff2[1] * diff3[0];
         int area3 = diff3[0] * diff1[1] - diff3[1] * diff1[0];
         return std::max(std::max(area1, area2), area3);
+    };
+    auto FindSinglar = [&] (int deid) {
+        int d = deid;
+        int sum = 0;
+        do {
+            int d1 = d / 3 * 3 + (d + 2) % 3;
+            d = E2E[d1];
+            int o0 = FQ[d1/3][d1%3];
+            int o1 = FQ[d/3][d%3];
+            sum += (o1 + 6 - o0);
+        } while (d != deid);
+        if (sum % 4 != 0) {
+            int d = deid;
+            int sum = 0;
+            do {
+                singular_edges.insert(d);
+                singular_faces.insert(d / 3);
+                int d1 = d / 3 * 3 + (d + 2) % 3;
+                d = E2E[d];
+                int o0 = FQ[d1/3][d1%3];
+                int o1 = FQ[d/3][d%3];
+                sum += (o1 + 6 - o0);
+            } while (d != deid);
+        }
     };
     auto CheckShrink = [&] (int deid, int allowed_edge, bool debug) {
         if (debug) {
@@ -681,8 +707,9 @@ void Hierarchy::FixFlip() {
             int eid = F2E[deid / 3][deid % 3];
             auto& res = new_values[eid];
             res -= corresponding_diff[i];
-            if (abs(res[0]) > allowed_edge ||
-                abs(res[1]) > allowed_edge) {
+            int edge_thres = singular_edges.count(E2E[deid]) ? 1 : allowed_edge;
+            if (abs(res[0]) > edge_thres ||
+                abs(res[1]) > edge_thres) {
                 if (debug) {
                     printf("Fail 2 <%d %d> %d\n", res[0], res[1], allowed_edge);
                 }
@@ -692,7 +719,7 @@ void Hierarchy::FixFlip() {
         int prev_area = 0, current_area = 0;
         for (int f = 0; f < corresponding_faces.size(); ++f) {
             int area = Area(corresponding_faces[f]);
-            if (area < 0) prev_area -= area;
+            if (area < 0) prev_area += 1;
         }
         for (auto& p : new_values) {
             std::swap(EdgeDiff[p.first], p.second);
@@ -700,7 +727,7 @@ void Hierarchy::FixFlip() {
         for (int f = 0; f < corresponding_faces.size(); ++f) {
             int area = Area(corresponding_faces[f]);
             if (area < 0) {
-                current_area -= area;
+                current_area += 1;
             }
         }
         if (current_area < prev_area) {
@@ -725,7 +752,14 @@ void Hierarchy::FixFlip() {
 
     bool update = false;
     int max_len = 1;
-    while (!update && max_len <= 2) {
+    while (!update && max_len <= 1) {
+        if (max_len == 2) {
+            for (int i = 0; i < E2E.size(); ++i) {
+                FindSinglar(i);
+            }
+//            printf("Singular %d %d\n", singular_edges.size(), singular_faces.size());
+//            exit(0);
+        }
         while (!flipped.empty()) {
             int f = flipped.front();
             if (Area(f) >= 0) {
@@ -758,8 +792,9 @@ void Hierarchy::FixFlip() {
         int count = 0;
         for (int i = 0; i < mF2E.back().size(); ++i) {
             int area = Area(i);
-            if (area < 0)
+            if (area < 0) {
                 count += 1;
+            }
         }
         printf("Flipped %d\n", count);
 //        printf("Passed...\n");

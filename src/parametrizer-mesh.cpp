@@ -5,7 +5,7 @@
 #include "merge-vertex.hpp"
 #include "parametrizer.hpp"
 #include "subdivide.hpp"
-
+#include "dedge.hpp"
 #include <queue>
 
 void Parametrizer::Load(const char* filename) {
@@ -223,7 +223,137 @@ void Parametrizer::ExtractQuadMesh() {
         }
     }
     disajoint_tree.BuildCompactParent();
+    typedef std::pair<int, std::pair<int, int> > Face;
+    
+    std::vector<Face> face_values;
+    std::map<Face, int> face_ids;
+    std::vector<int> face_colors;
+    std::vector<Vector3i> face_edge_values;
+    std::vector<Vector3i> face_edge_signs;
+    std::map<DEdge, int> edge_ids;
+    std::vector<DEdge> edge_values;
+    std::vector<std::pair<std::set<int>, std::set<int> > > edge_to_faces;
 
+    for (int i = 0; i < F.cols(); ++i) {
+        int p1 = disajoint_tree.Index(F(0, i));
+        int p2 = disajoint_tree.Index(F(1, i));
+        int p3 = disajoint_tree.Index(F(2, i));
+        int p[] = {p1, p2, p3};
+        if (p1 == p2 || p1 == p3 || p2 == p3)
+            continue;
+        auto face = std::make_pair(p1, std::make_pair(p2, p3));
+        if (face_ids.count(face)) {
+            continue;
+        }
+        int fid = face_values.size();
+        face_ids[face] = fid;
+        face_values.push_back(face);
+        face_edge_values.push_back(Vector3i());
+        face_edge_signs.push_back(Vector3i());
+        for (int j = 0; j < 3; ++j) {
+            DEdge e1(p[j], p[(j + 1) % 3]);
+            int eid;
+            auto it = edge_ids.find(e1);
+            if (it == edge_ids.end()) {
+                eid = edge_values.size();
+                edge_values.push_back(e1);
+                edge_ids[e1] = eid;
+                edge_to_faces.push_back(std::pair<std::set<int>,std::set<int>>());
+            } else {
+                eid = it->second;
+            }
+            face_edge_values.back()[j] = eid;
+            if (p[j] < p[(j+1)%3]) {
+                edge_to_faces[eid].first.insert(fid);
+                face_edge_signs.back()[j] = -1;
+            }
+            else {
+                edge_to_faces[eid].second.insert(fid);
+                face_edge_signs.back()[j] = 1;
+            }
+        }
+    }
+    int num_colors = 0;
+    face_colors.resize(face_values.size(), -1);
+    for (int i = 0; i < face_values.size(); ++i) {
+        if (face_colors[i] != -1)
+            continue;
+        std::queue<int> fq;
+        fq.push(i);
+        face_colors[i] = num_colors;
+        while (!fq.empty()) {
+            int f = fq.front();
+            fq.pop();
+            for (int j = 0; j < 3; ++j) {
+                auto& ef = edge_to_faces[face_edge_values[f][j]];
+                if (ef.first.size() != 1 || ef.second.size() != 1) {
+                    continue;
+                }
+                for (int j = 0; j < 2; ++j) {
+                    int fv = (j == 0) ? *ef.first.begin() : *ef.second.begin();
+                    if (face_colors[fv] == -1) {
+                        face_colors[fv] = num_colors;
+                        fq.push(fv);
+                    }
+                }
+            }
+        }
+        num_colors += 1;
+    }
+    std::vector<std::pair<int,int> > face_count(num_colors);
+    for (int i = 0; i < num_colors; ++i) {
+        face_count[i].second = i;
+    }
+    for (int i = 0; i < face_colors.size(); ++i) {
+        face_count[face_colors[i]].first += 1;
+    }
+    std::sort(face_count.rbegin(), face_count.rend());
+    std::vector<std::pair<int, int> > face_indices(face_colors.size());
+    for (int i = 0; i < face_colors.size(); ++i) {
+        face_indices[i] = std::make_pair(face_colors[i], i);
+    }
+    std::sort(face_indices.begin(), face_indices.end());
+    std::vector<std::pair<int, int> > color_iterator(num_colors, std::make_pair(-1, -1));
+    for (int i = 0; i < face_indices.size(); ++i) {
+        if (i == 0 || face_indices[i].first != face_indices[i - 1].first)
+            color_iterator[face_indices[i].first].first = i;
+        if (i == face_indices.size()-1 || face_indices[i].first != face_indices[i+1].first)
+            color_iterator[face_indices[i].first].second = i + 1;
+    }
+    std::vector<std::pair<int, int> > edge_count(edge_values.size(), std::make_pair(0, 0));
+    std::vector<int> selected_colors(num_colors, 0);
+    for (int i = 0; i < face_count.size(); ++i) {
+        int color = face_count[i].second;
+        bool non_manifold = false;
+        for (int j = color_iterator[color].first; j < color_iterator[color].second; ++j) {
+            int f = face_indices[j].second;
+            for (int k = 0; k < 3; ++k) {
+                int e = face_edge_values[f][k];
+                int s = face_edge_signs[f][k];
+                if (s == -1)
+                    edge_count[e].first += 1;
+                else
+                    edge_count[e].second += 1;
+                if (edge_count[e].first >= 2 || edge_count[e].second >= 2)
+                    non_manifold = true;
+            }
+        }
+        if (non_manifold) {
+            for (int j = color_iterator[color].first; j < color_iterator[color].second; ++j) {
+                int f = face_indices[j].second;
+                for (int k = 0; k < 3; ++k) {
+                    int e = face_edge_values[f][k];
+                    int s = face_edge_signs[f][k];
+                    if (s == -1)
+                        edge_count[e].first -= 1;
+                    else
+                        edge_count[e].second -= 1;
+                }
+            }
+        } else {
+            selected_colors[color] = 1;
+        }
+    }
     int num_v = disajoint_tree.CompactNum();
     O_compact.resize(num_v, Vector3d::Zero());
     Q_compact.resize(num_v, Vector3d::Zero());
@@ -248,66 +378,11 @@ void Parametrizer::ExtractQuadMesh() {
     }
 
 #ifdef LOG_OUTPUT
-    printf("extract graph...\n");
-#endif
-    std::vector<std::set<int>> vertices(num_v), complete_set(num_v);
-    for (int i = 0; i < edge_diff.size(); ++i) {
-        int p1 = disajoint_tree.Index(edge_values[i].x);
-        int p2 = disajoint_tree.Index(edge_values[i].y);
-        if (p1 == p2) continue;
-        complete_set[p1].insert(p2);
-        complete_set[p2].insert(p1);
-        if (abs(edge_diff[i][0]) + abs(edge_diff[i][1]) == 1) {
-            vertices[p1].insert(p2);
-            vertices[p2].insert(p1);
-        }
-    }
-
-#ifdef LOG_OUTPUT
     printf("extract bad vertices...\n");
 #endif
     bad_vertices.resize(num_v, 0);
     std::set<DEdge> bad_edges;
-    
     std::queue<int> badq;
-    for (int i = 0; i < num_v; ++i) {
-        if (vertices[i].size() < 3) {
-            badq.push(i);
-            bad_vertices[i] = 1;
-        }
-    }
-    while (!badq.empty()) {
-        int v = badq.front();
-        badq.pop();
-        for (auto& v1 : vertices[v]) {
-            vertices[v1].erase(v);
-            if (vertices[v1].size() < 3 && bad_vertices[v1] == 0) {
-                bad_vertices[v1] = 1;
-                badq.push(v1);
-            }
-        }
-    }
-    /*
-    for (int i = 0; i < F.cols(); ++i) {
-        int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
-        int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
-        int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
-        if (p0 == p1 || p1 == p2 || p2 == p0) continue;
-        Vector2i diff[3];
-        for (int j = 0; j < 3; ++j) {
-            int eid = face_edgeIds[i][j];
-            diff[j] = rshift90(edge_diff[eid], face_edgeOrients[i][j]);
-        }
-        int a = -diff[0][0] * diff[2][1] + diff[0][1] * diff[2][0];
-        if (a < 0) {
-            for (int j = 0; j < 3; ++j) {
-                int t1 = disajoint_tree.Index(F(j, i));
-                int t2 = disajoint_tree.Index(F((j + 1) % 3, i));
-                if (t1 != t2) bad_edges.insert(DEdge(t1, t2));
-            }
-        }
-    }
-    */
 #ifdef LOG_OUTPUT
     printf("extract quad cells...\n");
 #endif
@@ -316,17 +391,14 @@ void Parametrizer::ExtractQuadMesh() {
         int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
         int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
         int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
-        if (p0 != p1 && p1 != p2 && p2 != p0 && bad_vertices[p0] == 0 && bad_vertices[p1] == 0 &&
-            bad_vertices[p2] == 0 && bad_edges.count(DEdge(p0, p1)) == 0 &&
-            bad_edges.count(DEdge(p1, p2)) == 0 && bad_edges.count(DEdge(p2, p0)) == 0) {
+        if (p0 != p1 && p1 != p2 && p2 != p0) {
+            Face f = std::make_pair(p0, std::make_pair(p1, p2));
+            if (face_colors[face_ids[f]] != -1 || selected_colors[face_colors[face_ids[f]]]==0)
+                continue;
+            face_colors[face_ids[f]] = -1;
             auto diff1 = edge_diff[face_edgeIds[i][0]];
             auto diff2 = edge_diff[face_edgeIds[i][1]];
             auto diff3 = edge_diff[face_edgeIds[i][2]];
-            int orient1 = face_edgeOrients[i][0];
-            int orient2 = face_edgeOrients[i][2];
-            auto d1 = rshift90(diff1, orient1);
-            auto d2 = rshift90(-diff3, orient2);
-//            if (d1[0] * d2[1] - d1[1] * d2[0] < 0) continue;
             DEdge eid;
             if (abs(diff1[0]) == 1 && abs(diff1[1]) == 1) {
                 eid = DEdge(p0, p1);
@@ -351,6 +423,7 @@ void Parametrizer::ExtractQuadMesh() {
                 quad_cells[eid].second = Vector3i(p0, p1, p2);
         }
     }
+    
 #ifdef LOG_OUTPUT
     printf("extract quads...\n");
 #endif

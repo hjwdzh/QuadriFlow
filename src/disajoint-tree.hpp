@@ -17,6 +17,7 @@ class DisajointTree {
         return y;
     }
     int Index(int x) { return indices[x]; }
+    int IndexToParent(int x) {return indices_to_parent[x]; };
     void MergeFromTo(int x, int y) {
         int px = Parent(x);
         int py = Parent(y);
@@ -43,6 +44,7 @@ class DisajointTree {
         for (int i = 0; i < parent.size(); ++i) {
             if (parent[i] == i) {
                 compact_parent[i] = compact_num++;
+                indices_to_parent.push_back(i);
             }
         }
         indices.resize(parent.size());
@@ -55,7 +57,7 @@ class DisajointTree {
 
     int compact_num;
     std::vector<int> parent;
-    std::vector<int> indices;
+    std::vector<int> indices, indices_to_parent;
     std::vector<int> rank;
 };
 

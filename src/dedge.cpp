@@ -3,8 +3,10 @@
 
 #include "compare-key.hpp"
 #include <vector>
+#include <set>
 #include <atomic>
 #include <fstream>
+#include <iostream>
 #ifdef WITH_TBB
 #include "tbb_common.h"
 #endif
@@ -156,6 +158,7 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
         } while (edge != start);
         V2E[i] = v2e;
     }
+    printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
 }
 
 void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,
@@ -295,4 +298,177 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
         } while (edge != start);
         V2E[i] = v2e;
     }
+    printf("counter %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
 }
+
+void remove_nonmanifold(std::vector<Vector4i> &F, std::vector<Vector3d> &V) {
+    typedef std::pair<uint32_t, uint32_t> Edge;
+    
+    int degree = 4;
+    std::map<uint32_t, std::map<uint32_t, std::pair<uint32_t, uint32_t>>> irregular;
+    std::vector<std::set<int>> E(V.size());
+    std::vector<std::set<int>> VF(V.size());
+    
+    auto kill_face_single = [&](uint32_t f) {
+        if (F[f][0] == INVALID)
+            return;
+        for (int i=0; i< degree; ++i)
+            E[F[f][i]].erase(F[f][(i+1)%degree]);
+        F[f].setConstant(INVALID);
+    };
+    
+    auto kill_face = [&](uint32_t f) {
+        if (degree == 4 && F[f][2] == F[f][3]) {
+            auto it = irregular.find(F[f][2]);
+            if (it != irregular.end()) {
+                for (auto &item : it->second) {
+                    kill_face_single(item.second.second);
+                }
+            }
+        }
+        kill_face_single(f);
+    };
+    
+    
+    uint32_t nm_edge = 0, nm_vert = 0;
+    
+    for (uint32_t f=0; f < (uint32_t) F.size(); ++f) {
+        if (F[f][0] == INVALID)
+            continue;
+        if (degree == 4 && F[f][2] == F[f][3]) {
+            /* Special handling of irregular faces */
+            irregular[F[f][2]][F[f][0]] = std::make_pair(F[f][1], f);
+            continue;
+        }
+        
+        bool nonmanifold = false;
+        for (uint32_t e=0; e<degree; ++e) {
+            uint32_t v0 = F[f][e], v1 = F[f][(e + 1) % degree], v2 = F[f][(e + 2) % degree];
+            if (E[v0].find(v1) != E[v0].end() ||
+                (degree == 4 && E[v0].find(v2) != E[v0].end()))
+                nonmanifold = true;
+        }
+        
+        if (nonmanifold) {
+            nm_edge++;
+            F[f].setConstant(INVALID);
+            continue;
+        }
+        
+        for (uint32_t e=0; e< degree; ++e) {
+            uint32_t v0 = F[f][e], v1 = F[f][(e + 1) % degree], v2 = F[f][(e + 2) % degree];
+            
+            E[v0].insert(v1);
+            if (degree == 4)
+                E[v0].insert(v2);
+            VF[v0].insert(f);
+        }
+    }
+    
+    std::vector<Edge> edges;
+    for (auto item : irregular) {
+        bool nonmanifold = false;
+        auto face = item.second;
+        edges.clear();
+        
+        uint32_t cur = face.begin()->first, stop = cur;
+        while (true) {
+            uint32_t pred = cur;
+            cur = face[cur].first;
+            uint32_t next = face[cur].first, it = 0;
+            while (true) {
+                ++it;
+                if (next == pred)
+                    break;
+                if (E[cur].find(next) != E[cur].end() && it == 1)
+                    nonmanifold = true;
+                edges.push_back(Edge(cur, next));
+                next = face[next].first;
+            }
+            if (cur == stop)
+                break;
+        }
+        
+        if (nonmanifold) {
+            nm_edge++;
+            for (auto &i : item.second)
+                F[i.second.second].setConstant(INVALID);
+            continue;
+        } else {
+            for (auto e : edges) {
+                E[e.first].insert(e.second);
+                
+                for (auto e2 : face)
+                    VF[e.first].insert(e2.second.second);
+            }
+        }
+    }
+    
+    /* Check vertices */
+    std::set<uint32_t> v_marked, v_unmarked, f_adjacent;
+    
+    std::function<void(uint32_t)> dfs = [&](uint32_t i) {
+        v_marked.insert(i);
+        v_unmarked.erase(i);
+        
+        for (uint32_t f : VF[i]) {
+            if (f_adjacent.find(f) == f_adjacent.end()) /* if not part of adjacent face */
+                continue;
+            for (uint32_t j = 0; j<degree; ++j) {
+                uint32_t k = F[f][j];
+                if (v_unmarked.find(k) == v_unmarked.end() || /* if not unmarked OR */
+                    v_marked.find(k) != v_marked.end()) /* if already marked */
+                    continue;
+                dfs(k);
+            }
+        }
+    };
+    
+    for (uint32_t i = 0; i < (uint32_t) V.size(); ++i) {
+        v_marked.clear();
+        v_unmarked.clear();
+        f_adjacent.clear();
+        
+        for (uint32_t f : VF[i]) {
+            if (F[f][0] == INVALID)
+                continue;
+            
+            for (uint32_t k=0; k<degree; ++k)
+                v_unmarked.insert(F[f][k]);
+            
+            f_adjacent.insert(f);
+        }
+        
+        if (v_unmarked.empty())
+            continue;
+        v_marked.insert(i);
+        v_unmarked.erase(i);
+        
+        dfs(*v_unmarked.begin());
+        
+        if (v_unmarked.size() > 0) {
+            nm_vert++;
+            for (uint32_t f : f_adjacent)
+                kill_face(f);
+        }
+    }
+    
+    if (nm_vert > 0 || nm_edge > 0) {
+        std::cout << "Non-manifold elements:  vertices=" << nm_vert << ", edges=" << nm_edge << std::endl;
+    }
+    uint32_t nFaces = 0, nFacesOrig = F.size();
+    for (uint32_t f = 0; f < (uint32_t) F.size(); ++f) {
+        if (F[f][0] == INVALID)
+            continue;
+        if (nFaces != f) {
+            F[nFaces] = F[f];
+        }
+        ++nFaces;
+    }
+    
+    if (nFacesOrig != nFaces) {
+        F.resize(nFaces);
+        std::cout << "Faces reduced from " << nFacesOrig << " -> " << nFaces << std::endl;
+    }
+}
+

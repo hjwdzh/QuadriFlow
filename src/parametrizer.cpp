@@ -82,32 +82,17 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             }
         }
     }
-    std::queue<int> p;
-    for (auto& s : sing)
-        p.push(s);
-    while (!p.empty()) {
-        int e = V2E[p.front()];
-        int e1 = e;
-        do {
-            Vector2i diff = edge_diff[face_edgeIds[e1/3][e1%3]];
-            if (diff == Vector2i::Zero()) {
-                int v = F((e1+1)%3, e1/3);
-                if (sing.count(v) == 0) {
-                    sing.insert(v);
-                    p.push(v);
-                }
-            }
-            e1 = e1 / 3 * 3 + (e1 + 2) % 3;
-            e1 = E2E[e1];
-        } while (e1 != e);
-        p.pop();
-    }
+
+    printf("Sing: %d\n", sing.size());
     int count = 0;
+    int max_len = 1;
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         Vector2i diff[3];
         for (int j = 0; j < 3; ++j) {
             diff[j] = rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
             if (abs(diff[j][0]) > 1 || abs(diff[j][1]) > 1) {
+                max_len = std::max(max_len, abs(diff[j][0]));
+                max_len = std::max(max_len, abs(diff[j][1]));
 //                printf("Long edge... %d %d\n", diff[j][0], diff[j][1]);
             }
         }
@@ -121,36 +106,21 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             flipped.insert(F(2, i));
         }
     }
+    printf("max_len = %d\n", max_len);
     printf("Flipped %d\n", count);
-    for (auto& s : flipped)
-        p.push(s);
-    while (!p.empty()) {
-        int e = V2E[p.front()];
-        int e1 = e;
-        do {
-            Vector2i diff = edge_diff[face_edgeIds[e1/3][e1%3]];
-            if (diff == Vector2i::Zero()) {
-                int v = F((e1+1)%3, e1/3);
-                if (flipped.count(v) == 0) {
-                    flipped.insert(v);
-                    p.push(v);
-                }
-            }
-            e1 = e1 / 3 * 3 + (e1 + 2) % 3;
-            e1 = E2E[e1];
-        } while (e1 != e);
-        p.pop();
-    }
-    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
+
+//    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
 
     ExtractQuadMesh();
 
 #ifdef LOG_OUTPUT
     printf("Fix holes...\n");
 #endif
+//    remove_nonmanifold(F_compact, O_compact);
+    
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
-//    FixHoles();
+    FixHoles();
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
     // potential bug, not guarantee to have quads at holes!
