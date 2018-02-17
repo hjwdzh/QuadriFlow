@@ -66,11 +66,12 @@ set(
     src/hierarchy.hpp
     src/loader.cpp
     src/loader.hpp
+    src/localsat.cpp
+    src/localsat.hpp
     src/main.cpp
     src/merge-vertex.cpp
     src/merge-vertex.hpp
     src/optimizer.cpp
-    src/Optimizer.cu
     src/optimizer.hpp
     src/parametrizer.cpp
     src/parametrizer-flip.cpp

@@ -1,7 +1,12 @@
 #include "subdivide.hpp"
+
 #include <fstream>
 #include <queue>
+
 #include "dedge.hpp"
+#include "disajoint-tree.hpp"
+#include "field-math.hpp"
+#include "parametrizer.hpp"
 
 void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
                VectorXi &nonmanifold, double maxLength) {
@@ -133,10 +138,6 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
     E2E.conservativeResize(nF * 3);
 }
 
-#include "disajoint-tree.hpp"
-#include "field-math.hpp"
-#include "parametrizer.hpp"
-
 void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, VectorXi &V2E,
                     VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
                     std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
@@ -146,14 +147,8 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         int id;
         double length;
         Vector2i diff;
-        int maxlen() const
-        {
-            return std::max(abs(diff[0]), abs(diff[1]));
-        }
-        bool operator<(const EdgeLink& link) const
-        {
-            return maxlen() < link.maxlen();
-        }
+        int maxlen() const { return std::max(abs(diff[0]), abs(diff[1])); }
+        bool operator<(const EdgeLink &link) const { return maxlen() < link.maxlen(); }
     };
 
     struct FaceOrient {
@@ -350,7 +345,7 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
         auto Dsp1 = diffs[e1 / 3 * 3 + (e1 + 2) % 3];
         int orient = 0;
         while (rshift90(D01, orient) != Ds10) orient += 1;
-        
+
         Vector2i D0n = D01 / 2, Dsn0 = rshift90(D0n, orient);
 
         auto orients1 = face_spaces[f0];
@@ -453,20 +448,20 @@ void subdivide_diff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd
     boundary.conservativeResize(nV);
     nonmanifold.conservativeResize(nV);
     E2E.conservativeResize(nF * 3);
-/*
-    for (int i = 0; i < F.cols(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            auto diff = edge_diff[face_edgeIds[i][j]];
-            if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
-                printf("wrong init %d %d!\n", face_edgeIds[i][j], i * 3 + j);
-                exit(0);
+    /*
+        for (int i = 0; i < F.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                auto diff = edge_diff[face_edgeIds[i][j]];
+                if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+                    printf("wrong init %d %d!\n", face_edgeIds[i][j], i * 3 + j);
+                    exit(0);
+                }
             }
         }
-    }
-    for (int i = 0; i < edge_diff.size(); ++i) {
-        if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
-            printf("wrong...\n");
-            exit(0);
-        }
-    }*/
+        for (int i = 0; i < edge_diff.size(); ++i) {
+            if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
+                printf("wrong...\n");
+                exit(0);
+            }
+        }*/
 }
