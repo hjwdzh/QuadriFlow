@@ -23,7 +23,7 @@ inline bool atomicCompareAndExchange(volatile int *v, uint32_t newValue, int old
 
 #undef max
 #undef min
-void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
+bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
 	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
 {
 	V2E.resize(V.cols());
@@ -159,6 +159,48 @@ void compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
         V2E[i] = v2e;
     }
     printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
+    return true;
+    std::vector<std::vector<int> > vert_to_edges(V2E.size());
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int v = F(j, i);
+            vert_to_edges[v].push_back(i * 3 + j);
+        }
+    }
+    std::vector<int> colors(F.cols() * 3, -1);
+    bool update = false;
+    int num_v = V.cols();
+    std::map<int, int> new_vertices;
+    for (int i = 0; i < vert_to_edges.size(); ++i) {
+        int num_color = 0;
+        for (int j = 0; j < vert_to_edges[i].size(); ++j) {
+            int deid0 = vert_to_edges[i][j];
+            if (colors[deid0] == -1) {
+                int deid = deid0;
+                do {
+                    colors[deid] = num_color;
+                    if (num_color != 0)
+                        F(deid%3, deid/3) = num_v;
+                    deid = deid / 3 * 3 + (deid + 2) % 3;
+                    deid = E2E[deid];
+                } while (deid != deid0);
+                num_color += 1;
+                if (num_color > 1) {
+                    update = true;
+                    new_vertices[num_v] = i;
+                    num_v += 1;
+                }
+            }
+        }
+    }
+    if (update) {
+        V.conservativeResize(3, num_v);
+        for (auto& p : new_vertices) {
+            V.col(p.first) = V.col(p.second);
+        }
+        return false;
+    }
+    return true;
 }
 
 void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,

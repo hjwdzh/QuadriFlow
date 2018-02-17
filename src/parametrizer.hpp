@@ -54,18 +54,23 @@ public:
 	// Integer Grid Map Pipeline
 	void ComputeIndexMap(int with_scale = 0);
 	void BuildEdgeInfo();
-	void ComputeMaxFlow();
+    void ComputeMaxFlow();
+    void MarkInteger();
 	void BuildIntegerConstraints();
 
     // Fix Flip
     void FixFlipHierarchy();
     void FixHoles();
+    void FixHoles(std::vector<int>& loop_vertices);
     double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);
 
     // Quadmesh and IO
+    void AdvancedExtractQuad();
+    void BuildTriangleManifold(DisajointTree& disajoint_tree, std::vector<int>& edge, std::vector<int>& face, std::vector<DEdge>& edge_values, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& EdgeDiff, std::vector<Vector3i>& FQ);
     void ExtractQuadMesh();
 	void OutputMesh(const char* obj_name);
 
+    std::map<int,int> sing;
 	std::map<int, int> singularities;
 	std::map<int, Vector2i> pos_sing;
 	MatrixXi pos_rank;
@@ -128,7 +133,7 @@ public:
 	std::set<DEdge> fixed_cuts;
 
 	std::set<int> edge_around_singularities;
-    std::set<int> flipped, sing;
+    std::set<int> flipped;
     
     struct QuadInfo
     {
