@@ -1,4 +1,5 @@
 #include "optimizer.hpp"
+
 #include <Eigen/Sparse>
 #include <fstream>
 #include <iostream>
@@ -7,10 +8,12 @@
 #include "config.hpp"
 #include "field-math.hpp"
 #include "flow.hpp"
+#include "parametrizer.hpp"
+
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 #endif
-#include "parametrizer.hpp"
+
 Optimizer::Optimizer() {}
 
 void Optimizer::optimize_orientations(Hierarchy& mRes) {
