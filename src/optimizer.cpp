@@ -307,14 +307,85 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
 #endif
 }
 
-void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int> >& Vset, std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, VectorXi& V2E_compact, std::vector<int>& E2E_compact)
+void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int> >& Vset, std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, VectorXi& V2E_compact, std::vector<int>& E2E_compact, double mScale)
 {
     std::vector<int> Vind(O_compact.size());
-    int count = 0;
-    for (auto& v : Vset)
-        count += v.size();
-    printf("vset %d %d\n", count, V.cols());
-    exit(0);
+    std::vector<int> Orients(O_compact.size());
+    std::vector<std::list<int> > links(O_compact.size());
+    auto FindNearest = [&]() {
+        std::vector<int> integer_diss;
+        for (int i = 0; i < O_compact.size(); ++i) {
+            double min_dis = 1e30;
+            int min_ind = -1;
+            for (auto& v : Vset[i]) {
+                double dis = (V.col(v) - O_compact[i]).squaredNorm();
+                if (dis < min_dis) {
+                    min_dis = dis;
+                    min_ind = v;
+                }
+            }
+            Vind[i] = min_ind;
+        }
+    };
+    
+    auto BuildConnection = [&]() {
+        for (int i = 0; i < links.size(); ++i) {
+            int deid0 = V2E_compact[i];
+            if (deid0 != -1) {
+                std::list<int>& connection = links[i];
+                int deid = deid0;
+                do {
+                    connection.push_back(F_compact[deid/4][(deid+1)%4]);
+                    deid = E2E_compact[deid/4*4 + (deid+3) % 4];
+                } while (deid != -1 && deid != deid0);
+                if (deid == -1) {
+                    deid = deid0;
+                    do {
+                        deid = E2E_compact[deid];
+                        if (deid == -1)
+                            break;
+                        deid = deid/4*4 + (deid + 1) % 4;
+                        connection.push_front(F_compact[deid/4][(deid+1)%4]);
+                    } while (true);
+                }
+            }
+        }
+    };
+    
+    auto FindNearestOrient = [&]() {
+        for (int i = 0; i < links.size(); ++i) {
+            if (links[i].size() != 4)
+                continue;
+            Vector3d qx = Q.col(Vind[i]);
+            Vector3d qy = N.col(Vind[i]);
+            qy = qy.cross(qx);
+            double angles[4];
+            int best_orient = 0;
+            for (int orient = 0; orient < 4; ++orient) {
+                double angle = 0;
+                int ind = orient;
+                for (auto& j : links[i]) {
+                    Vector3d offset = O_compact[j] - O_compact[i];
+                    Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
+                    if (ind >= 2)
+                        target_offset = -target_offset;
+                    angle += std::abs(acos(offset.dot(target_offset) / (offset.norm() * target_offset.norm()))) / 3.141592654 * 180;
+                    ind = (ind + 1) % 4;
+                }
+                angles[orient] = angle;
+                if (angle < angles[best_orient])
+                    best_orient = orient;
+            }
+            Orients[i] = best_orient;
+        }
+    };
+    
+    printf("Find Nearest...\n");
+    FindNearest();
+    printf("Build Connection...\n");
+    BuildConnection();
+    printf("Find Best Orient...\n");
+    FindNearestOrient();
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,

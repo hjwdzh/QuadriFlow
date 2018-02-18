@@ -228,6 +228,8 @@ void Parametrizer::AdvancedExtractQuad() {
     for (int i = 0; i < O_compact.size(); ++i) {
         O_compact[i] /= counter[i];
     }
+    
+    printf("Q_compact size: %d\n", O_compact.size());
 
     BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
 }
@@ -353,7 +355,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         }
         if (num_color > 1) {
             for (int j = 0; j < num_color - 1; ++j) {
-                Vs.push_back(Vset[i]);
+                Vs.push_back(Vs[i]);
                 O.push_back(O[i]);
                 N.push_back(N[i]);
                 Q.push_back(Q[i]);
@@ -519,7 +521,6 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     FixHoles();
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
-    
     /*
     for (auto& p : flip_vertices) {
         int deid0 = V2E_compact[p];
