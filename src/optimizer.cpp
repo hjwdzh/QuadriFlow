@@ -307,6 +307,16 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
 #endif
 }
 
+void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int> >& Vset, std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, VectorXi& V2E_compact, std::vector<int>& E2E_compact)
+{
+    std::vector<int> Vind(O_compact.size());
+    int count = 0;
+    for (auto& v : Vset)
+        count += v.size();
+    printf("vset %d %d\n", count, V.cols());
+    exit(0);
+}
+
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
                                          std::vector<Vector2i>& edge_diff, int with_scale) {
     auto& V = mRes.mV[0];

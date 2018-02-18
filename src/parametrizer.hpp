@@ -108,6 +108,7 @@ public:
 	DisajointTree disajoint_tree;
 
 	int compact_num_v;
+    std::vector<std::vector<int> > Vset;
 	std::vector<Vector3d> O_compact;
     std::vector<Vector3d> Q_compact;
     std::vector<Vector3d> N_compact;

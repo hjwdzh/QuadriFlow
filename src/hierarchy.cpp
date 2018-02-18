@@ -652,7 +652,6 @@ void Hierarchy::FixFlip() {
             sings += 1;
         }
     }
-    printf("Sing %d\n", sings);
     auto CheckShrink = [&] (int deid, int allowed_edge) {
         if (deid == -1) {
             return false;

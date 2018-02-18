@@ -205,12 +205,14 @@ void Parametrizer::AdvancedExtractQuad() {
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
     int num_v = disajoint_tree.CompactNum();
+    Vset.resize(num_v);
     O_compact.resize(num_v, Vector3d::Zero());
     Q_compact.resize(num_v, Vector3d::Zero());
     N_compact.resize(num_v, Vector3d::Zero());
     counter.resize(num_v, 0);
     for (int i = 0; i < O.cols(); ++i) {
         int compact_v = disajoint_tree.Index(i);
+        Vset[compact_v].push_back(i);
         O_compact[compact_v] += O.col(i);
         N_compact[compact_v] = N_compact[compact_v] * counter[compact_v] + N.col(i);
         N_compact[compact_v].normalize();
@@ -226,6 +228,7 @@ void Parametrizer::AdvancedExtractQuad() {
     for (int i = 0; i < O_compact.size(); ++i) {
         O_compact[i] /= counter[i];
     }
+
     BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
 }
 
@@ -249,12 +252,14 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     std::vector<Vector3i> triangle_vertices(F2E.size(), Vector3i(-1, -1, -1));
     int num_v = 0;
     std::vector<Vector3d> N, Q, O;
+    std::vector<std::vector<int> > Vs;
     for (int i = 0; i < F2E.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             if (triangle_vertices[i][j] != -1)
                 continue;
             int f = face[i];
             int v = disajoint_tree.Index(F(j, f));
+            Vs.push_back(Vset[v]);
             Q.push_back(Q_compact[v]);
             N.push_back(N_compact[v]);
             O.push_back(O_compact[v]);
@@ -348,6 +353,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         }
         if (num_color > 1) {
             for (int j = 0; j < num_color - 1; ++j) {
+                Vs.push_back(Vset[i]);
                 O.push_back(O[i]);
                 N.push_back(N[i]);
                 Q.push_back(Q[i]);
@@ -452,11 +458,11 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         if (tests.count(std::make_pair(p.first.second, p.first.first)) == 0)
             boundary += 1;
     }
+    std::swap(Vs, Vset);
     std::swap(O_compact, O);
     std::swap(N_compact, N);
     std::swap(Q_compact, Q);
-    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                              nonManifold_compact);
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
 
     while (true) {
         std::vector<int> erasedF(F_compact.size(), 0);

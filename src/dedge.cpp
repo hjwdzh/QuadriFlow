@@ -194,8 +194,7 @@ bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
     return true;
 }
 
-void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E,
-                               std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold) {
+void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E, std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold) {
     V2E = VectorXi();
     E2E.clear();
     boundary = VectorXi();

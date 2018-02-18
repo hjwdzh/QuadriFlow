@@ -69,6 +69,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
     AdvancedExtractQuad();
+    Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact, E2E_compact);
 //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
 //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale, false);
 
