@@ -229,8 +229,6 @@ void Parametrizer::AdvancedExtractQuad() {
         O_compact[i] /= counter[i];
     }
     
-    printf("Q_compact size: %d\n", O_compact.size());
-
     BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
 }
 

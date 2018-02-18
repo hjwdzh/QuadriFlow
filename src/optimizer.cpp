@@ -325,6 +325,8 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 }
             }
             Vind[i] = min_ind;
+            double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
+            O_compact[i] -= x * N.col(min_ind);
         }
     };
     
@@ -379,13 +381,85 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
             Orients[i] = best_orient;
         }
     };
-    
-    printf("Find Nearest...\n");
+
+    for (int iter = 0; iter < 1; ++iter) {
+        FindNearest();
+        BuildConnection();
+        FindNearestOrient();
+        std::vector<std::unordered_map<int, double>> entries(O_compact.size() * 2);
+        std::vector<double> b(O_compact.size() * 2);
+        std::vector<double> x(O_compact.size() * 2);
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
+        for (int i = 0; i < O_compact.size(); ++i) {
+            Vector3d q = Q.col(Vind[i]);
+            Vector3d n = N.col(Vind[i]);
+            Vector3d q_y = n.cross(q);
+            x[i * 2] = (O_compact[i] - V.col(Vind[i])).dot(q);
+            x[i * 2 + 1] = (O_compact[i] - V.col(Vind[i])).dot(q_y);
+        }
+        for (int i = 0; i < O_compact.size(); ++i) {
+            Vector3d qx = Q.col(Vind[i]);
+            Vector3d qy = N.col(Vind[i]);
+            qy = qy.cross(qx);
+            int ind = Orients[i];
+            for (auto& j : links[i]) {
+                Vector3d qx2 = Q.col(Vind[j]);
+                Vector3d qy2 = N.col(Vind[j]);
+                qy2 = qy2.cross(qx2);
+                Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
+                if (ind >= 2)
+                    target_offset = -target_offset;
+                Vector3d offset = V.col(Vind[j]) - V.col(Vind[i]);
+                Vector3d C = target_offset - offset;
+                int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
+                Vector3d weights[] = {qx2, qy2, -qx, -qy};
+                
+                ind = (ind + 1) % 4;
+                for (int i = 0; i < 4; ++i) {
+                    for (int j = 0; j < 4; ++j) {
+                        auto it = entries[vid[i]].find(vid[j]);
+                        if (it == entries[vid[i]].end()) {
+                            entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
+                        } else {
+                            entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
+                        }
+                    }
+                    b[vid[i]] += weights[i].dot(C);
+                }
+            }
+        }
+        std::vector<Eigen::Triplet<double>> lhsTriplets;
+        lhsTriplets.reserve(F_compact.size() * 8);
+        Eigen::SparseMatrix<double> A(O_compact.size() * 2, O_compact.size() * 2);
+        VectorXd rhs(O_compact.size() * 2);
+        rhs.setZero();
+        for (int i = 0; i < entries.size(); ++i) {
+            rhs(i) = b[i];
+            for (auto& rec : entries[i]) {
+                lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
+            }
+        }
+        
+        A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
+        
+        Eigen::setNbThreads(1);
+        ConjugateGradient<SparseMatrix<double>, Lower | Upper, IncompleteCholesky<double>> solver;
+        VectorXd x0 = VectorXd::Map(x.data(), x.size());
+        solver.setMaxIterations(20);
+        
+        solver.compute(A);
+        VectorXd x_new = solver.solveWithGuess(rhs, x0);
+        
+        for (int i = 0; i < O_compact.size(); ++i) {
+            Vector3d q = Q.col(Vind[i]);
+            Vector3d n = N.col(Vind[i]);
+            Vector3d q_y = n.cross(q);
+            O_compact[i] = V.col(Vind[i]) + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
+        }
+    }
     FindNearest();
-    printf("Build Connection...\n");
-    BuildConnection();
-    printf("Find Best Orient...\n");
-    FindNearestOrient();
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
@@ -485,10 +559,14 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 
     solver.compute(A);
     VectorXd x_new = solver.solveWithGuess(rhs, x0);
+#ifdef LOG_OUTPUT
     std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
     std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
+#endif
     int t2 = GetCurrentTime64();
+#ifdef LOG_OUTPUT
     printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
+#endif
 
     /*
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
@@ -608,7 +686,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             if (flow_count == supply) {
                 FullFlow = true;
             }
-            printf("%d %d %d %d\n", level, supply, demand, flow_count);
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
         }

@@ -47,7 +47,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     ComputeMaxFlow();
 
-    printf("Analyze Valence...\n");
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");

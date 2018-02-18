@@ -149,7 +149,9 @@ bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
         } while (edge != start);
         V2E[i] = v2e;
     }
+#ifdef LOG_OUTPUT
     printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
+#endif
     return true;
     std::vector<std::vector<int> > vert_to_edges(V2E.size());
     for (int i = 0; i < F.cols(); ++i) {
@@ -320,7 +322,9 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
         } while (edge != start);
         V2E[i] = v2e;
     }
+#ifdef LOG_OUTPUT
     printf("counter %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
+#endif
 }
 
 void remove_nonmanifold(std::vector<Vector4i>& F, std::vector<Vector3d>& V) {
