@@ -600,8 +600,7 @@ void Hierarchy::FixFlip() {
     auto& E2F = mE2F[l];
     auto& FQ = mFQ[l];
     auto& EdgeDiff = mEdgeDiff[l];
-    std::set<int> singular_edges;
-    std::set<int> singular_faces;
+    // build E2E
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
         int v1 = E2F[i][0];
@@ -615,44 +614,14 @@ void Hierarchy::FixFlip() {
         E2E[t1] = t2;
         E2E[t2] = t1;
     }
+
     auto Area = [&](int f) {
         Vector2i diff1 = rshift90(EdgeDiff[F2E[f][0]], FQ[f][0]);
         Vector2i diff2 = rshift90(EdgeDiff[F2E[f][1]], FQ[f][1]);
         return diff1[0] * diff2[1] - diff1[1] * diff2[0];
     };
-    std::vector<int> valences(F2E.size() * 3, -10000);
-    int max_v = 0;
-    int sings = 0;
-    auto ComputeValence = [&](int i) {
-        double angle = 0;
-        int deid = i;
-        do {
-            int deid1 = deid / 3 * 3 + (deid + 2) % 3;
-            auto diff1 = rshift90(EdgeDiff[F2E[deid/3][deid%3]], FQ[deid/3][deid%3]);
-            auto diff2 = -rshift90(EdgeDiff[F2E[deid1/3][deid1%3]], FQ[deid1/3][deid1%3]);
-            double a = atan2(diff1[0] * diff2[1] - diff1[1] * diff2[0], diff1[0] * diff2[0] + diff1[1] * diff2[1]);
-            angle += a / 3.141592654 * 180;
-            deid = E2E[deid1];
-        } while (deid != i);
-        return (int)((angle + 7210) / 90 - 80);
-    };
-    for (int i = 0; i < valences.size(); ++i) {
-        if (valences[i] > -10000)
-            continue;
-        int deid = i;
-        int v = ComputeValence(i);
-        deid = i;
-        do {
-            valences[deid] = v;
-            int deid1 = deid / 3 * 3 + (deid + 2) % 3;
-            deid = E2E[deid1];
-        } while (deid != i);
-        max_v = std::max(max_v, v);
-        if (v % 4 != 0) {
-            sings += 1;
-        }
-    }
     auto CheckShrink = [&] (int deid, int allowed_edge) {
+        // Check if we want shrink direct edge deid so that all edge length is smaller than allowed_edge
         if (deid == -1) {
             return false;
         }
@@ -727,74 +696,7 @@ void Hierarchy::FixFlip() {
         }
         return false;
     };
-    
-    std::vector<int> eraseF(F2E.size(), 0);
-    std::vector<int> AddValence(F2E.size(), 0);
-    auto ShrinkQuad = [&](int deid) {
-        int rdeid = E2E[deid];
-        int d1 = E2E[deid / 3 * 3 + (deid + 1) % 3];
-        int d2 = E2E[deid / 3 * 3 + (deid + 2) % 3];
-        int r1 = E2E[rdeid / 3 * 3 + (rdeid + 1) % 3];
-        int r2 = E2E[rdeid / 3 * 3 + (rdeid + 2) % 3];
-        E2E[d1] = r2;
-        E2E[r2] = d1;
-        E2E[d2] = r1;
-        E2E[r1] = d2;
-        eraseF[deid / 3] = 1;
-        eraseF[rdeid / 3] = 1;
-        Vector2i diff_d1_origin = rshift90(EdgeDiff[F2E[d1/3][d1 % 3]], FQ[d1/3][d1%3]);
-        Vector2i diff_r2 = EdgeDiff[F2E[r2/3][r2%3]];
-        F2E[d1/3][d1%3] = F2E[r2/3][r2%3];
-        int orient = 0;
-        while (rshift90(diff_r2, orient) != diff_d1_origin)
-            orient += 1;
-        FQ[d1/3][d1%3] = orient;
-        Vector2i diff_d2_origin = rshift90(EdgeDiff[F2E[d2/3][d2%3]], FQ[d2/3][d2%3]);
-        Vector2i diff_r1 = EdgeDiff[F2E[r1/3][r1%3]];
-        F2E[d2/3][d2%3] = F2E[r1/3][r1%3];
-        orient = 0;
-        while (rshift90(diff_r1, orient) != diff_d2_origin)
-            orient += 1;
-        FQ[d2/3][d2%3] = orient;
-    };
-    auto RemoveFlip = [&](int fid) {
-        if (Area(fid) >= 0) {
-            printf("Fail1\n");
-            return false;
-        }
-        int deid = fid * 3;
-        do {
-            auto& diff = EdgeDiff[F2E[deid/3][deid%3]];
-            if (abs(diff[0]) == 1 && abs(diff[1]) == 1)
-                break;
-            deid += 1;
-        } while (true);
-        // case one, the reverse is positive
-        int rdeid = E2E[deid];
-        if (Area(rdeid/3) > 0) {
-            ShrinkQuad(deid);
-            return true;
-        } else {
-            for (int d = 1; d < 3; ++d) {
-                int rdeid = E2E[deid / 3 * 3 + (deid + d) % 3];
-                if (Area(rdeid/3) > 0) {
-                    int next_r = rdeid / 3 * 3;
-                    do {
-                        auto& diff = EdgeDiff[F2E[next_r/3][next_r%3]];
-                        if (abs(diff[0]) == 1 && abs(diff[1]) == 1)
-                            break;
-                        next_r += 1;
-                    } while (true);
-                    if (Area(E2E[next_r]/3) > 0) {
-                        ShrinkQuad(next_r);
-                        ShrinkQuad(deid);
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    };
+
     std::queue<int> flipped;
     for (int i = 0; i < F2E.size(); ++i) {
         int area = Area(i);

@@ -8,7 +8,7 @@
 void Parametrizer::BuildEdgeInfo() {
     auto& F = hierarchy.mF;
     auto& E2E = hierarchy.mE2E;
-    
+
     edge_diff.clear();
     edge_values.clear();
     face_edgeIds.resize(F.cols(), Vector3i(-1, -1, -1));
@@ -196,7 +196,7 @@ void Parametrizer::BuildIntegerConstraints() {
         }
         total_flows[segments.Index(colors[i])] += diff[0] + diff[1];
     }
-    
+
     variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -213,13 +213,12 @@ void Parametrizer::BuildIntegerConstraints() {
             }
         }
     }
-    cuts.clear();
-    
+
+
     std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
     for (int i = 0; i < variables.size(); ++i) {
         if (variables[i].second != 0) {
             int find = segments.Index(colors[variables[i].first[0]/2]);
-            cuts.insert(edge_values[i / 2]);
             if (total_flows[find] > 0) {
                 if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
                     modified_variables[find].push_back(std::make_pair(i, -1));
