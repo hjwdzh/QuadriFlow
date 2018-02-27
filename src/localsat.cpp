@@ -1,23 +1,238 @@
+#include "config.hpp"
+#include "dedge.hpp"
 #include "field-math.hpp"
 
 #include <Eigen/Core>
+
+#include <deque>
+#include <memory>
+#include <utility>
 #include <vector>
 
 using namespace Eigen;
 
-void ExportLocalSat(std::vector<Vector2i> &edge_diff, std::vector<Vector3i> face_edgeIds,
-                    std::vector<Vector3i> face_edgeOrients) {
-    int flip_count = 0;
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
-        Vector2i diff[3];
-        for (int j = 0; j < 3; ++j) {
-            diff[j] = rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
-        }
-        if (diff[0] + diff[1] + diff[2] != Vector2i::Zero()) {
-            printf("Non zero!\n");
-        }
-        if (diff[0][0] * diff[1][1] - diff[0][1] * diff[1][0] < 0) {
-            flip_count += 1;
+bool SolveSatProblem(int n_variable, std::vector<int> &value,
+                     const std::vector<bool> flexible,  // NOQA
+                     const std::vector<Vector3i> &variable_eq,
+                     const std::vector<Vector3i> &constant_eq,
+                     const std::vector<Vector4i> &variable_ge,
+                     const std::vector<Vector2i> &constant_ge) {
+    auto VAR = [&](int i, int v) { return 1 + 3 * i + v + 1; };
+    std::vector<std::vector<int>> sat_clause;
+    for (int i = 0; i < n_variable; ++i) {
+        sat_clause.push_back({-VAR(i, -1), -VAR(i, 0)});
+        sat_clause.push_back({-VAR(i, +1), -VAR(i, 0)});
+        sat_clause.push_back({-VAR(i, -1), -VAR(i, +1)});
+        sat_clause.push_back({VAR(i, -1), VAR(i, 0), VAR(i, +1)});
+        if (!flexible[i]) {
+            sat_clause.push_back({VAR(i, value[i])});
         }
     }
+
+    for (int i = 0; i < variable_eq.size(); ++i) {
+        auto &var = variable_eq[i];
+        auto &cst = constant_eq[i];
+        for (int v0 = -1; v0 <= 1; ++v0)
+            for (int v1 = -1; v1 <= 1; ++v1)
+                for (int v2 = -1; v2 <= 1; ++v2)
+                    if (cst[0] * v0 + cst[1] * v1 + cst[2] * v2 != 0) {
+                        sat_clause.push_back(
+                            {-VAR(var[0], v0), -VAR(var[1], v1), -VAR(var[2], v2)});
+                    }
+    }
+
+    for (int i = 0; i < variable_ge.size(); ++i) {
+        auto &var = variable_ge[i];
+        auto &cst = constant_ge[i];
+        for (int v0 = -1; v0 <= 1; ++v0)
+            for (int v1 = -1; v1 <= 1; ++v1)
+                for (int v2 = -1; v2 <= 1; ++v2)
+                    for (int v3 = -1; v3 <= 1; ++v3)
+                        if (cst[0] * v0 * v1 - cst[1] * v2 * v3 < 0) {
+                            sat_clause.push_back({-VAR(var[0], v0), -VAR(var[1], v1),
+                                                  -VAR(var[2], v2), -VAR(var[3], v3)});
+                        }
+    }
+
+    int n_sat_variable = 3 * n_variable;
+    printf("[SAT] nSatVariable: %d\n[SAT] nSatClause: %d\n", n_sat_variable,
+           (int)sat_clause.size());
+
+    puts("[SAT] Writting to test.out");
+    FILE *fout = fopen("test.out", "w");
+    fprintf(fout, "p cnf %d %d\n", n_sat_variable, (int)sat_clause.size());
+    for (auto &c : sat_clause) {
+        for (auto e : c) fprintf(fout, "%d ", e);
+        fputs("0\n", fout);
+    }
+    fclose(fout);
+
+    const char *cmd = "minisat test.out test.result.txt > /dev/null";
+    printf("[SAT] Execute ");
+    puts(cmd);
+    system(cmd);
+
+    FILE *fin = fopen("test.result.txt", "r");
+    char buf[16];
+    fscanf(fin, "%15s", buf);
+    if (strcmp(buf, "SAT") != 0) {
+        puts("MINISAT Result: Unsatisfiable!");
+        fclose(fin);
+        return false;
+    };
+
+    puts("[SAT] Satisfiable, verifying correctness...");
+    int mutual_checker = 0;
+    for (int i = 0; i < n_sat_variable; ++i) {
+        int num;
+        fscanf(fin, "%d", &num);
+        assert(abs(num) == i + 1);
+        int entry = i / 3;
+        int choice = i % 3 - 1;
+        if (choice == -1) mutual_checker = 0;
+
+        if (num < 0) continue;
+        assert(++mutual_checker <= 1);
+        assert(flexible[entry] || value[entry] == choice);
+        value[entry] = choice;
+    }
+
+    for (int i = 0; i < variable_eq.size(); ++i) {
+        auto &var = variable_eq[i];
+        auto &cst = constant_eq[i];
+        assert(cst[0] * value[var[0]] + cst[1] * value[var[1]] + cst[2] * value[var[2]] == 0);
+    }
+
+    for (int i = 0; i < variable_ge.size(); ++i) {
+        auto &var = variable_ge[i];
+        auto &cst = constant_ge[i];
+        int area = value[var[0]] * value[var[1]] * cst[0] - value[var[2]] * value[var[3]] * cst[1];
+        assert(area >= 0);
+    }
+
+    fclose(fin);
+    return true;
+}
+
+void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i> &face_edgeIds,
+                    const std::vector<Vector3i> &face_edgeOrients, const MatrixXi &F,
+                    const VectorXi &V2E, const VectorXi &E2E) {
+    int flip_count = 0;
+    int flip_count1 = 0;
+
+    std::vector<int> value(2 * edge_diff.size());
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        value[2 * i + 0] = edge_diff[i][0];
+        value[2 * i + 1] = edge_diff[i][1];
+    }
+
+    std::deque<std::pair<int, int>> Q;
+    std::vector<bool> mark_vertex(V2E.size(), false);
+
+    assert(F.cols() == face_edgeIds.size());
+    std::vector<Vector3i> variable_eq(face_edgeIds.size() * 2);
+    std::vector<Vector3i> constant_eq(face_edgeIds.size() * 2);
+    std::vector<Vector4i> variable_ge(face_edgeIds.size());
+    std::vector<Vector2i> constant_ge(face_edgeIds.size());
+
+    VectorXd face_area(F.cols());
+
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        Vector2i diff[3];
+        Vector2i var[3];
+        Vector2i cst[3];
+        for (int j = 0; j < 3; ++j) {
+            int edgeid = face_edgeIds[i][j];
+            diff[j] = rshift90(edge_diff[edgeid], face_edgeOrients[i][j]);
+            var[j] = rshift90(Vector2i(edgeid * 2 + 1, edgeid * 2 + 2), face_edgeOrients[i][j]);
+            cst[j] = var[j].array().sign();
+            var[j] = var[j].array().abs() - 1;
+        }
+
+        assert(diff[0] + diff[1] + diff[2] == Vector2i::Zero());
+        variable_eq[2 * i + 0] = Vector3i(var[0][0], var[1][0], var[2][0]);
+        constant_eq[2 * i + 0] = Vector3i(cst[0][0], cst[1][0], cst[2][0]);
+        variable_eq[2 * i + 1] = Vector3i(var[0][1], var[1][1], var[2][1]);
+        constant_eq[2 * i + 1] = Vector3i(cst[0][1], cst[1][1], cst[2][1]);
+
+        face_area[i] = diff[0][0] * diff[1][1] - diff[0][1] * diff[1][0];
+        if (face_area[i] < 0) {
+            printf("[SAT] Face %d's area < 0\n", i);
+            for (int j = 0; j < 3; ++j) {
+                int v = F(j, i);
+                if (mark_vertex[v]) continue;
+                Q.push_back(std::make_pair(v, 0));
+                mark_vertex[v] = true;
+            }
+            flip_count += 1;
+        }
+        variable_ge[i] = Vector4i(var[0][0], var[1][1], var[0][1], var[1][0]);
+        constant_ge[i] = Vector2i(cst[0][0] * cst[1][1], cst[0][1] * cst[1][0]);
+    }
+    for (int i = 0; i < variable_eq.size(); ++i) {
+        auto &var = variable_eq[i];
+        auto &cst = constant_eq[i];
+        assert((0 <= var.array()).all());
+        assert((var.array() < value.size()).all());
+        assert(cst[0] * value[var[0]] + cst[1] * value[var[1]] + cst[2] * value[var[2]] == 0);
+    }
+
+    for (int i = 0; i < variable_ge.size(); ++i) {
+        auto &var = variable_ge[i];
+        auto &cst = constant_ge[i];
+        assert((0 <= variable_ge[i].array()).all());
+        assert((variable_ge[i].array() < value.size()).all());
+        if (value[var[0]] * value[var[1]] * cst[0] - value[var[2]] * value[var[3]] * cst[1] < 0) {
+            assert(face_area[i] < 0);
+            flip_count1++;
+        }
+    }
+    assert(flip_count == flip_count1);
+
+    // BFS
+    printf("[SAT] Start BFS: Q.size() = %d\n", (int)Q.size());
+
+    int mark_count = Q.size();
+    while (!Q.empty()) {
+        int vertex = Q.front().first;
+        int depth = Q.front().second;
+        Q.pop_front();
+        mark_count++;
+        int e0 = V2E(vertex);
+        int e = e0;
+        for (;;) {
+            int v = F((e + 1) % 3, e / 3);
+            if (!mark_vertex[v]) {
+                int undirected_edge_id = face_edgeIds[e / 3][e % 3];
+                int undirected_edge_length = edge_diff[undirected_edge_id].array().abs().sum() > 0;
+                int ndepth = depth + undirected_edge_length;
+                if (ndepth < 1) {
+                    if (undirected_edge_length == 0)
+                        Q.push_front(std::make_pair(v, ndepth));
+                    else
+                        Q.push_back(std::make_pair(v, ndepth));
+                    mark_vertex[v] = true;
+                }
+            }
+            e = dedge_next_3(E2E(e));
+            if (e == e0) break;
+        }
+    }
+    printf("[SAT] Mark %d vertices out of %d\n", mark_count, (int)V2E.size());
+
+    std::vector<bool> flexible(value.size(), false);
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int edgeid = face_edgeIds[i][j];
+            if (mark_vertex[F(j, i)] || mark_vertex[F((j + 1) % 3, i)]) {
+                flexible[edgeid * 2 + 0] = true;
+                flexible[edgeid * 2 + 1] = true;
+            } else {
+                assert(face_area[i] >= 0);
+            }
+        }
+    }
+
+    SolveSatProblem(value.size(), value, flexible, variable_eq, constant_eq, variable_ge,
+                    constant_ge);
 }

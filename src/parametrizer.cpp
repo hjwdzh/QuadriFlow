@@ -62,10 +62,9 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
-
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
-    // ExportLocalSat(F, V2E, hierarchy.mE2E, edge_diff, face_edgeIds, face_edgeOrients);
+    ExportLocalSat(edge_diff, face_edgeIds, face_edgeOrients, F, V2E, hierarchy.mE2E);
 
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
