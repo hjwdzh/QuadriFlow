@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "config.hpp"
 #include "dedge.hpp"
 #include "field-math.hpp"

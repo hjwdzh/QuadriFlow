@@ -307,11 +307,14 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
 #endif
 }
 
-void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int> >& Vset, std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, VectorXi& V2E_compact, std::vector<int>& E2E_compact, double mScale)
-{
+void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q,
+                                           std::vector<std::vector<int>>& Vset,
+                                           std::vector<Vector3d>& O_compact,
+                                           std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
+                                           std::vector<int>& E2E_compact, double mScale) {
     std::vector<int> Vind(O_compact.size());
     std::vector<int> Orients(O_compact.size());
-    std::vector<std::list<int> > links(O_compact.size());
+    std::vector<std::list<int>> links(O_compact.size());
     auto FindNearest = [&]() {
         std::vector<int> integer_diss;
         for (int i = 0; i < O_compact.size(); ++i) {
@@ -329,7 +332,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
             O_compact[i] -= x * N.col(min_ind);
         }
     };
-    
+
     auto BuildConnection = [&]() {
         for (int i = 0; i < links.size(); ++i) {
             int deid0 = V2E_compact[i];
@@ -337,27 +340,25 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 std::list<int>& connection = links[i];
                 int deid = deid0;
                 do {
-                    connection.push_back(F_compact[deid/4][(deid+1)%4]);
-                    deid = E2E_compact[deid/4*4 + (deid+3) % 4];
+                    connection.push_back(F_compact[deid / 4][(deid + 1) % 4]);
+                    deid = E2E_compact[deid / 4 * 4 + (deid + 3) % 4];
                 } while (deid != -1 && deid != deid0);
                 if (deid == -1) {
                     deid = deid0;
                     do {
                         deid = E2E_compact[deid];
-                        if (deid == -1)
-                            break;
-                        deid = deid/4*4 + (deid + 1) % 4;
-                        connection.push_front(F_compact[deid/4][(deid+1)%4]);
+                        if (deid == -1) break;
+                        deid = deid / 4 * 4 + (deid + 1) % 4;
+                        connection.push_front(F_compact[deid / 4][(deid + 1) % 4]);
                     } while (true);
                 }
             }
         }
     };
-    
+
     auto FindNearestOrient = [&]() {
         for (int i = 0; i < links.size(); ++i) {
-            if (links[i].size() != 4)
-                continue;
+            if (links[i].size() != 4) continue;
             Vector3d qx = Q.col(Vind[i]);
             Vector3d qy = N.col(Vind[i]);
             qy = qy.cross(qx);
@@ -369,14 +370,14 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 for (auto& j : links[i]) {
                     Vector3d offset = O_compact[j] - O_compact[i];
                     Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
-                    if (ind >= 2)
-                        target_offset = -target_offset;
-                    angle += std::abs(acos(offset.dot(target_offset) / (offset.norm() * target_offset.norm()))) / 3.141592654 * 180;
+                    if (ind >= 2) target_offset = -target_offset;
+                    angle += std::abs(acos(offset.dot(target_offset) /
+                                           (offset.norm() * target_offset.norm()))) /
+                             3.141592654 * 180;
                     ind = (ind + 1) % 4;
                 }
                 angles[orient] = angle;
-                if (angle < angles[best_orient])
-                    best_orient = orient;
+                if (angle < angles[best_orient]) best_orient = orient;
             }
             Orients[i] = best_orient;
         }
@@ -409,13 +410,12 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 Vector3d qy2 = N.col(Vind[j]);
                 qy2 = qy2.cross(qx2);
                 Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
-                if (ind >= 2)
-                    target_offset = -target_offset;
+                if (ind >= 2) target_offset = -target_offset;
                 Vector3d offset = V.col(Vind[j]) - V.col(Vind[i]);
                 Vector3d C = target_offset - offset;
                 int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                 Vector3d weights[] = {qx2, qy2, -qx, -qy};
-                
+
                 ind = (ind + 1) % 4;
                 for (int i = 0; i < 4; ++i) {
                     for (int j = 0; j < 4; ++j) {
@@ -441,17 +441,32 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
             }
         }
-        
+
         A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-        
+
+#ifdef LOG_OUTPUT
+        int t1 = GetCurrentTime64();
+#endif
+
+        // FIXME: IncompleteCholesky Preconditioner will fail here so I fallback to Diagonal one.
+        // I suspected either there is a implementation bug in IncompleteCholesky Preconditioner
+        // or there is a memory corruption somewhere.  However, g++'s address sanitizer does not
+        // report anything useful.
         Eigen::setNbThreads(1);
-        ConjugateGradient<SparseMatrix<double>, Lower | Upper, IncompleteCholesky<double>> solver;
+        ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
         VectorXd x0 = VectorXd::Map(x.data(), x.size());
-        solver.setMaxIterations(20);
-        
+        solver.setMaxIterations(40);
+
         solver.compute(A);
         VectorXd x_new = solver.solveWithGuess(rhs, x0);
-        
+
+#ifdef LOG_OUTPUT
+        std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
+        std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
+        int t2 = GetCurrentTime64();
+        printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
+#endif
+
         for (int i = 0; i < O_compact.size(); ++i) {
             Vector3d q = Q.col(Vind[i]);
             Vector3d n = N.col(Vind[i]);
@@ -550,21 +565,22 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 
     A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 
+#ifdef LOG_OUTPUT
     int t1 = GetCurrentTime64();
+#endif
 
     Eigen::setNbThreads(1);
-    ConjugateGradient<SparseMatrix<double>, Lower | Upper, IncompleteCholesky<double>> solver;
+    ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
     VectorXd x0 = VectorXd::Map(x.data(), x.size());
-    solver.setMaxIterations(20);
+    solver.setMaxIterations(40);
 
     solver.compute(A);
     VectorXd x_new = solver.solveWithGuess(rhs, x0);
+
 #ifdef LOG_OUTPUT
     std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
     std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
-#endif
     int t2 = GetCurrentTime64();
-#ifdef LOG_OUTPUT
     printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif
 
@@ -576,7 +592,8 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     */
 
     for (int i = 0; i < x.size(); ++i) x[i] = x_new[i];
-#endif
+#endif  // WITH_CUDA
+
     for (int i = 0; i < O.cols(); ++i) {
         Vector3d q = Q.col(i);
         Vector3d n = N.col(i);

@@ -12,7 +12,7 @@
 #define INVALID -1
 #define GRAIN_SIZE 1024
 
-//#define LOG_OUTPUT
+#define LOG_OUTPUT
 
 #include <chrono>
 
