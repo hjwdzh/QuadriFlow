@@ -37,6 +37,8 @@ class DisajointTree {
             parent[py] = px;
         }
     }
+
+    // renumber the root so that it is consecutive.
     void BuildCompactParent() {
         std::vector<int> compact_parent;
         compact_parent.resize(parent.size());

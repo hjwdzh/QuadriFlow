@@ -6,7 +6,7 @@
 // #define WITH_SCALE
 // #define WITH_CUDA
 // #define WITH_TBB
-//#define WITH_OPENGL
+// #define WITH_OPENGL
 
 #define DATA_PATH "./data"
 #define INVALID -1

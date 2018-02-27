@@ -1,6 +1,6 @@
-#include "parametrizer.hpp"
 #include "config.hpp"
 #include "field-math.hpp"
+#include "parametrizer.hpp"
 void Parametrizer::ComputeOrientationSingularities() {
     MatrixXd &N = hierarchy.mN[0], &Q = hierarchy.mQ[0];
     const MatrixXi& F = hierarchy.mF;
@@ -11,7 +11,7 @@ void Parametrizer::ComputeOrientationSingularities() {
         for (int k = 0; k < 3; ++k) {
             int i = F(k, f), j = F(k == 2 ? 0 : (k + 1), f);
             auto value =
-            compat_orientation_extrinsic_index_4(Q.col(i), N.col(i), Q.col(j), N.col(j));
+                compat_orientation_extrinsic_index_4(Q.col(i), N.col(i), Q.col(j), N.col(j));
             index += value.second - value.first;
             abs_index += std::abs(value.second - value.first);
         }
@@ -27,23 +27,23 @@ void Parametrizer::ComputeOrientationSingularities() {
 
 void Parametrizer::ComputePositionSingularities(int with_scale) {
     const MatrixXd &V = hierarchy.mV[0], &N = hierarchy.mN[0], &Q = hierarchy.mQ[0],
-    &O = hierarchy.mO[0];
+                   &O = hierarchy.mO[0];
     const MatrixXi& F = hierarchy.mF;
-    
+
     pos_sing.clear();
     pos_rank.resize(F.rows(), F.cols());
     pos_index.resize(6, F.cols());
     for (int f = 0; f < F.cols(); ++f) {
         if (singularities.count(f)) continue;
-        
+
         Vector2i index = Vector2i::Zero();
         uint32_t i0 = F(0, f), i1 = F(1, f), i2 = F(2, f);
-        
+
         Vector3d q[3] = {Q.col(i0).normalized(), Q.col(i1).normalized(), Q.col(i2).normalized()};
         Vector3d n[3] = {N.col(i0), N.col(i1), N.col(i2)};
         Vector3d o[3] = {O.col(i0), O.col(i1), O.col(i2)};
         Vector3d v[3] = {V.col(i0), V.col(i1), V.col(i2)};
-        
+
         int best[3];
         double best_dp = -std::numeric_limits<double>::infinity();
         for (int i = 0; i < 4; ++i) {
@@ -66,11 +66,11 @@ void Parametrizer::ComputePositionSingularities(int with_scale) {
         pos_rank(1, f) = best[1];
         pos_rank(2, f) = best[2];
         for (int k = 0; k < 3; ++k) q[k] = rotate90_by(q[k], n[k], best[k]);
-        
+
         for (int k = 0; k < 3; ++k) {
             int kn = k == 2 ? 0 : (k + 1);
             double scale_x = hierarchy.mScale, scale_y = hierarchy.mScale,
-            scale_x_1 = hierarchy.mScale, scale_y_1 = hierarchy.mScale;
+                   scale_x_1 = hierarchy.mScale, scale_y_1 = hierarchy.mScale;
             if (with_scale) {
                 scale_x *= hierarchy.mS[0](0, F(k, f));
                 scale_y *= hierarchy.mS[0](1, F(k, f));
@@ -80,24 +80,23 @@ void Parametrizer::ComputePositionSingularities(int with_scale) {
                 if (best[kn] % 2 != 0) std::swap(scale_x_1, scale_y_1);
             }
             double inv_scale_x = 1.0 / scale_x, inv_scale_y = 1.0 / scale_y,
-            inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
+                   inv_scale_x_1 = 1.0 / scale_x_1, inv_scale_y_1 = 1.0 / scale_y_1;
             std::pair<Vector2i, Vector2i> value = compat_position_extrinsic_index_4(
-                                                                                    v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
-                                                                                    inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
+                v[k], n[k], q[k], o[k], v[kn], n[kn], q[kn], o[kn], scale_x, scale_y, inv_scale_x,
+                inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1, inv_scale_y_1, nullptr);
             auto diff = value.first - value.second;
             index += diff;
             pos_index(k * 2, f) = diff[0];
             pos_index(k * 2 + 1, f) = diff[1];
         }
-        
+
         if (index != Vector2i::Zero()) {
             pos_sing[f] = rshift90(index, best[0]);
         }
     }
 }
 
-void Parametrizer::AnalyzeValence()
-{
+void Parametrizer::AnalyzeValence() {
     auto& F = hierarchy.mF;
     std::map<int, int> sing;
     for (auto& f : singularities) {
@@ -118,16 +117,14 @@ void Parametrizer::AnalyzeValence()
             do {
                 int deid1 = deid / 3 * 3 + (deid + 2) % 3;
                 deid = E2E[deid1];
-                sum_int += (FQ[deid/3][deid%3] + 6 - FQ[deid1/3][deid1%3]) % 4;
+                sum_int += (FQ[deid / 3][deid % 3] + 6 - FQ[deid1 / 3][deid1 % 3]) % 4;
             } while (deid != i * 3 + j);
             if (sum_int % 4 == 2) {
                 printf("OMG! valence = 2\n");
                 exit(0);
             }
-            if (sum_int % 4 == 1)
-                sing1.insert(F(j, i));
-            if (sum_int % 4 == 3)
-                sing2.insert(F(j, i));
+            if (sum_int % 4 == 1) sing1.insert(F(j, i));
+            if (sum_int % 4 == 3) sing2.insert(F(j, i));
         }
     }
     int count3 = 0, count4 = 0;
@@ -137,7 +134,7 @@ void Parametrizer::AnalyzeValence()
         else
             count4 += 1;
     }
-    printf("singularity: <%d %d> <%d %d>\n", sing1.size(), sing2.size(), count3, count4);
+    printf("singularity: <%d %d> <%d %d>\n", (int)sing1.size(), (int)sing2.size(), count3, count4);
 }
 
 #ifdef WITH_SCALE
@@ -158,7 +155,7 @@ void Parametrizer::EstimateScale() {
         Vector3d q_1n = rotate_vector_into_plane(q_1, n_1, n);
         Vector3d q_2n = rotate_vector_into_plane(q_2, n_2, n);
         Vector3d q_3n = rotate_vector_into_plane(q_3, n_3, n);
-        
+
         auto p = compat_orientation_extrinsic_4(q_1n, n, q_2n, n);
         Vector3d q = (p.first + p.second).normalized();
         p = compat_orientation_extrinsic_4(q, n, q_3n, n);
@@ -171,7 +168,7 @@ void Parametrizer::EstimateScale() {
 #endif
     for (int i = 0; i < mF.cols(); ++i) {
         double step = hierarchy.mScale * 1.f;
-        
+
         const Vector3d& n = Nf.col(i);
         Vector3d p = (mV.col(mF(0, i)) + mV.col(mF(1, i)) + mV.col(mF(2, i))) * (1.0 / 3.0);
         Vector3d q_x = FQ.col(i), q_y = n.cross(q_x);
@@ -180,22 +177,22 @@ void Parametrizer::EstimateScale() {
         Vector3d q_yl_unfold = q_y, q_yr_unfold = q_y, q_xl_unfold = q_x, q_xr_unfold = q_x;
         int f;
         double tx, ty, len;
-        
+
         f = i;
         len = step;
         TravelField(p, q_xl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
                     &ty, &q_yl_unfold);
-        
+
         f = i;
         len = step;
         TravelField(p, q_xr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
                     &ty, &q_yr_unfold);
-        
+
         f = i;
         len = step;
         TravelField(p, q_yl, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
                     &ty, &q_xl_unfold);
-        
+
         f = i;
         len = step;
         TravelField(p, q_yr, len, f, hierarchy.mE2E, mV, mF, Nf, FQ, mQ, mN, triangle_space, &tx,
@@ -204,7 +201,7 @@ void Parametrizer::EstimateScale() {
         double dSy = (q_xr_unfold - q_xl_unfold).dot(q_y) / (2.0f * step);
         FS.col(i) = Vector2d(dSx, dSy);
     }
-    
+
     std::vector<double> areas(mV.cols(), 0.0);
     for (int i = 0; i < mF.cols(); ++i) {
         Vector3d p1 = mV.col(mF(1, i)) - mV.col(mF(0, i));
@@ -243,12 +240,12 @@ void Parametrizer::EstimateScale() {
         for (int i = 0; i < toUpper.cols(); ++i) {
             Vector2i upper = toUpper.col(i);
             Vector2d k0 = K.col(upper[0]);
-            
+
             if (upper[1] != -1) {
                 Vector2d k1 = K.col(upper[1]);
                 k0 = 0.5 * (k0 + k1);
             }
-            
+
             K_next.col(i) = k0;
         }
     }

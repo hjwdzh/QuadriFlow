@@ -3,6 +3,7 @@
 #include "dedge.hpp"
 #include "field-math.hpp"
 #include "flow.hpp"
+#include "localsat.hpp"
 #include "optimizer.hpp"
 #include "subdivide.hpp"
 
@@ -22,14 +23,15 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
     auto& O = hierarchy.mO[0];
-    ComputeOrientationSingularities();
+
+    // ComputeOrientationSingularities();
 
     BuildEdgeInfo();
 
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             if (face_edgeIds[i][j] == -1) {
-                printf("OK, edge info is wrong!\n");
+                printf("Ops, edge info is wrong!\n");
             }
         }
     }
@@ -51,14 +53,19 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
-    subdivide_diff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                   edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
+    subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
+                       edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
 
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
 #endif
+
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
+
+    subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
+                       edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
+    // ExportLocalSat(F, V2E, hierarchy.mE2E, edge_diff, face_edgeIds, face_edgeOrients);
 
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
@@ -68,8 +75,10 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
     AdvancedExtractQuad();
-    Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact, E2E_compact, hierarchy.mScale);
-//    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact, E2E_compact,
-//                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree, hierarchy.mScale, false);
-
+    Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
+                                          E2E_compact, hierarchy.mScale);
+    //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
+    //    E2E_compact,
+    //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree,
+    //                            hierarchy.mScale, false);
 }

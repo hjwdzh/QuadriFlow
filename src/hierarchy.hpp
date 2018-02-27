@@ -33,30 +33,32 @@ class Hierarchy {
 
     double mScale;
 
-    MatrixXi mF;
-    VectorXi mE2E;
+    MatrixXi mF; // mF(i, j) i \in [0, 3) ith index in face j
+    VectorXi mE2E;  // inverse edge
     std::vector<AdjacentMatrix> mAdj;
     std::vector<MatrixXd> mV;
     std::vector<MatrixXd> mN;
     std::vector<VectorXd> mA;
-    std::vector<VectorXi> mToLower;
-    std::vector<MatrixXi> mToUpper;
     std::vector<std::vector<std::vector<int>>> mPhases;
     // parameters
     std::vector<MatrixXd> mQ;
     std::vector<MatrixXd> mO;
+    std::vector<VectorXi> mToLower;
+    std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in V; i \in [0, 2); j \in V
     std::vector<MatrixXd> mS;
     std::vector<MatrixXd> mK;
 
     int with_scale;
 
-    std::vector<std::vector<int>> mToUpperFaces;
+    // upper: fine to coarse
+    std::vector<std::vector<int>> mToUpperFaces; // face correspondance
     std::vector<std::vector<int>> mSing;
-    std::vector<std::vector<int>> mToUpperEdges, mToUpperOrients;
-    std::vector<std::vector<Vector3i>> mFQ;
-    std::vector<std::vector<Vector3i>> mF2E;
-    std::vector<std::vector<Vector2i>> mE2F;
-    std::vector<std::vector<Vector2i>> mEdgeDiff;
+    std::vector<std::vector<int>> mToUpperEdges; // edge correspondance
+    std::vector<std::vector<int>> mToUpperOrients; // rotation of edges from fine to coarse
+    std::vector<std::vector<Vector3i>> mFQ; // face_edgeOrients
+    std::vector<std::vector<Vector3i>> mF2E; // face_edgeIds
+    std::vector<std::vector<Vector2i>> mE2F; // undirect edges to face ID
+    std::vector<std::vector<Vector2i>> mEdgeDiff; // face_edgeDiff
 
 #ifdef WITH_CUDA
     std::vector<Link*> cudaAdj;

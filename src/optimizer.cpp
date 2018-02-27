@@ -586,19 +586,6 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 }
 
 void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
-    std::vector<std::set<int>> singular_edges(mRes.mF2E.size());
-    for (auto& f : singularities) {
-        for (int j = 0; j < 3; ++j) singular_edges[0].insert(mRes.mF2E[0][f.first][j]);
-    }
-    for (int level = 0; level < mRes.mToUpperEdges.size(); ++level) {
-        auto& toUpper = mRes.mToUpperEdges[level];
-        auto& SingEdges = singular_edges[level];
-        auto& nSingEdges = singular_edges[level + 1];
-        for (auto& e : SingEdges) {
-            if (toUpper[e] >= 0) nSingEdges.insert(toUpper[e]);
-        }
-    }
-
     int edge_capacity = 2;
     bool FullFlow = false;
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
@@ -606,7 +593,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
         auto& FQ = mRes.mFQ[level];
         auto& F2E = mRes.mF2E[level];
         auto& E2F = mRes.mE2F[level];
-        auto& SingEdges = singular_edges[level];
         while (!FullFlow) {
             std::vector<Vector4i> edge_to_constraints(E2F.size() * 2, Vector4i(-1, 0, -1, 0));
             std::vector<int> initial(F2E.size() * 2, 0);
@@ -632,7 +618,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             }
             std::vector<std::pair<Vector2i, int>> arcs;
             std::vector<int> arc_ids;
-            std::vector<int> singularity_edge;
             for (int i = 0; i < edge_to_constraints.size(); ++i) {
                 if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
                     int v1 = edge_to_constraints[i][0];
@@ -640,7 +625,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                     if (edge_to_constraints[i][1] < 0) std::swap(v1, v2);
                     int current_v = EdgeDiff[i / 2][i % 2];
                     arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
-                    singularity_edge.push_back(SingEdges.count(i / 2));
                     arc_ids.push_back(i);
                 }
             }
@@ -688,6 +672,9 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             }
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
+#ifdef LOG_OUTPUT
+            printf("Not full flow, edge_capacity += 1\n");
+#endif
         }
         if (level != 0) {
             auto& nEdgeDiff = mRes.mEdgeDiff[level - 1];

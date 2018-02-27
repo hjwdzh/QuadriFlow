@@ -620,26 +620,3 @@ void Parametrizer::OutputMesh(const char* obj_name) {
     }
     os.close();
 }
-
-void Parametrizer::MarkInteger()
-{
-    auto& V = hierarchy.mV[0];
-    auto& F = hierarchy.mF;
-    auto& FQ = face_edgeOrients;
-    auto& E2E = hierarchy.mE2E;
-    for (int i = 0; i < V.cols(); ++i) {
-        int deid0 = V2E[i];
-        int deid = deid0;
-        int sum_int = 0;
-        do {
-            int deid1 = deid / 3 * 3 + (deid + 2) % 3;
-            deid = E2E[deid1];
-            sum_int += (FQ[deid/3][deid%3] + 6 - FQ[deid1/3][deid1%3]) % 4;
-        } while (deid != deid0);
-        if (sum_int % 4 != 0) {
-            sing[i] = sum_int % 4;
-        }
-    }
-    printf("Sing count %d %d\n", sing.size(), singularities.size());
-}
-

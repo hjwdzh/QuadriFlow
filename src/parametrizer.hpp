@@ -70,11 +70,10 @@ public:
     void ExtractQuadMesh();
 	void OutputMesh(const char* obj_name);
 
-    std::map<int,int> sing;
-	std::map<int, int> singularities;
+    std::map<int, int> singularities;  // map faceid to valence (1 (valence=3) or 3(valence=5))
 	std::map<int, Vector2i> pos_sing;
-	MatrixXi pos_rank;
-	MatrixXi pos_index;
+    MatrixXi pos_rank; // pos_rank(i, j) i \in [0, 3) jth face ith vertex  rotate by its value so that all thress vertices are in the same orientation
+    MatrixXi pos_index; // pos_index(i x 2 + dim, j) i \in [0, 6) jth face ith vertex's (t_ij-t_ji)'s dim's dimenstion in the paper
 	// input mesh
 	MatrixXd V;
 	MatrixXd N;
@@ -89,7 +88,7 @@ public:
 	VectorXi V2E;
 	VectorXi E2E;
 	VectorXi boundary;
-	VectorXi nonManifold;
+    VectorXi nonManifold; // nonManifold vertices, in boolean
 	AdjacentMatrix adj;
 	Hierarchy hierarchy;
 	
@@ -120,22 +119,19 @@ public:
     
 	std::vector<int> bad_vertices;
 	std::vector<double> counter;
-	std::vector<Vector2i> edge_diff;
-	std::vector<DEdge> edge_values;
-	std::vector<Vector3i> face_edgeIds;
-	std::vector<Vector3i> face_edgeOrients;
+    std::vector<Vector2i> edge_diff;  // edge_diff[edgeIds[i](j)]:  t_ij+t_ji under edge_values[edgeIds[i](j)].x's Q value
+    std::vector<DEdge> edge_values;  // see above
+    std::vector<Vector3i> face_edgeIds; // face_edgeIds[i](j): ith face jth edge's "undirected edge ID"
 
+    // face_edgeOrients[i](j): Rotate from edge_diff space
+    //    (a) initially, to F(0, i)'s Q space
+    //    (b) later on, to a global Q space where some edges are fixed
+    std::vector<Vector3i> face_edgeOrients;
+
+    // variable[i].first: indices of the two equations corresponding to variable i
+    // variable[i].second: number of positive minus negative of variables' occurances
 	std::vector<std::pair<Vector2i, int> > variables;
 
-	std::set<DEdge> cuts;
-
-	// fixed_vertices
-	std::vector<int> fixed;
-	std::set<DEdge> fixed_cuts;
-
-	std::set<int> edge_around_singularities;
-    std::set<int> flipped;
-    
     struct QuadInfo
     {
         QuadInfo()
