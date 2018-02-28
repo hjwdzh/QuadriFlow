@@ -21,7 +21,14 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
                      const std::vector<Vector3i> &constant_eq,
                      const std::vector<Vector4i> &variable_ge,
                      const std::vector<Vector2i> &constant_ge) {
-    auto VAR = [&](int i, int v) { return 1 + 3 * i + v + 1; };
+    for (auto v : value) assert(-1 <= v && v <= +1);
+    auto VAR = [&](int i, int v) {
+        int index = 1 + 3 * i + v + 1;
+        // We initialize the SAT problem by setting all the variable to false.
+        // This is because minisat by default will try false first.
+        if (v == value[i]) index = -index;
+        return index;
+    };
     std::vector<std::vector<int>> sat_clause;
     for (int i = 0; i < n_variable; ++i) {
         sat_clause.push_back({-VAR(i, -1), -VAR(i, 0)});
@@ -71,9 +78,8 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     }
     fclose(fout);
 
-    const char *cmd = "minisat test.out test.result.txt > /dev/null";
-    printf("[SAT] Execute ");
-    puts(cmd);
+    const char *cmd = "minisat test.out test.result.txt";
+    printf("[SAT] Execute \"%s\"\n", cmd);
     system(cmd);
 
     FILE *fin = fopen("test.result.txt", "r");
@@ -86,6 +92,7 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     };
 
     puts("[SAT] Satisfiable, verifying correctness...");
+    /*
     int mutual_checker = 0;
     for (int i = 0; i < n_sat_variable; ++i) {
         int num;
@@ -100,6 +107,24 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
         assert(flexible[entry] || value[entry] == choice);
         value[entry] = choice;
     }
+    */
+
+    for (int i = 0; i < n_variable; ++i) {
+        int sign[3];
+        fscanf(fin, "%d %d %d", sign + 0, sign + 1, sign + 2);
+
+        int nvalue = -100;
+        for (int j = 0; j < 3; ++j) {
+            assert(abs(sign[j]) == 3 * i + j + 1);
+            if ((sign[j] > 0) == (value[i] != j - 1)) {
+                assert(nvalue == -100);
+                nvalue = j - 1;
+            }
+        }
+        value[i] = nvalue;
+    }
+
+    fclose(fin);
 
     for (int i = 0; i < variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
@@ -114,7 +139,6 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
         assert(area >= 0);
     }
 
-    fclose(fin);
     return true;
 }
 
