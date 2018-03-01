@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+const int max_depth = 0;
+
 using namespace Eigen;
 
 bool SolveSatProblem(int n_variable, std::vector<int> &value,
@@ -29,6 +31,7 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
         if (v == value[i]) index = -index;
         return index;
     };
+    int n_flexible = 0;
     std::vector<std::vector<int>> sat_clause;
     for (int i = 0; i < n_variable; ++i) {
         sat_clause.push_back({-VAR(i, -1), -VAR(i, 0)});
@@ -37,8 +40,12 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
         sat_clause.push_back({VAR(i, -1), VAR(i, 0), VAR(i, +1)});
         if (!flexible[i]) {
             sat_clause.push_back({VAR(i, value[i])});
+        } else {
+            ++n_flexible;
         }
     }
+    printf("[SAT] n_flexible_edge: %d\n", n_flexible / 2);
+    printf("[SAT] n_flexible_SAT_variable: %d\n", n_flexible * 2);
 
     for (int i = 0; i < variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
@@ -92,32 +99,15 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     };
 
     puts("[SAT] Satisfiable, verifying correctness...");
-    /*
-    int mutual_checker = 0;
-    for (int i = 0; i < n_sat_variable; ++i) {
-        int num;
-        fscanf(fin, "%d", &num);
-        assert(abs(num) == i + 1);
-        int entry = i / 3;
-        int choice = i % 3 - 1;
-        if (choice == -1) mutual_checker = 0;
-
-        if (num < 0) continue;
-        assert(++mutual_checker <= 1);
-        assert(flexible[entry] || value[entry] == choice);
-        value[entry] = choice;
-    }
-    */
-
     for (int i = 0; i < n_variable; ++i) {
         int sign[3];
         fscanf(fin, "%d %d %d", sign + 0, sign + 1, sign + 2);
 
-        int nvalue = -100;
+        int nvalue = -2;
         for (int j = 0; j < 3; ++j) {
             assert(abs(sign[j]) == 3 * i + j + 1);
             if ((sign[j] > 0) == (value[i] != j - 1)) {
-                assert(nvalue == -100);
+                assert(nvalue == -2);
                 nvalue = j - 1;
             }
         }
@@ -227,14 +217,14 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
         Q.pop_front();
         mark_count++;
         int e0 = V2E(vertex);
-        int e = e0;
-        for (;;) {
+
+        for (int e = e0;;) {
             int v = F((e + 1) % 3, e / 3);
             if (!mark_vertex[v]) {
                 int undirected_edge_id = face_edgeIds[e / 3][e % 3];
                 int undirected_edge_length = edge_diff[undirected_edge_id].array().abs().sum() > 0;
                 int ndepth = depth + undirected_edge_length;
-                if (ndepth < 1) {
+                if (ndepth <= max_depth) {
                     if (undirected_edge_length == 0)
                         Q.push_front(std::make_pair(v, ndepth));
                     else
