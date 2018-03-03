@@ -47,7 +47,7 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     printf("[SAT] n_flexible_edge: %d\n", n_flexible / 2);
     printf("[SAT] n_flexible_SAT_variable: %d\n", n_flexible * 2);
 
-    for (int i = 0; i < variable_eq.size(); ++i) {
+    for (int i = 0; i < (int)variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
         auto &cst = constant_eq[i];
         for (int v0 = -1; v0 <= 1; ++v0)
@@ -59,7 +59,7 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
                     }
     }
 
-    for (int i = 0; i < variable_ge.size(); ++i) {
+    for (int i = 0; i < (int)variable_ge.size(); ++i) {
         auto &var = variable_ge[i];
         auto &cst = constant_ge[i];
         for (int v0 = -1; v0 <= 1; ++v0)
@@ -116,13 +116,13 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
 
     fclose(fin);
 
-    for (int i = 0; i < variable_eq.size(); ++i) {
+    for (int i = 0; i < (int)variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
         auto &cst = constant_eq[i];
         assert(cst[0] * value[var[0]] + cst[1] * value[var[1]] + cst[2] * value[var[2]] == 0);
     }
 
-    for (int i = 0; i < variable_ge.size(); ++i) {
+    for (int i = 0; i < (int)variable_ge.size(); ++i) {
         auto &var = variable_ge[i];
         auto &cst = constant_ge[i];
         int area = value[var[0]] * value[var[1]] * cst[0] - value[var[2]] * value[var[3]] * cst[1];
@@ -139,7 +139,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
     int flip_count1 = 0;
 
     std::vector<int> value(2 * edge_diff.size());
-    for (int i = 0; i < edge_diff.size(); ++i) {
+    for (int i = 0; i < (int)edge_diff.size(); ++i) {
         value[2 * i + 0] = edge_diff[i][0];
         value[2 * i + 1] = edge_diff[i][1];
     }
@@ -147,7 +147,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
     std::deque<std::pair<int, int>> Q;
     std::vector<bool> mark_vertex(V2E.size(), false);
 
-    assert(F.cols() == face_edgeIds.size());
+    assert(F.cols() == (int)face_edgeIds.size());
     std::vector<Vector3i> variable_eq(face_edgeIds.size() * 2);
     std::vector<Vector3i> constant_eq(face_edgeIds.size() * 2);
     std::vector<Vector4i> variable_ge(face_edgeIds.size());
@@ -155,7 +155,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
 
     VectorXd face_area(F.cols());
 
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
+    for (int i = 0; i < (int)face_edgeIds.size(); ++i) {
         Vector2i diff[3];
         Vector2i var[3];
         Vector2i cst[3];
@@ -187,7 +187,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
         variable_ge[i] = Vector4i(var[0][0], var[1][1], var[0][1], var[1][0]);
         constant_ge[i] = Vector2i(cst[0][0] * cst[1][1], cst[0][1] * cst[1][0]);
     }
-    for (int i = 0; i < variable_eq.size(); ++i) {
+    for (int i = 0; i < (int)variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
         auto &cst = constant_eq[i];
         assert((0 <= var.array()).all());
@@ -195,7 +195,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
         assert(cst[0] * value[var[0]] + cst[1] * value[var[1]] + cst[2] * value[var[2]] == 0);
     }
 
-    for (int i = 0; i < variable_ge.size(); ++i) {
+    for (int i = 0; i < (int)variable_ge.size(); ++i) {
         auto &var = variable_ge[i];
         auto &cst = constant_ge[i];
         assert((0 <= variable_ge[i].array()).all());
@@ -239,7 +239,7 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
     printf("[SAT] Mark %d vertices out of %d\n", mark_count, (int)V2E.size());
 
     std::vector<bool> flexible(value.size(), false);
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
+    for (int i = 0; i < (int)face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             int edgeid = face_edgeIds[i][j];
             if (mark_vertex[F(j, i)] || mark_vertex[F((j + 1) % 3, i)]) {
