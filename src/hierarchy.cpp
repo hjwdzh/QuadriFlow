@@ -9,6 +9,7 @@
 #include <queue>
 #include "pcg32/pcg32.h"
 #include "pss/parallel_stable_sort.h"
+#include "localsat.hpp"
 Hierarchy::Hierarchy() {
     mAdj.resize(MAX_DEPTH + 1);
     mV.resize(MAX_DEPTH + 1);
@@ -592,6 +593,271 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mSing.resize(levels);
     mToUpperEdges.resize(levels - 1);
     mToUpperOrients.resize(levels - 1);
+}
+
+void Hierarchy::FixFlipSat() {
+    for (int l = mF2E.size() - 1; l >= 0; --l) {
+        auto& F2E = mF2E[l];
+        auto& E2F = mE2F[l];
+        auto& FQ = mFQ[l];
+        auto& EdgeDiff = mEdgeDiff[l];
+        // build E2E
+        std::vector<int> E2E(F2E.size() * 3, -1);
+        for (int i = 0; i < E2F.size(); ++i) {
+            int v1 = E2F[i][0];
+            int v2 = E2F[i][1];
+            int t1 = 0;
+            int t2 = 2;
+            while (F2E[v1][t1] != i) t1 += 1;
+            while (F2E[v2][t2] != i) t2 -= 1;
+            t1 += v1 * 3;
+            t2 += v2 * 3;
+            E2E[t1] = t2;
+            E2E[t2] = t1;
+        }
+        
+        std::deque<std::pair<int, int>> Q;
+        std::vector<bool> mark_dedges(F2E.size() * 3, false);
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector2i diff[3];
+            for (int j = 0; j < 3; ++j) {
+                int edgeid = F2E[i][j];
+                diff[j] = rshift90(EdgeDiff[edgeid], FQ[i][j]);
+            }
+            int area = diff[0][0] * diff[1][1] - diff[0][1] * diff[1][0];
+            if (area < 0) {
+                for (int j = 0; j < 3; ++j) {
+                    if (mark_dedges[i * 3 + j]) continue;
+                    Q.push_back(std::make_pair(i * 3 + j, 0));
+                    mark_dedges[i * 3 + j] = true;
+                }
+            }
+        }
+        
+        int mark_count = Q.size();
+        int thres = 5;
+        while (!Q.empty()) {
+            int e0 = Q.front().first;
+            int depth = Q.front().second;
+            Q.pop_front();
+            if (depth >= thres)
+                continue;
+            mark_count++;
+            int e = e0;
+            for (;;) {
+                int e1 = E2E[e];
+                if (!mark_dedges[e1]) {
+                    mark_dedges[e1] = true;
+                    Q.push_back(std::make_pair(e1, depth + EdgeDiff[F2E[e1/3][e1%3]].array().abs().sum()));
+                }
+                e = e1 / 3 * 3 + (e1 + 1) % 3;
+                if (!mark_dedges[e]) {
+                    mark_dedges[e] = true;
+                }
+                if (e == e0) break;
+            }
+        }
+        printf("Level %d: fixed = %d\n", l, mark_count);
+        
+        std::vector<bool> flexible(EdgeDiff.size(), false);
+        for (int i = 0; i < F2E.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                int dedge = i * 3 + j;
+                int edgeid = F2E[i][j];
+                if (mark_dedges[dedge]) {
+                    flexible[edgeid] = true;
+                } else {
+//                    assert(face_area[i] >= 0);
+                }
+            }
+        }
+        for (int i = 0; i < flexible.size(); ++i) {
+            if (E2F[i][0] == E2F[i][1]) {
+                flexible[i] = false;
+            }
+        }
+
+        // Reindexing and solve
+        std::vector<int> groups(EdgeDiff.size(), -1);
+        std::vector<int> indices(EdgeDiff.size(), -1);
+        int num_group = 0;
+        for (int i = 0; i < EdgeDiff.size(); ++i) {
+            if (groups[i] == -1 && flexible[i]) {
+                //group it
+                std::queue<int> q;
+                q.push(i);
+                groups[i] = num_group;
+                while (!q.empty()) {
+                    int e = q.front();
+                    q.pop();
+                    int f[] = {E2F[e][0], E2F[e][1]};
+                    for (int j = 0; j < 2; ++j) {
+                        for (int k = 0; k < 3; ++k) {
+                            int e1 = F2E[f[j]][k];
+                            if (flexible[e1] && groups[e1] == -1) {
+                                groups[e1] = num_group;
+                                q.push(e1);
+                            }
+                        }
+                    }
+                }
+                num_group += 1;
+            }
+        }
+        std::vector<int> num_edges_per_group(num_group);
+        std::vector<std::vector<int> > values_per_group(num_group);
+        std::vector<std::vector<Vector3i> > variable_eq_per_group(num_group);
+        std::vector<std::vector<Vector3i> > constant_eq_per_group(num_group);
+        std::vector<std::vector<Vector4i> > variable_ge_per_group(num_group);
+        std::vector<std::vector<Vector2i> > constant_ge_per_group(num_group);
+        for (int i = 0; i < groups.size(); ++i) {
+            if (groups[i] != -1) {
+                indices[i] = num_edges_per_group[groups[i]]++;
+                values_per_group[groups[i]].push_back(EdgeDiff[i][0]);
+                values_per_group[groups[i]].push_back(EdgeDiff[i][1]);
+            }
+        }
+        std::vector<int> num_edges_flexible_per_group = num_edges_per_group;
+        
+        std::map<std::pair<int, int>, int> fixed_variables;
+        
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector2i var[3];
+            Vector2i cst[3];
+            int gind = 0;
+            while (gind < 3 && groups[F2E[i][gind]] == -1)
+                gind += 1;
+            if (gind == 3)
+                continue;
+            int group = groups[F2E[i][gind]];
+            int ind[3] = {-1, -1, -1};
+            for (int j = 0; j < 3; ++j) {
+                int g = groups[F2E[i][j]];
+                if (g != group) {
+                    if (g == -1) {
+                        auto key = std::make_pair(F2E[i][j], group);
+                        auto it = fixed_variables.find(key);
+                        if (it == fixed_variables.end()) {
+                            ind[j] = num_edges_per_group[group];
+                            values_per_group[group].push_back(EdgeDiff[F2E[i][j]][0]);
+                            values_per_group[group].push_back(EdgeDiff[F2E[i][j]][1]);
+                            fixed_variables[key] = num_edges_per_group[group]++;
+                        } else {
+                            ind[j] = it->second;
+                        }
+                    }
+                } else {
+                    ind[j] = indices[F2E[i][j]];
+                }
+            }
+            for (int j = 0; j < 3; ++j) {
+                var[j] = rshift90(Vector2i(ind[j] * 2 + 1, ind[j] * 2 + 2), FQ[i][j]);
+                cst[j] = var[j].array().sign();
+                var[j] = var[j].array().abs() - 1;
+            }
+            
+            variable_eq_per_group[group].push_back(Vector3i(var[0][0], var[1][0], var[2][0]));
+            constant_eq_per_group[group].push_back(Vector3i(cst[0][0], cst[1][0], cst[2][0]));
+            variable_eq_per_group[group].push_back(Vector3i(var[0][1], var[1][1], var[2][1]));
+            constant_eq_per_group[group].push_back(Vector3i(cst[0][1], cst[1][1], cst[2][1]));
+            
+            variable_ge_per_group[group].push_back(Vector4i(var[0][0], var[1][1], var[0][1], var[1][0]));
+            constant_ge_per_group[group].push_back(Vector2i(cst[0][0] * cst[1][1], cst[0][1] * cst[1][0]));
+        }
+        auto Area = [&](int f) {
+            Vector2i diff1 = rshift90(EdgeDiff[F2E[f][0]], FQ[f][0]);
+            Vector2i diff2 = rshift90(EdgeDiff[F2E[f][1]], FQ[f][1]);
+            return diff1[0] * diff2[1] - diff1[1] * diff2[0];
+        };
+        int counter0 = 0, counter1 = 0;
+        for (int i = 0; i < F2E.size(); ++i) {
+            int area = Area(i);
+            if (area < 0)
+                counter0 -= area;
+        }
+
+        for (int i = 0; i < num_group; ++i) {
+            std::vector<bool> flexible_per_group(values_per_group[i].size(), true);
+            for (int j = num_edges_flexible_per_group[i] * 2; j < flexible_per_group.size(); ++j) {
+                flexible_per_group[j] = false;
+            }
+            SolveSatProblem(values_per_group[i].size(), values_per_group[i], flexible_per_group, variable_eq_per_group[i], constant_eq_per_group[i], variable_ge_per_group[i], constant_ge_per_group[i]);
+        }
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector2i diff(0, 0);
+            for (int j = 0; j < 3; ++j) {
+                diff += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
+            }
+            if (diff != Vector2i::Zero()) {
+                printf("Non zero!\n");
+            }
+        }
+        
+        for (int i = 0; i < EdgeDiff.size(); ++i) {
+            int group = groups[i];
+            if (group == -1)
+                continue;
+            EdgeDiff[i][0] = values_per_group[group][2 * indices[i] + 0];
+            EdgeDiff[i][1] = values_per_group[group][2 * indices[i] + 1];
+        }
+        for (int i = 0; i < F2E.size(); ++i) {
+            Vector2i diff(0, 0);
+            for (int j = 0; j < 3; ++j) {
+                diff += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
+            }
+            if (diff != Vector2i::Zero()) {
+                printf("Non zerossssss!\n");
+            }
+        }
+        for (int i = 0; i < F2E.size(); ++i) {
+            int area = Area(i);
+            if (area < 0)
+                counter1 -= area;
+        }
+        
+
+        printf("%d %d\n", counter0, counter1);
+        if (l > 0) {
+            auto& nEdgeDiff = mEdgeDiff[l - 1];
+            auto& toUpper = mToUpperEdges[l - 1];
+            auto& toUpperOrients = mToUpperOrients[l - 1];
+            auto& toUpperFaces = mToUpperFaces[l - 1];
+            for (int i = 0; i < toUpper.size(); ++i) {
+                if (toUpper[i] >= 0) {
+                    int orient = (4 - toUpperOrients[i]) % 4;
+                    nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
+                } else {
+                    nEdgeDiff[i] = Vector2i(0, 0);
+                }
+            }
+            auto& nF2E = mF2E[l - 1];
+            auto& nFQ = mFQ[l - 1];
+            for (int i = 0; i < nF2E.size(); ++i) {
+                Vector2i diff(0, 0);
+                for (int j = 0; j < 3; ++j) {
+                    diff += rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
+                }
+                if (diff != Vector2i::Zero()) {
+                    printf("Fail!!!!!!! %d\n", i);
+                    for (int j = 0; j < 3; ++j) {
+                        Vector2i d = rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
+                        printf("<%d %d %d>\n", nF2E[i][j], nFQ[i][j], toUpperOrients[nF2E[i][j]]);
+                        printf("%d %d\n", d[0], d[1]);
+                        printf("%d -> %d\n", nF2E[i][j], toUpper[nF2E[i][j]]);
+                    }
+                    for (int j = 0; j < toUpper.size(); ++j) {
+                        if (toUpper[j] == 15748) {
+                            printf("OMG %d\n", j);
+                        }
+                    }
+                    printf("E2F %d %d\n", E2F[15748][0], E2F[15748][1]);
+                    printf("Fuck!\n");
+                    printf("%d -> %d\n", i, toUpperFaces[i]);
+                    exit(0);
+                }
+            }
+        }
+    }
 }
 
 void Hierarchy::FixFlip() {

@@ -60,6 +60,7 @@ public:
 
     // Fix Flip
     void FixFlipHierarchy();
+    void FixFlipSat();
     void FixHoles();
     void FixHoles(std::vector<int>& loop_vertices);
     double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);

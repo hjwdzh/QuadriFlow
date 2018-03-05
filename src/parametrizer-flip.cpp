@@ -145,6 +145,13 @@ void Parametrizer::FixFlipHierarchy() {
     fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 
+void Parametrizer::FixFlipSat() {
+    Hierarchy fh;
+    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);
+    fh.FixFlipSat();
+    fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
+}
+
 void Parametrizer::AdvancedExtractQuad() {
     Hierarchy fh;
     fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);

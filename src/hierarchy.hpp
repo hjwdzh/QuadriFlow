@@ -20,6 +20,7 @@ class Hierarchy {
     void generate_graph_coloring_deterministic(const AdjacentMatrix& adj, int size,
                                                std::vector<std::vector<int>>& phases);
     void FixFlip();
+    void FixFlipSat();
     void PropagateEdge();
     void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
                              std::vector<Vector2i>& edge_diff, int level);

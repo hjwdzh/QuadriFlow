@@ -44,9 +44,10 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
             ++n_flexible;
         }
     }
+#ifdef LOG_OUTPUT
     printf("[SAT] n_flexible_edge: %d\n", n_flexible / 2);
     printf("[SAT] n_flexible_SAT_variable: %d\n", n_flexible * 2);
-
+#endif
     for (int i = 0; i < (int)variable_eq.size(); ++i) {
         auto &var = variable_eq[i];
         auto &cst = constant_eq[i];
@@ -73,10 +74,11 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     }
 
     int n_sat_variable = 3 * n_variable;
+#ifdef LOG_OUTPUT
     printf("[SAT] nSatVariable: %d\n[SAT] nSatClause: %d\n", n_sat_variable,
            (int)sat_clause.size());
-
     puts("[SAT] Writting to test.out");
+#endif
     FILE *fout = fopen("test.out", "w");
     fprintf(fout, "p cnf %d %d\n", n_sat_variable, (int)sat_clause.size());
     for (auto &c : sat_clause) {
@@ -86,19 +88,26 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
     fclose(fout);
 
     const char *cmd = "minisat test.out test.result.txt";
+#ifdef LOG_OUTPUT
     printf("[SAT] Execute \"%s\"\n", cmd);
+    puts(cmd);
+#endif
     system(cmd);
 
     FILE *fin = fopen("test.result.txt", "r");
     char buf[16];
     fscanf(fin, "%15s", buf);
     if (strcmp(buf, "SAT") != 0) {
+#ifdef LOG_OUTPUT
         puts("MINISAT Result: Unsatisfiable!");
+#endif
         fclose(fin);
         return false;
     };
 
+#ifdef LOG_OUTPUT
     puts("[SAT] Satisfiable, verifying correctness...");
+#endif
     for (int i = 0; i < n_variable; ++i) {
         int sign[3];
         fscanf(fin, "%d %d %d", sign + 0, sign + 1, sign + 2);
@@ -112,6 +121,7 @@ bool SolveSatProblem(int n_variable, std::vector<int> &value,
             }
         }
         value[i] = nvalue;
+
     }
 
     fclose(fin);
@@ -253,4 +263,9 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
 
     SolveSatProblem(value.size(), value, flexible, variable_eq, constant_eq, variable_ge,
                     constant_ge);
+    
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        edge_diff[i][0] = value[2 * i + 0];
+        edge_diff[i][1] = value[2 * i + 1];
+    }
 }
