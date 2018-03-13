@@ -11,6 +11,7 @@
 #include <Eigen/Dense>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include "adjacent-matrix.hpp"
 #include "field-math.hpp"
 #include "hierarchy.hpp"
@@ -63,12 +64,12 @@ public:
     void FixFlipSat();
     void FixHoles();
     void FixHoles(std::vector<int>& loop_vertices);
+    void FixValence();
     double QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level);
 
     // Quadmesh and IO
     void AdvancedExtractQuad();
     void BuildTriangleManifold(DisajointTree& disajoint_tree, std::vector<int>& edge, std::vector<int>& face, std::vector<DEdge>& edge_values, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& EdgeDiff, std::vector<Vector3i>& FQ);
-    void ExtractQuadMesh();
 	void OutputMesh(const char* obj_name);
 
     std::map<int, int> singularities;  // map faceid to valence (1 (valence=3) or 3(valence=5))
@@ -115,6 +116,7 @@ public:
     std::vector<Vector3d> Q_compact;
     std::vector<Vector3d> N_compact;
 	std::vector<Vector4i> F_compact;
+    std::set<std::pair<int, int> > Quad_edges;
     VectorXi V2E_compact;
     std::vector<int> E2E_compact;
     VectorXi boundary_compact;

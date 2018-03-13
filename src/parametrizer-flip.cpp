@@ -106,13 +106,39 @@ void Parametrizer::FixHoles(std::vector<int>& loop_vertices) {
 //        printf("quads: %d\n", quads.size());
 #endif
         for (auto& p : quads) {
-            F_compact.push_back(p);
+            bool flag = false;
+            for (int j = 0; j < 4; ++j) {
+                int v1 = p[j];
+                int v2 = p[(j + 1) % 4];
+                auto key = std::make_pair(v1, v2);
+                if (Quad_edges.count(key)) {
+                    flag = true;
+                    break;
+                }
+            }
+            if (!flag) {
+                for (int j = 0; j < 4; ++j) {
+                    int v1 = p[j];
+                    int v2 = p[(j + 1) % 4];
+                    auto key = std::make_pair(v1, v2);
+                    Quad_edges.insert(key);
+                }
+                F_compact.push_back(p);
+            }
         }
         
     }
 }
 
 void Parametrizer::FixHoles() {
+    for (int i = 0; i < F_compact.size(); ++i) {
+        for (int j = 0; j < 4; ++j) {
+            int v1 = F_compact[i][j];
+            int v2 = F_compact[i][(j + 1) % 4];
+            auto key = std::make_pair(v1, v2);
+            Quad_edges.insert(key);
+        }
+    }
     std::vector<int> detected_boundary(E2E_compact.size(), 0);
     for (int i = 0; i < E2E_compact.size(); ++i) {
         if (detected_boundary[i] != 0 || E2E_compact[i] != -1)
@@ -479,7 +505,6 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                                   nonManifold_compact);
     }
-
     FixHoles();
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);

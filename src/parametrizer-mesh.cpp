@@ -210,401 +210,60 @@ void Parametrizer::ComputeVertexArea() {
     }
 }
 
-void Parametrizer::ExtractQuadMesh() {
-    auto& V = hierarchy.mV[0];
-    auto& F = hierarchy.mF;
-    auto& Q = hierarchy.mQ[0];
-    auto& N = hierarchy.mN[0];
-    auto& O = hierarchy.mO[0];
-    
-    disajoint_tree = DisajointTree(V.cols());
-    for (int i = 0; i < edge_diff.size(); ++i) {
-        if (edge_diff[i] == Vector2i::Zero()) {
-            int vv0 = edge_values[i].x;
-            int vv1 = edge_values[i].y;
-            disajoint_tree.Merge(vv0, vv1);
-        }
-    }
-    disajoint_tree.BuildCompactParent();
-    typedef std::pair<int, std::pair<int, int> > Face;
-    
-    std::vector<Vector3i> face_values;
-    std::map<Face, int> face_ids;
-    std::vector<int> face_colors;
-    std::vector<Vector3i> face_edge_values;
-    std::vector<Vector3i> face_edge_signs;
-    std::map<DEdge, int> edge_ids;
-    std::vector<DEdge> edge_values;
-    std::vector<std::pair<std::set<int>, std::set<int> > > edge_to_faces;
-    
-    for (int i = 0; i < F.cols(); ++i) {
-        int p1 = disajoint_tree.Index(F(0, i));
-        int p2 = disajoint_tree.Index(F(1, i));
-        int p3 = disajoint_tree.Index(F(2, i));
-        int p[] = {p1, p2, p3};
-        if (p1 == p2 || p1 == p3 || p2 == p3)
-            continue;
-        auto face = std::make_pair(p1, std::make_pair(p2, p3));
-        if (face_ids.count(face)) {
-            continue;
-        }
-        int fid = face_values.size();
-        face_ids[face] = fid;
-        face_values.push_back(Vector3i(face.first, face.second.first, face.second.second));
-        face_edge_values.push_back(Vector3i());
-        for (int j = 0; j < 3; ++j) {
-            DEdge e1(p[j], p[(j + 1) % 3]);
-            int eid;
-            auto it = edge_ids.find(e1);
-            if (it == edge_ids.end()) {
-                eid = edge_values.size();
-                edge_values.push_back(e1);
-                edge_ids[e1] = eid;
-                edge_to_faces.push_back(std::pair<std::set<int>,std::set<int>>());
-            } else {
-                eid = it->second;
-            }
-            face_edge_values.back()[j] = eid;
-            if (p[j] < p[(j+1)%3]) {
-                edge_to_faces[eid].first.insert(fid);
-            }
-            else {
-                edge_to_faces[eid].second.insert(fid);
-            }
-        }
-    }
-    int num_colors = 0;
-    face_colors.resize(face_values.size(), -1);
-    for (int i = 0; i < face_values.size(); ++i) {
-        if (face_colors[i] != -1)
-            continue;
-        std::queue<int> fq;
-        fq.push(i);
-        face_colors[i] = num_colors;
-        while (!fq.empty()) {
-            int f = fq.front();
-            fq.pop();
-            for (int j = 0; j < 3; ++j) {
-                auto& ef = edge_to_faces[face_edge_values[f][j]];
-                if (ef.first.size() != 1 || ef.second.size() != 1) {
-                    continue;
-                }
-                for (int j = 0; j < 2; ++j) {
-                    int fv = (j == 0) ? *ef.first.begin() : *ef.second.begin();
-                    if (face_colors[fv] == -1) {
-                        face_colors[fv] = num_colors;
-                        fq.push(fv);
-                    }
-                }
-            }
-        }
-        num_colors += 1;
-    }
-    // split edge if it happens more than twice in one group
-    std::vector<int> E2E(face_ids.size() * 3, -1);
-    std::vector<std::map<int, std::set<int> > > color_left_boundaries(num_colors), color_right_boundaries(num_colors);
-    
-    std::vector<std::pair<int, int> > face_counts(num_colors);
-    for (int i = 0; i < num_colors; ++i) {
-        face_counts[i].second = i;
-    }
-    for (int i = 0; i < face_colors.size(); ++i) {
-        face_counts[face_colors[i]].first += 1;
-    }
-    std::sort(face_counts.rbegin(), face_counts.rend());
-    std::vector<int> color_rank(num_colors);
-    for (int i = 0; i < face_counts.size(); ++i)
-        color_rank[face_counts[i].second] = i;
-    
-    for (int i = 0; i < edge_to_faces.size(); ++i) {
-        std::vector<std::pair<int, int> > left_face_indices, right_face_indices;
-        for (auto p : edge_to_faces[i].first) {
-            left_face_indices.push_back(std::make_pair(color_rank[face_colors[p]], p));
-        }
-        for (auto p : edge_to_faces[i].second) {
-            right_face_indices.push_back(std::make_pair(color_rank[face_colors[p]], p));
-        }
-        std::sort(left_face_indices.begin(), left_face_indices.end());
-        std::sort(right_face_indices.begin(), right_face_indices.end());
-        int l = 0, r = 0;
-        while (l < left_face_indices.size() && r < right_face_indices.size()) {
-            int f1 = left_face_indices[l].second, f2 = right_face_indices[r].second;
-            int j1 = 0, j2 = 0;
-            while (face_edge_values[f1][j1] != i)
-                j1 += 1;
-            while (face_edge_values[f2][j2] != i)
-                j2 += 1;
-            E2E[f1 * 3 + j1] = f2 * 3 + j2;
-            E2E[f2 * 3 + j2] = f1 * 3 + j1;
-            ++l, ++r;
-        }
-    }
-    
-    int count = 0;
-    for (int i = 0; i < E2E.size(); ++i) {
-        if (E2E[i] == -1) {
-            count += 1;
-        }
-    }
-    
-    int num_v = disajoint_tree.CompactNum();
-    O_compact.resize(num_v, Vector3d::Zero());
-    Q_compact.resize(num_v, Vector3d::Zero());
-    N_compact.resize(num_v, Vector3d::Zero());
-    counter.resize(num_v, 0);
-    for (int i = 0; i < O.cols(); ++i) {
-        int compact_v = disajoint_tree.Index(i);
-        O_compact[compact_v] += O.col(i);
-        N_compact[compact_v] = N_compact[compact_v] * counter[compact_v] + N.col(i);
-        N_compact[compact_v].normalize();
-        if (counter[compact_v] == 0)
-            Q_compact[compact_v] = Q.col(i);
-        else {
-            auto pairs = compat_orientation_extrinsic_4(Q_compact[compact_v], N_compact[compact_v],
-                                                        Q.col(i), N.col(i));
-            Q_compact[compact_v] = (pairs.first * counter[compact_v] + pairs.second).normalized();
-        }
-        counter[compact_v] += 1;
-    }
-    for (int i = 0; i < O_compact.size(); ++i) {
-        O_compact[i] /= counter[i];
-    }
-    /*
-    // split vertices
-    std::vector<std::vector<int> > vert_to_dedge(num_v);
-    for (int i = 0; i < face_values.size(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            vert_to_dedge[face_values[i][j]].push_back(i * 3 + j);
-        }
-    }
-    
-    std::vector<int> colors(face_values.size() * 3, -1);
-    for (int i = 0; i < vert_to_dedge.size(); ++i) {
-        int num_color = 0;
-        int max_index = O_compact.size();
-        for (int j = 0; j < vert_to_dedge[i].size(); ++j) {
-            int deid = vert_to_dedge[i][j];
-            if (colors[deid] != -1)
+void Parametrizer::FixValence()
+{
+    while (true) {
+        printf("Fix valence iter...\n");
+        bool update = false;
+        std::vector<int> marks(V2E_compact.size(), 0);
+        std::vector<int> erasedF(F_compact.size(), 0);
+        for (int i = 0; i < V2E_compact.size(); ++i) {
+            int deid0 = V2E_compact[i];
+            if (marks[i] || deid0 == -1)
                 continue;
-            std::list<int> l;
-            int deid0 = deid;
-            do {
-                l.push_back(deid);
-                deid = deid / 3 * 3 + (deid + 2) % 3;
-                deid = E2E[deid];
-            } while (deid != -1 && deid != deid0);
-            if (deid == -1) {
-                deid = deid0;
-                do {
-                    deid = E2E[deid];
-                    if (deid == -1)
-                        break;
-                    deid = deid / 3 * 3 + (deid + 1) % 3;
-                    if (deid == deid0)
-                        break;
-                    l.push_front(deid);
-                } while (true);
-            }
+            int deid = deid0;
             std::vector<int> dedges;
-            for (auto& e : l)
-                dedges.push_back(e);
-            std::map<std::pair<int, int>, int> loc;
-            std::vector<int> deid_colors(dedges.size(), num_color);
-            num_color += 1;
-            for (int jj = 0; jj < dedges.size(); ++jj) {
-                int deid = dedges[jj];
-                colors[deid] = 0;
-                int v1 = face_values[deid/3][deid%3];
-                int v2 = face_values[deid/3][(deid+1)%3];
-                std::pair<int, int> pt(v1, v2);
-                if (loc.count(pt)) {
-                    int s = loc[pt];
-                    for (int k = s; k < jj; ++k) {
-                        int deid1 = dedges[k];
-                        int v11 = face_values[deid1/3][deid1%3];
-                        int v12 = face_values[deid1/3][(deid1+1)%3];
-                        std::pair<int, int> pt1(v11, v12);
-                        loc.erase(pt1);
-                        deid_colors[k] = num_color;
-                    }
-                    num_color += 1;
-                }
-                loc[pt] = jj;
+            do {
+                dedges.push_back(deid);
+                int deid1 = deid / 4 * 4 + (deid + 3) % 4;
+                deid = E2E_compact[deid1];
+            } while (deid != deid0 && deid != -1);
+            if (dedges.size() == 2) {
+                int v1 = F_compact[dedges[0]/4][(dedges[0] + 1)%4];
+                int v2 = F_compact[dedges[0]/4][(dedges[0] + 2)%4];
+                int v3 = F_compact[dedges[1]/4][(dedges[1] + 1)%4];
+                int v4 = F_compact[dedges[1]/4][(dedges[1] + 2)%4];
+                if (marks[v1] || marks[v2] || marks[v3] || marks[v4])
+                    continue;
+                marks[v1] = true;
+                marks[v2] = true;
+                marks[v3] = true;
+                marks[v4] = true;
+                F_compact[dedges[0]/4] = Vector4i(v1, v2, v3, v4);
+                erasedF[dedges[1]/4] = 1;
+                update = true;
             }
-            for (int j = 0; j < dedges.size(); ++j) {
-                int deid = dedges[j];
-                int color = deid_colors[j];
-                if (color > 0) {
-                    face_values[deid/3][deid%3] = O_compact.size() + color - 1;
-                    max_index = std::max(max_index, face_values[deid/3][deid%3] + 1);
+        }
+        if (update) {
+            int top = 0;
+            for (int i = 0; i < erasedF.size(); ++i) {
+                if (erasedF[i] == 0) {
+                    F_compact[top++] = F_compact[i];
                 }
             }
-        }
-        if (num_color > 1) {
-            for (int j = 1; j < num_color; ++j) {
-                O_compact.push_back(O_compact[i]);
-                Q_compact.push_back(Q_compact[i]);
-                N_compact.push_back(N_compact[i]);
-            }
-            num_v += num_color - 1;
-        }
-    }
-    MatrixXd NV(3, num_v);
-    MatrixXi NF(3, face_values.size());
-    memcpy(NF.data(), face_values.data(), sizeof(int) * 3 * face_values.size());
-    VectorXi NV2E, NE2E, NB, NN;
-    compute_direct_graph(NV, NF, NV2E, NE2E, NB, NN);
-    std::map<DEdge, int> map_boundary;
-    for (int i = 0; i < face_values.size(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            DEdge e(face_values[i][j], face_values[i][(j + 1) % 3]);
-            if (e == DEdge(387, 588)) {
-                printf("!!!!!!!!!!!!!!!!!!!!!!!! %d %d\n", i, j);
-            }
-            if (map_boundary.count(e))
-                map_boundary[e] += 1;
-            else
-                map_boundary[e] = 1;
-        }
-    }
-     */
-#ifdef LOG_OUTPUT
-    printf("extract bad vertices...\n");
-#endif
-    bad_vertices.resize(num_v, 0);
-    std::set<DEdge> bad_edges;
-    std::queue<int> badq;
-#ifdef LOG_OUTPUT
-    printf("extract quad cells...\n");
-#endif
-    printf("%d %d\n", face_ids.size(), face_values.size());
-
-    for (int i = 0; i < F.cols(); ++i) {
-        int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
-        int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
-        int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
-        DEdge e[3] = { DEdge(p0, p1), DEdge(p1, p2), DEdge(p2, p0)};
-        auto diff1 = edge_diff[face_edgeIds[i][0]];
-        auto diff2 = edge_diff[face_edgeIds[i][1]];
-        auto diff3 = edge_diff[face_edgeIds[i][2]];
-        for (int j = 0; j < 3; ++j) {
-            if (e[j] == DEdge(387, 588)) {
-                printf("Hit %d %d\n", i, j);
-                printf("%d %d %d\n", p0, p1, p2);
-                printf("<%d %d> <%d %d> <%d %d>\n", diff1[0], diff1[1], diff2[0], diff2[1], diff3[0], diff3[1]);
-            }
-        }
-    }
-    exit(0);
-    std::map<DEdge, std::pair<Vector3i, Vector3i>> quad_cells;
-    for (int i = 0; i < F.cols(); ++i) {
-        int v0 = F(0, i), p0 = disajoint_tree.Index(v0);
-        int v1 = F(1, i), p1 = disajoint_tree.Index(v1);
-        int v2 = F(2, i), p2 = disajoint_tree.Index(v2);
-        
-        if (p0 != p1 && p1 != p2 && p2 != p0) {
-            Face f = std::make_pair(p0, std::make_pair(p1, p2));
-            if (face_ids.count(f) == 0)
-                continue;
-            int id = face_ids[f];
-            Vector3i face = face_values[face_ids[f]];
-            face_ids.erase(f);
-            p0 = face[0];
-            p1 = face[1];
-            p2 = face[2];
-            if (id == 850 || id == 861) {
-                printf("Iiiiiiiiiiiiiiiiid %d\n", id);
-                printf("%d %d %d\n", p0, p1, p2);
-            }
-            DEdge e[3] = { DEdge(p0, p1), DEdge(p1, p2), DEdge(p2, p0)};
-            auto diff1 = edge_diff[face_edgeIds[i][0]];
-            auto diff2 = edge_diff[face_edgeIds[i][1]];
-            auto diff3 = edge_diff[face_edgeIds[i][2]];
-            DEdge eid;
-            if (abs(diff1[0]) == 1 && abs(diff1[1]) == 1) {
-                eid = DEdge(p0, p1);
-            } else if (abs(diff2[0]) == 1 && abs(diff2[1]) == 1) {
-                int t = p0;
-                p0 = p1;
-                p1 = p2;
-                p2 = t;
-                eid = DEdge(p0, p1);
-            } else if (abs(diff3[0]) == 1 && abs(diff3[1]) == 1) {
-                int t = p1;
-                p1 = p0;
-                p0 = p2;
-                p2 = t;
-                eid = DEdge(p0, p1);
-            } else {
-                continue;
-            }
-            for (int j = 0; j < 3; ++j) {
-                if (e[j] == DEdge(387, 588)) {
-                    printf("%d %d\n", eid.x, eid.y);
-                    printf("Hit %d %d\n", i, j);
-                    printf("%d %d %d\n", face[0], face[1], face[2]);
-                    printf("<%d %d> <%d %d> <%d %d>\n", diff1[0], diff1[1], diff2[0], diff2[1], diff3[0], diff3[1]);
-                    printf("slop %d %d\n", eid.x, eid.y);
-                }
-            }
-            if (quad_cells.count(eid) == 0) {
-                quad_cells[eid] = std::make_pair(Vector3i(p0, p1, p2), Vector3i(-100, -100, -100));
-            }
-            else {
-                quad_cells[eid].second = Vector3i(p0, p1, p2);
-            }
-        }
-    }
-    exit(0);
-    printf("%d\n", face_ids.size());
-#ifdef LOG_OUTPUT
-    printf("extract quads...\n");
-#endif
-    for (auto& c : quad_cells) {
-        if (c.first == DEdge(11454, 11455) || c.first == DEdge(898, 10982)) {
-            printf("Look for (%d %d): %d %d %d %d\n", c.first.x, c.first.y,
-                   c.second.first[0], c.second.second[2], c.second.first[1],
-                   c.second.first[2]);
-        }
-        if (c.second.second != Vector3i(-100, -100, -100)) {
-            F_compact.push_back(Vector4i(c.second.first[0], c.second.second[2], c.second.first[1],
-                                         c.second.first[2]));
+            F_compact.resize(top);
+            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                                      nonManifold_compact);
         } else {
-//            if (map_boundary[c.first] == 2) {
-                printf("%d %d\n", c.first.x, c.first.y);
-                exit(0);
-//            }
+            break;
         }
     }
-    std::map<std::pair<int, int>, int> counts;
-    for (int m = 0; m < F_compact.size(); ++m) {
-        auto& f = F_compact[m];
-        for (int i = 0; i < 4; ++i) {
-            int v1 = f[i];
-            int v2 = f[(i + 1) % 4];
-            if (v1 == 11454 && v2 == 10982) {
-                printf("test %d %d\n", m, i);
-            }
-            std::pair<int, int> q(v1, v2);
-            if (counts.count(q) == 0)
-                counts[q] = 1;
-            else {
-                counts[q] += 1;
-                if (counts[q] > 1) {
-                    printf("%d %d: %d %d\n", m, i, v1, v2);
-                }
-            }
+    for (int i = 0; i < nonManifold_compact.size(); ++i) {
+        if (nonManifold_compact[i]) {
+            printf("Non manifold!\n");
         }
     }
-    int boundary = 0;
-    for (auto& p : counts) {
-        if (counts.count(std::pair<int, int>(p.first.second, p.first.first)) == 0) {
-//            printf("<%d %d>\n", p.first.first, p.first.second);
-            boundary += 1;
-        }
-    }
-    printf("Boundary: %d\n", boundary);
-    printf("Pass...\n");
+    printf("Finish\n");
 }
 
 void Parametrizer::OutputMesh(const char* obj_name) {

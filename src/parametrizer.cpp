@@ -64,7 +64,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     FixFlipHierarchy();
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
-    FixFlipSat();
+//    FixFlipSat();
 
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
@@ -74,6 +74,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
     AdvancedExtractQuad();
+    FixValence();
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, hierarchy.mScale);
     //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
