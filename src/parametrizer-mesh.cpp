@@ -212,8 +212,8 @@ void Parametrizer::ComputeVertexArea() {
 
 void Parametrizer::FixValence()
 {
+    // Remove Valence 2
     while (true) {
-        printf("Fix valence iter...\n");
         bool update = false;
         std::vector<int> marks(V2E_compact.size(), 0);
         std::vector<int> erasedF(F_compact.size(), 0);
@@ -258,12 +258,90 @@ void Parametrizer::FixValence()
             break;
         }
     }
-    for (int i = 0; i < nonManifold_compact.size(); ++i) {
-        if (nonManifold_compact[i]) {
-            printf("Non manifold!\n");
+    // Decrease Valence
+    while (true) {
+        bool update = false;
+        std::vector<int> marks(V2E_compact.size(), 0);
+        std::vector<int> valences(V2E_compact.size(), 0);
+        for (int i = 0; i < V2E_compact.size(); ++i) {
+            int deid0 = V2E_compact[i];
+            if (deid0 == -1)
+                continue;
+            int deid = deid0;
+            int count = 0;
+            do {
+                count += 1;
+                int deid1 = deid / 4 * 4 + (deid + 3) % 4;
+                deid = E2E_compact[deid1];
+            } while (deid != deid0 && deid != -1);
+            valences[i] = count;
+        }
+        std::priority_queue<std::pair<int, int> > prior_queue;
+        for (int i = 0; i < valences.size(); ++i) {
+            if (valences[i] > 5)
+                prior_queue.push(std::make_pair(valences[i], i));
+        }
+        while (!prior_queue.empty()) {
+            auto info = prior_queue.top();
+            prior_queue.pop();
+            if (marks[info.second])
+                continue;
+            int deid0 = V2E_compact[info.second];
+            if (deid0 == -1)
+                continue;
+            int deid = deid0;
+            std::vector<int> loop_vertices, loop_dedges;;
+            bool marked = false;
+            do {
+                int v = F_compact[deid/4][(deid+1)%4];
+                loop_dedges.push_back(deid);
+                loop_vertices.push_back(v);
+                if (marks[v])
+                    marked = true;
+                int deid1 = deid / 4 * 4 + (deid + 3) % 4;
+                deid = E2E_compact[deid1];
+            } while (deid != deid0 && deid != -1);
+            if (marked)
+                continue;
+            int step = (info.first + 1) / 2;
+            std::pair<int, int> min_val(0x7fffffff, 0x7fffffff);
+            int split_idx = -1;
+            for (int i = 0; i < loop_vertices.size(); ++i) {
+                if (i + step >= loop_vertices.size())
+                    continue;
+                int v1 = valences[loop_vertices[i]];
+                int v2 = valences[loop_vertices[i + step]];
+                if (v1 < v2)
+                    std::swap(v1, v2);
+                auto key = std::make_pair(v1, v2);
+                if (key < min_val) {
+                    min_val = key;
+                    split_idx = i;
+                }
+            }
+            if (min_val.first >= info.first)
+                continue;
+            update = true;
+            marks[info.second] = 1;
+            for (int i = 0; i < loop_vertices.size(); ++i) {
+                marks[loop_vertices[i]] = 1;
+            }
+            for (int id = split_idx; id < split_idx + step; ++id) {
+                F_compact[loop_dedges[id]/4][loop_dedges[id]%4] = O_compact.size();
+            }
+            F_compact.push_back(Vector4i(info.second, loop_vertices[split_idx], O_compact.size(), loop_vertices[split_idx + step]));
+            Vset.push_back(Vset[info.second]);
+            O_compact.push_back(O_compact[info.second]);
+            N_compact.push_back(N_compact[info.second]);
+            Q_compact.push_back(Q_compact[info.second]);
+        }
+        if (!update) {
+            break;
+        } else {
+            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                                      nonManifold_compact);
         }
     }
-    printf("Finish\n");
 }
 
 void Parametrizer::OutputMesh(const char* obj_name) {
