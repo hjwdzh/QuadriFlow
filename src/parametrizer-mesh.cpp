@@ -35,7 +35,8 @@ void Parametrizer::Load(const char* filename) {
     printf("vertices size: %d\n", (int)V.cols());
     printf("faces size: %d\n", (int)F.cols());
 #endif
-    
+    this->normalize_scale = scale;
+    this->normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]), 0.5 * (maxV[1] + minV[1]), 0.5 * 0.5 * (maxV[2] + minV[2]));
     //    merge_close(V, F, 1e-6);
 }
 
@@ -535,7 +536,6 @@ void Parametrizer::ExtractQuadMesh() {
                 p2 = t;
                 eid = DEdge(p0, p1);
             } else {
-                printf("Wow!\n");
                 continue;
             }
             for (int j = 0; j < 3; ++j) {
@@ -571,7 +571,6 @@ void Parametrizer::ExtractQuadMesh() {
                                          c.second.first[2]));
         } else {
 //            if (map_boundary[c.first] == 2) {
-                printf("Fuck!\n");
                 printf("%d %d\n", c.first.x, c.first.y);
                 exit(0);
 //            }
@@ -611,7 +610,8 @@ void Parametrizer::ExtractQuadMesh() {
 void Parametrizer::OutputMesh(const char* obj_name) {
     std::ofstream os(obj_name);
     for (int i = 0; i < O_compact.size(); ++i) {
-        os << "v " << O_compact[i][0] << " " << O_compact[i][1] << " " << O_compact[i][2] << "\n";
+        auto t = O_compact[i] * this->normalize_scale + this->normalize_offset;
+        os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
     }
     for (int i = 0; i < F_compact.size(); ++i) {
         os << "f " << F_compact[i][0]+1 << " " << F_compact[i][1]+1

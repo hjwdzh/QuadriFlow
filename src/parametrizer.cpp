@@ -65,16 +65,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
     FixFlipSat();
-    for (int i = 0; i < F.cols(); ++i) {
-        Vector2i diff[3];
-        for (int j = 0; j < 3; ++j) {
-            diff[j] = rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
-        }
-        if (diff[0] + diff[1] + diff[2] != Vector2i::Zero() || diff[0][0] * diff[1][1] - diff[1][0] * diff[0][1] < 0) {
-            printf("Check wrong!\n");
-        }
-    }
-//    ExportLocalSat(edge_diff, face_edgeIds, face_edgeOrients, F, V2E, hierarchy.mE2E);
 
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);

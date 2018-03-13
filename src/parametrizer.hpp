@@ -83,6 +83,8 @@ public:
 	MatrixXd FQ;
 	MatrixXi F;
 
+    double normalize_scale;
+    Vector3d normalize_offset;
 	std::vector<MatrixXd> triangle_space;
 
 	// data structures

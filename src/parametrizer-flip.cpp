@@ -114,7 +114,6 @@ void Parametrizer::FixHoles(std::vector<int>& loop_vertices) {
 
 void Parametrizer::FixHoles() {
     std::vector<int> detected_boundary(E2E_compact.size(), 0);
-    int boundaries = 0;
     for (int i = 0; i < E2E_compact.size(); ++i) {
         if (detected_boundary[i] != 0 || E2E_compact[i] != -1)
             continue;
@@ -134,7 +133,8 @@ void Parametrizer::FixHoles() {
         for (int j = 0; j < loop_edges.size(); ++j) {
             loop_vertices[j] = F_compact[loop_edges[j]/4][loop_edges[j]%4];
         }
-        FixHoles(loop_vertices);
+        if (loop_vertices.size() < 25)
+            FixHoles(loop_vertices);
     }
 }
 
@@ -280,94 +280,97 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         }
     }
 
-    std::vector<std::vector<int> > vert_to_dedge(num_v);
-    for (int i = 0; i < triangle_vertices.size(); ++i) {
-        Vector3i pt = triangle_vertices[i];
-        if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0]) {
-            for (int j = 0; j < 3; ++j) {
-                int t = E2E[i * 3 + j];
-                if (t != -1)
-                    E2E[t] = -1;
+    int num_v0 = num_v;
+    do {
+        num_v0 = num_v;
+        std::vector<std::vector<int> > vert_to_dedge(num_v);
+        for (int i = 0; i < triangle_vertices.size(); ++i) {
+            Vector3i pt = triangle_vertices[i];
+            if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0]) {
+                for (int j = 0; j < 3; ++j) {
+                    int t = E2E[i * 3 + j];
+                    if (t != -1)
+                        E2E[t] = -1;
+                }
+                for (int j = 0; j < 3; ++j) {
+                    E2E[i * 3 + j] = -1;
+                }
+            } else {
+                for (int j = 0; j < 3; ++j)
+                    vert_to_dedge[triangle_vertices[i][j]].push_back(i * 3 + j);
             }
-            for (int j = 0; j < 3; ++j) {
-                E2E[i * 3 + j] = -1;
-            }
-        } else {
-            for (int j = 0; j < 3; ++j)
-                vert_to_dedge[triangle_vertices[i][j]].push_back(i * 3 + j);
         }
-    }
-    
-    std::vector<int> colors(triangle_vertices.size() * 3, -1), reverse_colors(triangle_vertices.size() * 3, -1);
-    for (int i = 0; i < vert_to_dedge.size(); ++i) {
-        int num_color = 0;
-        for (int j = 0; j < vert_to_dedge[i].size(); ++j) {
-            int deid = vert_to_dedge[i][j];
-            if (colors[deid] != -1)
-                continue;
-            std::list<int> l;
-            int deid0 = deid;
-            do {
-                l.push_back(deid);
-                deid = deid / 3 * 3 + (deid + 2) % 3;
-                deid = E2E[deid];
-            } while (deid != -1 && deid != deid0);
-            if (deid == -1) {
-                deid = deid0;
+        std::vector<int> colors(triangle_vertices.size() * 3, -1), reverse_colors(triangle_vertices.size() * 3, -1);
+        for (int i = 0; i < vert_to_dedge.size(); ++i) {
+            int num_color = 0;
+            for (int j = 0; j < vert_to_dedge[i].size(); ++j) {
+                int deid = vert_to_dedge[i][j];
+                if (colors[deid] != -1)
+                    continue;
+                std::list<int> l;
+                int deid0 = deid;
                 do {
+                    l.push_back(deid);
+                    deid = deid / 3 * 3 + (deid + 2) % 3;
                     deid = E2E[deid];
-                    if (deid == -1)
-                        break;
-                    deid = deid / 3 * 3 + (deid + 1) % 3;
-                    if (deid == deid0)
-                        break;
-                    l.push_front(deid);
-                } while (true);
-            }
-            std::vector<int> dedges;
-            for (auto& e : l)
-                dedges.push_back(e);
-            std::map<std::pair<int, int>, int> loc;
-            std::vector<int> deid_colors(dedges.size(), num_color);
-            num_color += 1;
-            for (int jj = 0; jj < dedges.size(); ++jj) {
-                int deid = dedges[jj];
-                colors[deid] = 0;
-                int v1 = triangle_vertices[deid/3][deid%3];
-                int v2 = triangle_vertices[deid/3][(deid+1)%3];
-                std::pair<int, int> pt(v1, v2);
-                if (loc.count(pt)) {
-                    int s = loc[pt];
-                    for (int k = s; k < jj; ++k) {
-                        int deid1 = dedges[k];
-                        int v11 = triangle_vertices[deid1/3][deid1%3];
-                        int v12 = triangle_vertices[deid1/3][(deid1+1)%3];
-                        std::pair<int, int> pt1(v11, v12);
-                        loc.erase(pt1);
-                        deid_colors[k] = num_color;
+                } while (deid != -1 && deid != deid0);
+                if (deid == -1) {
+                    deid = deid0;
+                    do {
+                        deid = E2E[deid];
+                        if (deid == -1)
+                            break;
+                        deid = deid / 3 * 3 + (deid + 1) % 3;
+                        if (deid == deid0)
+                            break;
+                        l.push_front(deid);
+                    } while (true);
+                }
+                std::vector<int> dedges;
+                for (auto& e : l)
+                    dedges.push_back(e);
+                std::map<std::pair<int, int>, int> loc;
+                std::vector<int> deid_colors(dedges.size(), num_color);
+                num_color += 1;
+                for (int jj = 0; jj < dedges.size(); ++jj) {
+                    int deid = dedges[jj];
+                    colors[deid] = 0;
+                    int v1 = triangle_vertices[deid/3][deid%3];
+                    int v2 = triangle_vertices[deid/3][(deid+1)%3];
+                    std::pair<int, int> pt(v1, v2);
+                    if (loc.count(pt)) {
+                        int s = loc[pt];
+                        for (int k = s; k < jj; ++k) {
+                            int deid1 = dedges[k];
+                            int v11 = triangle_vertices[deid1/3][deid1%3];
+                            int v12 = triangle_vertices[deid1/3][(deid1+1)%3];
+                            std::pair<int, int> pt1(v11, v12);
+                            loc.erase(pt1);
+                            deid_colors[k] = num_color;
+                        }
+                        num_color += 1;
                     }
-                    num_color += 1;
+                    loc[pt] = jj;
                 }
-                loc[pt] = jj;
+                for (int j = 0; j < dedges.size(); ++j) {
+                    int deid = dedges[j];
+                    int color = deid_colors[j];
+                    if (color > 0) {
+                        triangle_vertices[deid/3][deid%3] = num_v + color - 1;
+                    }
+                }
             }
-            for (int j = 0; j < dedges.size(); ++j) {
-                int deid = dedges[j];
-                int color = deid_colors[j];
-                if (color > 0) {
-                    triangle_vertices[deid/3][deid%3] = num_v + color - 1;
+            if (num_color > 1) {
+                for (int j = 0; j < num_color - 1; ++j) {
+                    Vs.push_back(Vs[i]);
+                    O.push_back(O[i]);
+                    N.push_back(N[i]);
+                    Q.push_back(Q[i]);
                 }
+                num_v += num_color - 1;
             }
         }
-        if (num_color > 1) {
-            for (int j = 0; j < num_color - 1; ++j) {
-                Vs.push_back(Vs[i]);
-                O.push_back(O[i]);
-                N.push_back(N[i]);
-                Q.push_back(Q[i]);
-            }
-            num_v += num_color - 1;
-        }
-    }
+    } while (num_v != num_v0);
     int offset = 0;
     std::vector<Vector3i> triangle_edges, triangle_orients;
     for (int i = 0; i < triangle_vertices.size(); ++i) {
@@ -396,32 +399,6 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     VectorXi NV2E, NE2E, NB, NN;
     compute_direct_graph(NV, NF, NV2E, NE2E, NB, NN);
     
-    std::map<std::pair<int, int>, int> triangle_tests;
-    for (int i = 0; i < triangle_vertices.size(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            int v1 = triangle_vertices[i][j];
-            int v2 = triangle_vertices[i][(j + 1) % 3];
-            auto e = std::make_pair(v1, v2);
-            if (triangle_tests.count(e) == 0)
-                triangle_tests[e] = 1;
-            else {
-                triangle_tests[e] += 1;
-            }
-        }
-    }
-    
-    int nonManifold_tri = 0, boundary_tri = 0;
-    std::set<DEdge> boundaries;
-    for (auto& p : triangle_tests) {
-        if (p.second > 1) {
-            nonManifold_tri += 1;
-        }
-        if (triangle_tests.count(std::make_pair(p.first.second, p.first.first)) == 0) {
-            boundary_tri += 1;
-            boundaries.insert(DEdge(p.first.second, p.first.first));
-        }
-    }
-
     std::map<DEdge, std::pair<Vector3i, Vector3i> > quads;
     for (int i = 0; i < triangle_vertices.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -444,26 +421,6 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
             F_compact.push_back(Vector4i(p.second.first[1], p.second.first[2], p.second.first[0],
                                          p.second.second[2]));
         }
-    }
-    std::map<std::pair<int, int>, int> tests;
-    for (int i = 0; i < F_compact.size(); ++i) {
-        for (int j = 0; j < 4; ++j) {
-            int v1 = F_compact[i][j];
-            int v2 = F_compact[i][(j + 1) % 4];
-            auto e = std::make_pair(v1, v2);
-            if (tests.count(e) == 0)
-                tests[e] = 1;
-            else
-                tests[e] += 1;
-        }
-    }
-    int nonManifold = 0, boundary = 0;
-    for (auto& p : tests) {
-        if (p.second > 1) {
-            nonManifold += 1;
-        }
-        if (tests.count(std::make_pair(p.first.second, p.first.first)) == 0)
-            boundary += 1;
     }
     std::swap(Vs, Vset);
     std::swap(O_compact, O);
@@ -507,8 +464,8 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                 }
             }
             if (v == 2) {
-                erasedF[dedges[1] / 4] = 1;
-                F_compact[dedges[0]/4][dedges[0]%4] = F_compact[dedges[1]/4][(dedges[1]+2)%4];
+//                erasedF[dedges[1] / 4] = 1;
+//                F_compact[dedges[0]/4][dedges[0]%4] = F_compact[dedges[1]/4][(dedges[1]+2)%4];
             }
         }
         offset = 0;
@@ -522,7 +479,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                                   nonManifold_compact);
     }
-    
+
     FixHoles();
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
