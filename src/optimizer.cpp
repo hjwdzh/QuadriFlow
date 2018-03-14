@@ -319,28 +319,13 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
     auto FindNearest = [&]() {
         std::vector<int> integer_diss;
         for (int i = 0; i < O_compact.size(); ++i) {
-            Vector3d norm(0, 0, 0);
-            for (auto& dedge : dedges[i]) {
-                int f = dedge / 4;
-                if (F_compact[f][dedge % 4] != i) {
-                    printf("OMG!!!\n");
-                }
-                Vector3d d1 = O_compact[F_compact[f][(dedge + 1) % 4]] - O_compact[i];
-                Vector3d d2 = O_compact[F_compact[f][(dedge + 3) % 4]] - O_compact[i];
-                norm += d1.cross(d2);
-            }
-            norm.normalize();
             double min_dis = 1e30;
-            double max_norm = -1;
             int min_ind = -1;
             for (int v = 0; v < V.cols(); ++v) {
                 double dis = (V.col(v) - O_compact[i]).squaredNorm();
-                double n = norm.dot(N.col(v));
                 if (dis < min_dis) {
                     min_dis = dis;
-                    max_norm = n;
                     min_ind = v;
-                    continue;
                 }
             }
             if (min_ind > -1) {
@@ -416,7 +401,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
     };
 
     BuildConnection();
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
         FindNearest();
         FindNearestOrient();
         std::vector<std::unordered_map<int, double>> entries(O_compact.size() * 2);
