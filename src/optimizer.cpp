@@ -312,6 +312,19 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<Vector3d>& O_compact,
                                            std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
                                            std::vector<int>& E2E_compact, double mScale) {
+    std::map<int, std::vector<int> > OrientsDictionary;
+    OrientsDictionary[3] = std::vector<int>();
+    OrientsDictionary[4] = std::vector<int>();
+    OrientsDictionary[5] = std::vector<int>();
+    for (int i = 0; i < 12; ++i) {
+        OrientsDictionary[3].push_back(30 * i * 3.141592654 / 180.0);
+    }
+    for (int i = 0; i < 4; ++i) {
+        OrientsDictionary[4].push_back(90 * i * 3.141592654 / 180.0);
+    }
+    for (int i = 0; i < 20; ++i) {
+        OrientsDictionary[5].push_back((9 + i * 18) * 3.141592654 / 180.0);
+    }
     std::vector<int> Vind(O_compact.size());
     std::vector<int> Orients(O_compact.size());
     std::vector<std::list<int>> links(O_compact.size());
@@ -373,23 +386,22 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
 
     auto FindNearestOrient = [&]() {
         for (int i = 0; i < links.size(); ++i) {
-            if (links[i].size() != 4) continue;
             Vector3d qx = Q.col(Vind[i]);
             Vector3d qy = N.col(Vind[i]);
             qy = qy.cross(qx);
             double angles[4] = {0};
             int best_orient = 0;
-            for (int orient = 0; orient < 4; ++orient) {
+            int valence = links[i].size();
+            for (int orient = 0; orient < OrientsDictionary[valence].size(); ++orient) {
                 double angle = 0;
-                int ind = orient;
+                double angle_offset = OrientsDictionary[valence][orient];
                 for (auto& j : links[i]) {
                     Vector3d offset = O_compact[j] - O_compact[i];
-                    Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
-                    if (ind >= 2) target_offset = -target_offset;
+                    Vector3d target_offset = qx * cos(angle_offset) + qy * sin(angle_offset);
+                    angle_offset += 2 * 3.141592654 / valence;
                     double t = offset.norm();
                     if (std::abs(t) > 1e-3)
                         angle += std::abs(acos(offset.dot(target_offset) / (offset.norm() * target_offset.norm()))) / 3.141592654 * 180;
-                    ind = (ind + 1) % 4;
                 }
 //                printf("\n");
                 angles[orient] = angle;
@@ -418,22 +430,22 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
             x[i * 2 + 1] = (O_compact[i] - V.col(Vind[i])).dot(q_y);
         }
         for (int i = 0; i < O_compact.size(); ++i) {
+            int valence = links[i].size();
             Vector3d qx = Q.col(Vind[i]);
             Vector3d qy = N.col(Vind[i]);
             qy = qy.cross(qx);
-            int ind = Orients[i];
+            double angle_offset = OrientsDictionary[valence][Orients[i]];
             for (auto& j : links[i]) {
                 Vector3d qx2 = Q.col(Vind[j]);
                 Vector3d qy2 = N.col(Vind[j]);
                 qy2 = qy2.cross(qx2);
-                Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
-                if (ind >= 2) target_offset = -target_offset;
+                Vector3d target_offset = (qx * cos(angle_offset) + qy * sin(angle_offset)) * mScale;
+                angle_offset += 2 * 3.141592654 / valence;
                 Vector3d offset = V.col(Vind[j]) - V.col(Vind[i]);
                 Vector3d C = target_offset - offset;
                 int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                 Vector3d weights[] = {qx2, qy2, -qx, -qy};
 
-                ind = (ind + 1) % 4;
                 for (int i = 0; i < 4; ++i) {
                     for (int j = 0; j < 4; ++j) {
                         auto it = entries[vid[i]].find(vid[j]);
@@ -482,42 +494,13 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         int t2 = GetCurrentTime64();
         printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif
-        auto Analyze = [&]() {
-            double e = 0;
-            for (int i = 0; i < O_compact.size(); ++i) {
-                if (links[i].size() != 4)
-                    continue;
-                Vector3d qx = Q.col(Vind[i]);
-                Vector3d qy = N.col(Vind[i]);
-                int ind = Orients[i];
-                for (auto& j : links[i]) {
-                    Vector3d offset = O_compact[j] - O_compact[i];
-                    Vector3d target_offset = ((ind % 2 == 0) ? qx : qy) * mScale;
-                    if (ind >= 2) target_offset = -target_offset;
-                    double len = (target_offset - offset).squaredNorm();
-                    e += len;
-                }
-            }
-            return e;
-        };
         for (int i = 0; i < O_compact.size(); ++i) {
             Vector3d q = Q.col(Vind[i]);
             Vector3d n = N.col(Vind[i]);
             Vector3d q_y = n.cross(q);
             O_compact[i] = V.col(Vind[i]) + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
         }
-        /*
-        double e0 = Analyze();
-        for (int i = 0; i < O_compact.size(); ++i) {
-            Vector3d q = Q.col(Vind[i]);
-            Vector3d n = N.col(Vind[i]);
-            Vector3d q_y = n.cross(q);
-            O_compact[i] = V.col(Vind[i]) + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
-        }*/
-//        double e1 = Analyze();
-//        printf("Energy %lf %lf\n", e0, e1);
     }
-    FindNearest();
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
