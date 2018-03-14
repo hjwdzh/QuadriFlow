@@ -371,6 +371,8 @@ void Parametrizer::FixValence()
     O_compact.resize(top);
     Q_compact.resize(top);
     Vset.resize(top);
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                              nonManifold_compact);
 }
 
 void Parametrizer::OutputMesh(const char* obj_name) {
