@@ -342,6 +342,35 @@ void Parametrizer::FixValence()
                                       nonManifold_compact);
         }
     }
+
+    // Remove Zero Valence
+    std::vector<int> valences(V2E_compact.size(), 0);
+    for (int i = 0; i < F_compact.size(); ++i) {
+        for (int j = 0; j < 4; ++j) {
+            valences[F_compact[i][j]] = 1;
+        }
+    }
+    int top = 0;
+    std::vector<int> compact_indices(valences.size());
+    for (int i = 0; i < valences.size(); ++i) {
+        if (valences[i] == 0)
+            continue;
+        N_compact[top] = N_compact[i];
+        O_compact[top] = O_compact[i];
+        Q_compact[top] = Q_compact[i];
+        Vset[top] = Vset[i];
+        compact_indices[i] = top;
+        top += 1;
+    }
+    for (int i = 0; i < F_compact.size(); ++i) {
+        for (int j = 0; j < 4; ++j) {
+            F_compact[i][j] = compact_indices[F_compact[i][j]];
+        }
+    }
+    N_compact.resize(top);
+    O_compact.resize(top);
+    Q_compact.resize(top);
+    Vset.resize(top);
 }
 
 void Parametrizer::OutputMesh(const char* obj_name) {

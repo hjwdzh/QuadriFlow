@@ -38,9 +38,6 @@ extern void UpdatePosition(int* phase, int num_phases, glm::dvec3* N, glm::dvec3
 extern void PropagatePositionUpper(glm::dvec3* srcField, int num_position, glm::ivec2* toUpper,
                                    glm::dvec3* N, glm::dvec3* V, glm::dvec3* destField);
 
-extern void JacobiSolve(std::vector<double>& D, std::vector<double>& R, std::vector<int>& R_ind,
-                        std::vector<int>& R_offset, std::vector<double>& x,
-                        std::vector<double>& b);
 #endif
 
 #endif

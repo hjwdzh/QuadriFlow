@@ -327,9 +327,20 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                     min_ind = v;
                 }
             }
-            Vind[i] = min_ind;
-            double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
-            O_compact[i] -= x * N.col(min_ind);
+            if (min_ind > -1) {
+                Vind[i] = min_ind;
+                double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
+                O_compact[i] -= x * N.col(min_ind);
+            } else {
+                Vind[i] = 0;
+                for (auto& v : Vset[i]) {
+                    double dis = (V.col(v) - O_compact[i]).squaredNorm();
+                    printf("%lf %lf %lf %lf %lf %lf %lf\n", V(0, v), V(1, v), V(2, v),
+                           O_compact[i][0], O_compact[i][1], O_compact[i][2], dis);
+                }
+                printf("out of range! %d\n", Vset[i].size());
+                exit(0);
+            }
         }
     };
 
@@ -485,8 +496,15 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     auto& N = mRes.mN[0];
     auto& O = mRes.mO[0];
     //    auto &S = hierarchy.mS[0];
-    std::vector<std::unordered_map<int, double>> entries(V.cols() * 2);
-    std::vector<double> b(V.cols() * 2);
+    DisajointTree tree(V.cols());
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (edge_diff[i].array().abs().sum() == 0) {
+            tree.Merge(edge_values[i].x, edge_values[i].y);
+        }
+    }
+    tree.BuildCompactParent();
+    int num = tree.CompactNum();
+    std::vector<std::map<int, std::pair<int, Vector3d> > > ideal_distances(tree.CompactNum());
     for (int e = 0; e < edge_diff.size(); ++e) {
         int v1 = edge_values[e].x;
         int v2 = edge_values[e].y;
@@ -496,7 +514,6 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         Vector3d n_2 = N.col(v2);
         Vector3d q_1_y = n_1.cross(q_1);
         Vector3d q_2_y = n_2.cross(q_2);
-        Vector3d weights[] = {q_2, q_2_y, -q_1, -q_1_y};
         auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
         //        double s_x1 = S(0, v1), s_y1 = S(1, v1);
         //        double s_x2 = S(0, v2), s_y2 = S(1, v2);
@@ -507,54 +524,86 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         double scale_y = /*(with_scale ? 0.5 * (s_y1 + s_y2) : 1) */ mRes.mScale;
         Vector2i diff = edge_diff[e];
         Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + V.col(v1) - V.col(v2);
-        int vid[] = {v2 * 2, v2 * 2 + 1, v1 * 2, v1 * 2 + 1};
-        for (int i = 0; i < 4; ++i) {
-            for (int j = 0; j < 4; ++j) {
-                auto it = entries[vid[i]].find(vid[j]);
-                if (it == entries[vid[i]].end()) {
-                    entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
-                } else {
-                    entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
-                }
-            }
-            b[vid[i]] += weights[i].dot(C);
+        int p1 = tree.Index(v1);
+        int p2 = tree.Index(v2);
+        auto it = ideal_distances[p1].find(p2);
+        if (it == ideal_distances[p1].end()) {
+            ideal_distances[p1][p2] = std::make_pair(1, C);
+        } else {
+            it->second.first += 1;
+            it->second.second += C;
         }
     }
 
-    std::vector<double> D(V.cols() * 2);
-    for (int i = 0; i < D.size(); ++i) {
-        D[i] = 1.0 / entries[i][i];
+    // Find the most descriptive vertex
+    std::vector<Vector3d> v_positions(num, Vector3d(0, 0, 0));
+    std::vector<int> v_count(num);
+    std::vector<double> v_distance(num, 1e30);
+    std::vector<int> v_index(num, -1);
+
+    for (int i = 0; i < V.cols(); ++i) {
+        v_positions[tree.Index(i)] += V.col(i);
+        v_count[tree.Index(i)] += 1;
     }
-    std::vector<double> x(V.cols() * 2);
-    std::vector<double> R;
-    std::vector<int> R_ind;
-    std::vector<int> R_offset(V.cols() * 2 + 1);
+    for (int i = 0; i < num; ++i) {
+        if (v_count[i] > 0)
+            v_positions[i] /= v_count[i];
+    }
+    for (int i = 0; i < V.cols(); ++i) {
+        int p = tree.Index(i);
+        double dis = (v_positions[p] - V.col(i)).squaredNorm();
+        if (dis < v_distance[p]) {
+            v_distance[p] = dis;
+            v_index[p] = i;
+        }
+    }
+    std::vector<std::unordered_map<int, double>> entries(num * 2);
+    std::vector<double> b(num * 2);
+    
+    for (int m = 0; m < num; ++m) {
+        int v1 = v_index[m];
+        for (auto& info : ideal_distances[m]) {
+            int v2 = v_index[info.first];
+            Vector3d q_1 = Q.col(v1);
+            Vector3d q_2 = Q.col(v2);
+            Vector3d n_1 = N.col(v1);
+            Vector3d n_2 = N.col(v2);
+            Vector3d q_1_y = n_1.cross(q_1);
+            Vector3d q_2_y = n_2.cross(q_2);
+            Vector3d weights[] = {q_2, q_2_y, -q_1, -q_1_y};
+            int vid[] = {info.first * 2, info.first * 2 + 1, m * 2, m * 2 + 1};
+            Vector3d dis = info.second.second / info.second.first;
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    auto it = entries[vid[i]].find(vid[j]);
+                    if (it == entries[vid[i]].end()) {
+                        entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
+                    } else {
+                        entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
+                    }
+                }
+                b[vid[i]] += weights[i].dot(dis);
+            }
+        }
+    }
+
+    std::vector<double> x(num * 2);
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < O.cols(); ++i) {
-        Vector3d q = Q.col(i);
-        Vector3d n = N.col(i);
+    for (int i = 0; i < num; ++i) {
+        int p = v_index[i];
+        Vector3d q = Q.col(p);
+        Vector3d n = N.col(p);
         Vector3d q_y = n.cross(q);
-        x[i * 2] = (O.col(i) - V.col(i)).dot(q);
-        x[i * 2 + 1] = (O.col(i) - V.col(i)).dot(q_y);
+        x[i * 2] = (v_positions[i] - V.col(p)).dot(q);
+        x[i * 2 + 1] = (v_positions[i] - V.col(p)).dot(q_y);
     }
-    for (int i = 0; i < entries.size(); ++i) {
-        R_offset[i] = R.size();
-        for (auto& p : entries[i]) {
-            if (p.first == i) continue;
-            R_ind.push_back(p.first);
-            R.push_back(p.second);
-        }
-    }
-    R_offset.back() = R.size();
-#ifdef WITH_CUDA
-    JacobiSolve(D, R, R_ind, R_offset, x, b);
-#else
+
     std::vector<Eigen::Triplet<double>> lhsTriplets;
     lhsTriplets.reserve(F.cols() * 6);
-    Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
-    VectorXd rhs(V.cols() * 2);
+    Eigen::SparseMatrix<double> A(num * 2, num * 2);
+    VectorXd rhs(num * 2);
     rhs.setZero();
     for (int i = 0; i < entries.size(); ++i) {
         rhs(i) = b[i];
@@ -562,7 +611,6 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
         }
     }
-
     A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
 
 #ifdef LOG_OUTPUT
@@ -591,14 +639,20 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     VectorXd x_new = solver.solve(rhs);
     */
 
-    for (int i = 0; i < x.size(); ++i) x[i] = x_new[i];
-#endif  // WITH_CUDA
+    for (int i = 0; i < x.size(); ++i) {
+        x[i] = x_new[i];
+        if (isnan(x[i])) {
+            printf("Nan produced solver...\n");
+        }
+    }
 
     for (int i = 0; i < O.cols(); ++i) {
-        Vector3d q = Q.col(i);
-        Vector3d n = N.col(i);
+        int p = tree.Index(i);
+        int c = v_index[p];
+        Vector3d q = Q.col(c);
+        Vector3d n = N.col(c);
         Vector3d q_y = n.cross(q);
-        O.col(i) = V.col(i) + q * x[i * 2] + q_y * x[i * 2 + 1];
+        O.col(i) = V.col(c) + q * x[p * 2] + q_y * x[p * 2 + 1];
     }
 }
 
