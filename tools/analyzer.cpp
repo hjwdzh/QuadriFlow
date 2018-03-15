@@ -1,4 +1,5 @@
 #include <Eigen/Core>
+#include <Eigen/Dense>
 #include <vector>
 #include <strstream>
 #include <fstream>
@@ -122,11 +123,34 @@ void ReportSingularity()
 	}
 }
 
+void ReportAngleDifference()
+{
+	double e = 0, max_angle = 0, min_angle = 360;
+	for (int i = 0; i < F.cols(); ++i) {
+		for (int j = 0; j < 4; ++j) {
+			int v0 = F(j, i);
+			int v1 = F((j+1)%4,i);
+			int v2 = F((j+3)%4,i);
+			Vector3d d1 = V.col(v1) - V.col(v0);
+			Vector3d d2 = V.col(v2) - V.col(v0);
+			d1.normalize();
+			d2.normalize();
+			double angle = 180.0/3.141592654*atan2(d1.cross(d2).norm(), d1.dot(d2));
+			e += (angle-90)*(angle-90);
+			max_angle = std::max(angle, max_angle);
+			min_angle = std::min(angle, min_angle);
+		}
+	}
+	printf("min max angle: %lf %lf\n", min_angle, max_angle);
+	printf("angle average error: %lf\n", sqrt(e / 4 / F.cols()));
+}
+
 void Analyze()
 {
 	ReportFaceInfo();
 	ReportManifold();
 	ReportSingularity();
+	ReportAngleDifference();
 }
 
 int main(int argc, char** argv) {
