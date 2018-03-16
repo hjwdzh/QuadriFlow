@@ -313,25 +313,63 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
                                            std::vector<int>& E2E_compact, double mScale,
                                            std::vector<Vector3d>& diffs, std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e) {
-    std::vector<int> Vind(O_compact.size());
+    std::vector<int> Vind(O_compact.size(), -1);
     std::vector<std::list<int>> links(O_compact.size());
     std::vector<std::list<int>> dedges(O_compact.size());
+    std::vector<std::vector<int> > adj(V.cols());
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int v1 = F(j, i);
+            int v2 = F((j + 1) % 3, i);
+            adj[v1].push_back(v2);
+        }
+    }
     auto FindNearest = [&]() {
-        std::vector<int> integer_diss;
         for (int i = 0; i < O_compact.size(); ++i) {
-            double min_dis = 1e30;
-            int min_ind = -1;
-            for (int v = 0; v < V.cols(); ++v) {
-                double dis = (V.col(v) - O_compact[i]).squaredNorm();
-                if (dis < min_dis) {
-                    min_dis = dis;
-                    min_ind = v;
+            if (Vind[i] == -1) {
+                double min_dis = 1e30;
+                int min_ind = -1;
+                for (auto v : Vset[i]) {
+                    double dis = (V.col(v) - O_compact[i]).squaredNorm();
+                    if (dis < min_dis) {
+                        min_dis = dis;
+                        min_ind = v;
+                    }
                 }
-            }
-            if (min_ind > -1) {
-                Vind[i] = min_ind;
-                double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
-                O_compact[i] -= x * N.col(min_ind);
+                if (min_ind > -1) {
+                    Vind[i] = min_ind;
+                    double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
+                    O_compact[i] -= x * N.col(min_ind);
+                }
+            } else {
+                int current_v = Vind[i];
+                double current_dis = (O_compact[i] - V.col(current_v)).squaredNorm();
+                while (true) {
+                    int next_v = -1;
+                    for (auto& v : adj[current_v]) {
+                        double dis = (O_compact[i] - V.col(v)).squaredNorm();
+                        if (dis < current_dis) {
+                            current_dis = dis;
+                            next_v = v;
+                        }
+                    }
+                    if (next_v == -1)
+                        break;
+                    // rotate ideal distance
+                    Vector3d n1 = N.col(current_v);
+                    Vector3d n2 = N.col(next_v);
+                    Vector3d axis = n1.cross(n2);
+                    double len = axis.norm();
+                    double angle = atan2(len, n1.dot(n2));
+                    axis.normalized();
+                    Matrix3d m = AngleAxisd(angle, axis).toRotationMatrix();
+                    for (auto e : dedges[i]) {
+                        Vector3d& d = diffs[e];
+                        d = m * d;
+                    }
+                    current_v = next_v;
+                }
+                Vind[i] = current_v;
             }
         }
     };
