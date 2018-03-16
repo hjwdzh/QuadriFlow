@@ -77,6 +77,7 @@ int main(int argc, char** argv) {
     fflush(stdout);
     t1 = GetCurrentTime64();
     Optimizer::optimize_positions(field.hierarchy, with_scale);
+    
     field.ComputePositionSingularities(with_scale);
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);

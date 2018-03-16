@@ -311,22 +311,9 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<std::vector<int>>& Vset,
                                            std::vector<Vector3d>& O_compact,
                                            std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
-                                           std::vector<int>& E2E_compact, double mScale) {
-    std::map<int, std::vector<int> > OrientsDictionary;
-    OrientsDictionary[3] = std::vector<int>();
-    OrientsDictionary[4] = std::vector<int>();
-    OrientsDictionary[5] = std::vector<int>();
-    for (int i = 0; i < 12; ++i) {
-        OrientsDictionary[3].push_back(30 * i * 3.141592654 / 180.0);
-    }
-    for (int i = 0; i < 4; ++i) {
-        OrientsDictionary[4].push_back(90 * i * 3.141592654 / 180.0);
-    }
-    for (int i = 0; i < 20; ++i) {
-        OrientsDictionary[5].push_back((9 + i * 18) * 3.141592654 / 180.0);
-    }
+                                           std::vector<int>& E2E_compact, double mScale,
+                                           std::vector<Vector3d>& diffs, std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e) {
     std::vector<int> Vind(O_compact.size());
-    std::vector<int> Orients(O_compact.size());
     std::vector<std::list<int>> links(O_compact.size());
     std::vector<std::list<int>> dedges(O_compact.size());
     auto FindNearest = [&]() {
@@ -345,15 +332,6 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 Vind[i] = min_ind;
                 double x = (O_compact[i] - V.col(min_ind)).dot(N.col(min_ind));
                 O_compact[i] -= x * N.col(min_ind);
-            } else {
-                Vind[i] = 0;
-                for (auto& v : Vset[i]) {
-                    double dis = (V.col(v) - O_compact[i]).squaredNorm();
-                    printf("%lf %lf %lf %lf %lf %lf %lf\n", V(0, v), V(1, v), V(2, v),
-                           O_compact[i][0], O_compact[i][1], O_compact[i][2], dis);
-                }
-                printf("out of range! %d\n", (int)Vset[i].size());
-                exit(0);
             }
         }
     };
@@ -383,79 +361,158 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
             }
         }
     };
-
-    auto FindNearestOrient = [&]() {
-        for (int i = 0; i < links.size(); ++i) {
-            Vector3d qx = Q.col(Vind[i]);
-            Vector3d qy = N.col(Vind[i]);
-            qy = qy.cross(qx);
-            double angles[4] = {0};
-            int best_orient = 0;
-            int valence = links[i].size();
-            for (int orient = 0; orient < OrientsDictionary[valence].size(); ++orient) {
-                double angle = 0;
-                double angle_offset = OrientsDictionary[valence][orient];
-                for (auto& j : links[i]) {
-                    Vector3d offset = O_compact[j] - O_compact[i];
-                    Vector3d target_offset = qx * cos(angle_offset) + qy * sin(angle_offset);
-                    angle_offset += 2 * 3.141592654 / valence;
-                    double t = offset.norm();
-                    if (std::abs(t) > 1e-3)
-                        angle += std::abs(acos(offset.dot(target_offset) / (offset.norm() * target_offset.norm()))) / 3.141592654 * 180;
-                }
-//                printf("\n");
-                angles[orient] = angle;
-                if (angle < angles[best_orient]) best_orient = orient;
+    
+    std::vector<Vector3d> lines;
+    auto ComputeDistance = [&]() {
+        for (int i = 0; i < diffs.size(); ++i) {
+            if (diff_count[i] > 0) {
+                diffs[i] = diffs[i].normalized() * mScale;
+                diff_count[i] = 1;
             }
-//            printf("angle %lf\n", angles[best_orient]);
-            Orients[i] = best_orient;
+        }
+        
+        std::set<int> unobserved;
+        for (auto& info : o2e) {
+            if (diff_count[info.second] == 0) {
+                unobserved.insert(info.first.first);
+            }
+        }
+        while (true) {
+            bool update = false;
+            std::set<int> observed;
+            for (auto& p : unobserved) {
+                std::vector<int> observations, edges;
+                int count = 0;
+                for (auto& e : dedges[p]) {
+                    edges.push_back(e);
+                    if (diff_count[e]) {
+                        count += 1;
+                        observations.push_back(1);
+                    } else {
+                        observations.push_back(0);
+                    }
+                }
+                if (count <= 1)
+                    continue;
+                update = true;
+                observed.insert(p);
+                for (int i = 0; i < observations.size(); ++i) {
+                    if (observations[i] == 1)
+                        continue;
+                    int j = i;
+                    std::list<int> interp;
+                    while (observations[j] == 0) {
+                        interp.push_front(j);
+                        j -= 1;
+                        if (j < 0)
+                            j = edges.size() - 1;
+                    }
+                    j = (i + 1) % edges.size();
+                    while (observations[j] == 0) {
+                        interp.push_back(j);
+                        j += 1;
+                        if (j == edges.size())
+                            j = 0;
+                    }
+                    Vector3d dl = diffs[edges[(interp.front() + edges.size() - 1) % edges.size()]];
+                    Vector3d dr = diffs[edges[(interp.back() + 1) % edges.size()]];
+                    Vector3d n = dl.cross(dr).normalized();
+                    double angle = atan2(dl.cross(dr).norm(), dl.dot(dr));
+                    if (angle < 0)
+                        angle += 2 * 3.141592654;
+                    Vector3d nc = N.col(Vind[p]);
+                    if (n.dot(nc) < 0) {
+                        n = -n;
+                        angle = 2 * 3.141592654 - angle;
+                    }
+                    angle /= interp.size() + 1;
+                    Vector3d dlp = nc.cross(dl);
+                    int t = 0;
+                    for (auto q : interp) {
+                        t += 1;
+                        observations[q] = 1;
+                        double ad = angle * t;
+                        int e = edges[q];
+                        int re = E2E_compact[e];
+                        diff_count[e] = 2;
+                        diffs[e] = cos(ad) * dl + sin(ad) * dlp;
+                        if (re != -1) {
+                            diff_count[re] = 2;
+                            diffs[re] = -diffs[e];
+                        }
+                    }
+                    for (int i = 0; i < edges.size(); ++i) {
+                        lines.push_back(O_compact[p]);
+                        lines.push_back(O_compact[p] + diffs[edges[i]]);
+                    }
+                }
+            }
+            if (!update)
+                break;
+            for (auto& p : observed)
+                unobserved.erase(p);
         }
     };
-
+    
     BuildConnection();
-    for (int iter = 0; iter < 10; ++iter) {
+    int max_iter = 10;
+    for (int iter = 0; iter < max_iter; ++iter) {
         FindNearest();
-        FindNearestOrient();
+        ComputeDistance();
+
         std::vector<std::unordered_map<int, double>> entries(O_compact.size() * 2);
         std::vector<double> b(O_compact.size() * 2);
         std::vector<double> x(O_compact.size() * 2);
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
+        std::vector<Vector3d> Q_compact(O_compact.size());
+        std::vector<Vector3d> N_compact(O_compact.size());
         for (int i = 0; i < O_compact.size(); ++i) {
-            Vector3d q = Q.col(Vind[i]);
-            Vector3d n = N.col(Vind[i]);
+            Q_compact[i] = Q.col(Vind[i]);
+            N_compact[i] = N.col(Vind[i]);
+        }
+        for (int i = 0; i < O_compact.size(); ++i) {
+            Vector3d q = Q_compact[i];
+            Vector3d n = N_compact[i];
             Vector3d q_y = n.cross(q);
             x[i * 2] = (O_compact[i] - V.col(Vind[i])).dot(q);
             x[i * 2 + 1] = (O_compact[i] - V.col(Vind[i])).dot(q_y);
         }
         for (int i = 0; i < O_compact.size(); ++i) {
-            int valence = links[i].size();
-            Vector3d qx = Q.col(Vind[i]);
-            Vector3d qy = N.col(Vind[i]);
+            Vector3d qx = Q_compact[i];
+            Vector3d qy = N_compact[i];
+            Vector3d n1 = qy;
             qy = qy.cross(qx);
-            double angle_offset = OrientsDictionary[valence][Orients[i]];
-            for (auto& j : links[i]) {
-                Vector3d qx2 = Q.col(Vind[j]);
-                Vector3d qy2 = N.col(Vind[j]);
+            auto dedge_it = dedges[i].begin();
+            for (auto it = links[i].begin(); it != links[i].end(); ++it, ++dedge_it) {
+                int j = *it;
+                Vector3d qx2 = Q_compact[j];
+                Vector3d qy2 = N_compact[j];
+                Vector3d n2 = qy2;
                 qy2 = qy2.cross(qx2);
-                Vector3d target_offset = (qx * cos(angle_offset) + qy * sin(angle_offset)) * mScale;
-                angle_offset += 2 * 3.141592654 / valence;
+
+                int de = o2e[std::make_pair(i, j)];
+                double lambda = (diff_count[de] == 1) ? 1 : 1;
+                Vector3d target_offset = diffs[de];
                 Vector3d offset = V.col(Vind[j]) - V.col(Vind[i]);
+
+                target_offset.normalize();
+                target_offset *= mScale;
                 Vector3d C = target_offset - offset;
                 int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                 Vector3d weights[] = {qx2, qy2, -qx, -qy};
 
-                for (int i = 0; i < 4; ++i) {
-                    for (int j = 0; j < 4; ++j) {
-                        auto it = entries[vid[i]].find(vid[j]);
-                        if (it == entries[vid[i]].end()) {
-                            entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
+                for (int ii = 0; ii < 4; ++ii) {
+                    for (int jj = 0; jj < 4; ++jj) {
+                        auto it = entries[vid[ii]].find(vid[jj]);
+                        if (it == entries[vid[ii]].end()) {
+                            entries[vid[ii]][vid[jj]] = lambda * weights[ii].dot(weights[jj]);
                         } else {
-                            entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
+                            entries[vid[ii]][vid[jj]] += lambda * weights[ii].dot(weights[jj]);
                         }
                     }
-                    b[vid[i]] += weights[i].dot(C);
+                    b[vid[ii]] += lambda * weights[ii].dot(C);
                 }
             }
         }
@@ -481,13 +538,16 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         // I suspected either there is a implementation bug in IncompleteCholesky Preconditioner
         // or there is a memory corruption somewhere.  However, g++'s address sanitizer does not
         // report anything useful.
-        Eigen::setNbThreads(1);
-        ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
-        VectorXd x0 = VectorXd::Map(x.data(), x.size());
-        solver.setMaxIterations(40);
+        Eigen::SimplicialLLT<Eigen::SparseMatrix<double> > solver;
+        solver.analyzePattern(A);
+        solver.factorize(A);
+//        Eigen::setNbThreads(1);
+//        ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
+//        VectorXd x0 = VectorXd::Map(x.data(), x.size());
+//        solver.setMaxIterations(40);
 
-        solver.compute(A);
-        VectorXd x_new = solver.solveWithGuess(rhs, x0);
+//        solver.compute(A);
+        VectorXd x_new = solver.solve(rhs); //solver.solveWithGuess(rhs, x0);
 #ifdef LOG_OUTPUT
         std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
         std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
@@ -500,7 +560,28 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
             Vector3d q_y = n.cross(q);
             O_compact[i] = V.col(Vind[i]) + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
         }
+        
+        // forgive my hack...
+        if (iter + 1 == max_iter) {
+            for (int i = 0; i < O_compact.size(); ++i) {
+                if (dedges[i].size() != 4) {
+                    Vector3d n(0,0,0), v(0,0,0);
+                    Vector3d v0 = O_compact[i];
+                    for (auto e : dedges[i]) {
+                        Vector3d v1 = O_compact[F_compact[e/4][(e+1)%4]];
+                        Vector3d v2 = O_compact[F_compact[e/4][(e+3)%4]];
+                        n += (v1-v0).cross(v2-v0);
+                        v += v1;
+                    }
+                    n.normalize();
+                    Vector3d offset = v / dedges[i].size() - v0;
+                    offset -= offset.dot(n) * n;
+                    O_compact[i] += offset;
+                }
+            }
+        }
     }
+    
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
@@ -638,28 +719,25 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 #ifdef LOG_OUTPUT
     int t1 = GetCurrentTime64();
 #endif
-
+/*
     Eigen::setNbThreads(1);
     ConjugateGradient<SparseMatrix<double>, Lower | Upper> solver;
     VectorXd x0 = VectorXd::Map(x.data(), x.size());
     solver.setMaxIterations(40);
 
     solver.compute(A);
-    VectorXd x_new = solver.solveWithGuess(rhs, x0);
+ */
+    Eigen::SimplicialLLT<Eigen::SparseMatrix<double> > solver;
+    solver.analyzePattern(A);
+    solver.factorize(A);
 
+    VectorXd x_new = solver.solve(rhs);
 #ifdef LOG_OUTPUT
     std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
     std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
     int t2 = GetCurrentTime64();
     printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif
-
-    /*
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    solver.analyzePattern(A);
-    solver.factorize(A);
-    VectorXd x_new = solver.solve(rhs);
-    */
 
     for (int i = 0; i < x.size(); ++i) {
         x[i] = x_new[i];

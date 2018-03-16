@@ -31,6 +31,14 @@ void Parametrizer::Load(const char* filename) {
             V(j, i) = (V(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
         }
     }
+    std::ofstream os("/Users/jingwei/Desktop/triangle.obj");
+    for (int i = 0; i < V.cols(); ++i) {
+        os << "v " << V(0, i) << " " << V(1, i) << " " << V(2, i) << "\n";
+    }
+    for (int i = 0; i < F.cols(); ++i) {
+        os << "f " << F(0, i) + 1 << " " << F(1, i) + 1 << " " << F(2, i) + 1 << "\n";
+    }
+    os.close();
 #ifdef LOG_OUTPUT
     printf("vertices size: %d\n", (int)V.cols());
     printf("faces size: %d\n", (int)F.cols());
@@ -378,7 +386,7 @@ void Parametrizer::FixValence()
 void Parametrizer::OutputMesh(const char* obj_name) {
     std::ofstream os(obj_name);
     for (int i = 0; i < O_compact.size(); ++i) {
-        auto t = O_compact[i] * this->normalize_scale + this->normalize_offset;
+        auto t = O_compact[i];// * this->normalize_scale + this->normalize_offset;
         os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
     }
     for (int i = 0; i < F_compact.size(); ++i) {
