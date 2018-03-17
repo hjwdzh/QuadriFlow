@@ -101,18 +101,37 @@ void Parametrizer::BuildIntegerConstraints() {
     // a face disajoint tree
     DisajointOrientTree disajoint_orient_tree = DisajointOrientTree(F.cols());
     // merge the whole face graph except for the singularity in which there exists a spanning tree which contains consistent orientation
-    for (int i = 0; i < E2D.size(); ++i) {
+    std::vector<int> sharpUE(E2D.size());
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i]) {
+            sharpUE[face_edgeIds[i/3][i%3]] = 1;
+        }
+    }
+    
+    for (int i = 0; i < sharpUE.size(); ++i) {
+        if (sharpUE[i] == 0)
+            continue;
         auto& edge_c = E2D[i];
         int f0 = edge_c.first / 3;
         int f1 = edge_c.second / 3;
-        if (singularities.count(f0) || singularities.count(f1)) continue;
+        if (singularities.count(f0) || singularities.count(f1))
+            continue;
         int orient1 = face_edgeOrients[f0][edge_c.first % 3];
         int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
         disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
     }
-
+    
+    for (int i = 0; i < E2D.size(); ++i) {
+        auto& edge_c = E2D[i];
+        int f0 = edge_c.first / 3;
+        int f1 = edge_c.second / 3;
+        if (singularities.count(f0) || singularities.count(f1) || sharpUE[i]) continue;
+        int orient1 = face_edgeOrients[f0][edge_c.first % 3];
+        int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
+        disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
+    }
+    
     // merge singularity later
-    // don't know why, ask Jingwei Huang (jingweih@stanford.edu)
     for (auto& f : singularities) {
         for (int i = 0; i < 3; ++i) {
             auto& edge_c = E2D[face_edgeIds[f.first][i]];
@@ -165,41 +184,7 @@ void Parametrizer::BuildIntegerConstraints() {
         num_component += 1;
     }
     
-    // hacky part
-    // don't know why, ask Jingwei Huang (jingweih@stanford.edu)
-    DisajointTree segments(num_component);
-    for (auto& f : singularities) {
-        for (int i = 0; i < 3; ++i) {
-            int eid = face_edgeIds[f.first][i];
-            int f1 = E2D[eid].first / 3;
-            int f2 = E2D[eid].second / 3;
-            if (segments.Parent(colors[f1]) != segments.Parent(colors[f2])) {
-                assert(0);
-                segments.Merge(colors[f1], colors[f2]);
-                if (f1 == f.first) {
-                    face_edgeOrients[f1][E2D[eid].first%3] = (face_edgeOrients[f2][E2D[eid].second%3] + 2) % 4;
-                } else {
-                    face_edgeOrients[f2][E2D[eid].second%3] = (face_edgeOrients[f1][E2D[eid].first%3] + 2) % 4;
-                }
-            }
-        }
-    }
-
-
-    // hacky part
-    // don't know why, ask Jingwei Huang (jingweih@stanford.edu)
-    for (int eid = 0; eid < E2D.size(); ++eid) {
-        int f1 = E2D[eid].first/3;
-        int f2 = E2D[eid].second/3;
-        if (segments.Parent(colors[f1]) != segments.Parent(colors[f2])) {
-            assert(0);
-            segments.Merge(colors[f1], colors[f2]);
-            face_edgeOrients[f1][E2D[eid].first%3] = (face_edgeOrients[f2][E2D[eid].second%3] + 2) % 4;
-        }
-    }
-    
-    segments.BuildCompactParent();
-    std::vector<int> total_flows(segments.CompactNum());
+    std::vector<int> total_flows(num_component);
     // check if each component is full-flow
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         Vector2i diff(0, 0);
@@ -207,9 +192,9 @@ void Parametrizer::BuildIntegerConstraints() {
             int orient = face_edgeOrients[i][j];
             diff += rshift90(edge_diff[face_edgeIds[i][j]], orient);
         }
-        total_flows[segments.Index(colors[i])] += diff[0] + diff[1];
+        total_flows[colors[i]] += diff[0] + diff[1];
     }
-    
+
     // build "variable"
     variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
     for (int i = 0; i < face_edgeIds.size(); ++i) {
@@ -228,14 +213,13 @@ void Parametrizer::BuildIntegerConstraints() {
         }
     }
 
-
     // fixed variable that might be manually modified.
     // modified_variables[component_od][].first = fixed_variable_id
     // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
     std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
     for (int i = 0; i < variables.size(); ++i) {
-        if (variables[i].second != 0) {
-            int find = segments.Index(colors[variables[i].first[0]/2]);
+        if (variables[i].second != 0 && sharpUE[i] == 0) {
+            int find = colors[variables[i].first[0]/2];
             if (total_flows[find] > 0) {
                 if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
                     modified_variables[find].push_back(std::make_pair(i, -1));
@@ -257,12 +241,29 @@ void Parametrizer::BuildIntegerConstraints() {
     // uniformly random manually modify variables so that the network has full flow.
     for (auto& modified_var : modified_variables)
         std::random_shuffle(modified_var.begin(), modified_var.end());
+
     for (int j = 0; j < total_flows.size(); ++j) {
+        if (total_flows[j] == 0)
+            continue;
         for (int i = 0; i < abs(total_flows[j]) / 2; ++i) {
             auto& info = modified_variables[j][i];
             edge_diff[info.first / 2][info.first % 2] += info.second;
         }
     }
+
+    total_flows.clear();
+    total_flows.resize(num_component, 0);
+    // check if each component is full-flow
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            int orient = face_edgeOrients[i][j];
+            diff += rshift90(edge_diff[face_edgeIds[i][j]], orient);
+        }
+        total_flows[colors[i]] += diff[0] + diff[1];
+    }
+    
+    printf("Finish...\n");
 }
 
 void Parametrizer::ComputeMaxFlow() {

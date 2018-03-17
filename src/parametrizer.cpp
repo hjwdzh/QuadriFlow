@@ -28,13 +28,30 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     BuildEdgeInfo();
 
+    std::vector<int> sharpv(V.cols(), 0);
+    std::vector<int> sharpE(F.cols() * 3, 0);
+    DisajointTree tree(V.cols());
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (edge_diff[i][0] == 0 && edge_diff[i][1] == 0)
+            tree.Merge(edge_values[i].x, edge_values[i].y);
+    }
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i] == 0)
+            continue;
+        int v1 = F(i%3, i/3);
+        int v2 = F((i+1)%3, i/3);
+        sharpv[tree.Parent(v1)] = 1;
+        sharpv[tree.Parent(v2)] = 1;
+    }
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
-            if (face_edgeIds[i][j] == -1) {
-                printf("Ops, edge info is wrong!\n");
+            if (edge_diff[face_edgeIds[i][j]].array().abs().sum() == 1) {
+                sharpE[i * 3 + j] = 1;
             }
         }
     }
+    std::swap(sharpE, sharp_edges);
+    
     for (int i = 0; i < edge_diff.size(); ++i) {
         for (int j = 0; j < 2; ++j) {
             if (abs(edge_diff[i][j]) > 1) {

@@ -31,14 +31,6 @@ void Parametrizer::Load(const char* filename) {
             V(j, i) = (V(j, i) - (maxV[j] + minV[j]) * 0.5) / scale;
         }
     }
-    std::ofstream os("/Users/jingwei/Desktop/triangle.obj");
-    for (int i = 0; i < V.cols(); ++i) {
-        os << "v " << V(0, i) << " " << V(1, i) << " " << V(2, i) << "\n";
-    }
-    for (int i = 0; i < F.cols(); ++i) {
-        os << "f " << F(0, i) + 1 << " " << F(1, i) + 1 << " " << F(2, i) + 1 << "\n";
-    }
-    os.close();
 #ifdef LOG_OUTPUT
     printf("vertices size: %d\n", (int)V.cols());
     printf("faces size: %d\n", (int)F.cols());
@@ -78,7 +70,8 @@ void Parametrizer::Initialize(int faces, int with_scale) {
     while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
         ;
     generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
-    
+
+    ComputeSharpEdges();
     ComputeSmoothNormal();
     ComputeVertexArea();
     
@@ -130,6 +123,28 @@ void Parametrizer::ComputeMeshStatus() {
         }
     }
     average_edge_length /= (F.cols() * 3);
+}
+
+void Parametrizer::ComputeSharpEdges() {
+    std::vector<Vector3d> face_normals(F.cols());
+    for (int i = 0; i < F.cols(); ++i) {
+        Vector3d p1 = V.col(F(0, i));
+        Vector3d p2 = V.col(F(1, i));
+        Vector3d p3 = V.col(F(2, i));
+        face_normals[i] = (p2 - p1).cross(p3 - p1).normalized();
+    }
+
+    double cos_thres = cos(60.0/180.0*3.141592654);
+    sharp_edges.resize(F.cols() * 3, 0);
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        int e = i;
+        int re = E2E[e];
+        Vector3d& n1 = face_normals[e/3];
+        Vector3d& n2 = face_normals[re/3];
+        if (n1.dot(n2) < cos_thres) {
+            sharp_edges[i] = 1;
+        }
+    }
 }
 
 void Parametrizer::ComputeSmoothNormal() {
@@ -386,7 +401,7 @@ void Parametrizer::FixValence()
 void Parametrizer::OutputMesh(const char* obj_name) {
     std::ofstream os(obj_name);
     for (int i = 0; i < O_compact.size(); ++i) {
-        auto t = O_compact[i];// * this->normalize_scale + this->normalize_offset;
+        auto t = O_compact[i] * this->normalize_scale + this->normalize_offset;
         os << "v " << t[0] << " " << t[1] << " " << t[2] << "\n";
     }
     for (int i = 0; i < F_compact.size(); ++i) {
