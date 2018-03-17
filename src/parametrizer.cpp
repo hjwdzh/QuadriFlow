@@ -46,11 +46,30 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     for (int i = 0; i < face_edgeIds.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             if (edge_diff[face_edgeIds[i][j]].array().abs().sum() == 1) {
-                sharpE[i * 3 + j] = 1;
+                if (sharpv[tree.Parent(F(j, i))] && sharpv[tree.Parent(F((j+1)%3,i))])
+                    sharpE[i * 3 + j] = 1;
             }
         }
     }
     std::swap(sharpE, sharp_edges);
+    
+    // Debug Sharp
+    auto DebugSharp = [&]()
+    {
+        std::ofstream os("/Users/jingwei/Desktop/result.obj");
+        for (int i = 0; i < O.cols(); ++i) {
+            os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
+        }
+        for (int i = 0; i < sharp_edges.size(); ++i) {
+            if (sharp_edges[i] == 0)
+                continue;
+            int v1 = F(i%3, i/3);
+            int v2 = F((i + 1)%3, i/3);
+            os << "l " << v1 + 1 << " " << v2 + 1 << "\n";
+        }
+        os.close();
+    };
+//    DebugSharp();
     
     for (int i = 0; i < edge_diff.size(); ++i) {
         for (int j = 0; j < 2; ++j) {
@@ -71,7 +90,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     printf("subdivide...\n");
 #endif
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                       edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
+                       edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
@@ -80,7 +99,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                       edge_values, face_edgeOrients, face_edgeIds, singularities, 1);
+                       edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
 
     int t2 = GetCurrentTime64();

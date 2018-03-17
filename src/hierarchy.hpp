@@ -23,7 +23,7 @@ class Hierarchy {
     void FixFlipSat();
     void PropagateEdge();
     void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
-                             std::vector<Vector2i>& edge_diff, int level);
+                             std::vector<Vector2i>& edge_diff, std::vector<int>& sharp_edges, int level);
     void UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
                           std::vector<Vector2i>& edge_diff);
 
@@ -59,6 +59,7 @@ class Hierarchy {
     std::vector<std::vector<Vector3i>> mFQ; // face_edgeOrients
     std::vector<std::vector<Vector3i>> mF2E; // face_edgeIds
     std::vector<std::vector<Vector2i>> mE2F; // undirect edges to face ID
+    std::vector<std::vector<int> > mSharpEdges;
     std::vector<std::vector<Vector2i>> mEdgeDiff; // face_edgeDiff
 
 #ifdef WITH_CUDA

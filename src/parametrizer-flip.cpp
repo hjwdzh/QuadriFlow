@@ -166,21 +166,21 @@ void Parametrizer::FixHoles() {
 
 void Parametrizer::FixFlipHierarchy() {
     Hierarchy fh;
-    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);
+    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, -1);
     fh.FixFlip();
     fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 
 void Parametrizer::FixFlipSat() {
     Hierarchy fh;
-    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);
+    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, -1);
     fh.FixFlipSat();
     fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
 
 void Parametrizer::AdvancedExtractQuad() {
     Hierarchy fh;
-    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, -1);
+    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, -1);
     auto& V = hierarchy.mV[0];
     auto& F = hierarchy.mF;
     disajoint_tree = DisajointTree(V.cols());

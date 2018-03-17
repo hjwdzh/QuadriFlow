@@ -10,4 +10,4 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
                     VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
                     std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
                     std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
-                    std::map<int, int> &singularities, int max_len);
+                    std::vector<int>& sharp_edges, std::map<int, int> &singularities, int max_len);
