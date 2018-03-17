@@ -797,20 +797,8 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
     int edge_capacity = 2;
     bool FullFlow = false;
-    std::vector<std::vector<int> > AllowChange(mRes.mSharpEdges.size());
-    for (int i = 0; i < mRes.mSharpEdges.size(); ++i) {
-        AllowChange[i].resize(mRes.mE2F[i].size() * 2, 1);
-        for (int j = 0; j < mRes.mSharpEdges[i].size(); ++j) {
-            if (mRes.mSharpEdges[i][j] == 0)
-                continue;
-            int eid = mRes.mF2E[i][j/3][j%3];
-            for (int k = 0; k < 2; ++k) {
-                if (mRes.mEdgeDiff[i][eid][k] == 0) {
-                    AllowChange[i][eid * 2 + k] = 0;
-                }
-            }
-        }
-    }
+    std::vector<std::vector<int> >& AllowChange = mRes.mAllowChanges;
+
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
         auto& EdgeDiff = mRes.mEdgeDiff[level];
         auto& FQ = mRes.mFQ[level];

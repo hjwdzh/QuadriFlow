@@ -218,7 +218,7 @@ void Parametrizer::BuildIntegerConstraints() {
     // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
     std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
     for (int i = 0; i < variables.size(); ++i) {
-        if (variables[i].second != 0 && sharpUE[i/2] == 0) {
+        if (variables[i].second != 0 && allow_changes[i] == 1) {
             int find = colors[variables[i].first[0]/2];
             if (total_flows[find] > 0) {
                 if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
@@ -267,7 +267,11 @@ void Parametrizer::BuildIntegerConstraints() {
 }
 
 void Parametrizer::ComputeMaxFlow() {
-    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, 6);
+    printf("Downsample!\n");
+    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, allow_changes, 6);
+    for (int i = 0; i < hierarchy.mEdgeDiff.size(); ++i) {
+        printf("sample %d %d\n", hierarchy.mEdgeDiff[i].size(), hierarchy.mAllowChanges[i].size());
+    }
     Optimizer::optimize_integer_constraints(hierarchy, singularities);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }

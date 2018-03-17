@@ -52,24 +52,31 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
     std::swap(sharpE, sharp_edges);
+    allow_changes.resize(edge_diff.size() * 2, 1);
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i] == 0)
+            continue;
+        int e = face_edgeIds[i/3][i%3];
+        for (int k = 0; k < 2; ++k) {
+            if (edge_diff[e][k] == 0)
+                allow_changes[e * 2 + k] = 0;
+        }
+    }
     
     // Debug Sharp
     auto DebugSharp = [&]()
     {
-        std::ofstream os("/Users/jingwei/Desktop/result.obj");
-        for (int i = 0; i < O.cols(); ++i) {
-            os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
-        }
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 0)
                 continue;
-            int v1 = F(i%3, i/3);
-            int v2 = F((i + 1)%3, i/3);
-            os << "l " << v1 + 1 << " " << v2 + 1 << "\n";
+            int e = face_edgeIds[i/3][i%3];
+            if (edge_diff[e][0] * edge_diff[e][1] != 0) {
+                printf("Sharp condition violated!\n");
+                exit(0);
+            }
         }
-        os.close();
+        printf("Sharp condition pass!\n");
     };
-//    DebugSharp();
     
     for (int i = 0; i < edge_diff.size(); ++i) {
         for (int j = 0; j < 2; ++j) {
@@ -84,6 +91,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     BuildIntegerConstraints();
 
+    printf("MAX FLOW...\n");
     ComputeMaxFlow();
 
     // potential bug
@@ -93,18 +101,37 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 
+    allow_changes.clear();
+    allow_changes.resize(edge_diff.size() * 2, 1);
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i] == 0)
+            continue;
+        int e = face_edgeIds[i/3][i%3];
+        for (int k = 0; k < 2; ++k) {
+            if (edge_diff[e][k] == 0)
+                allow_changes[e * 2 + k] = 0;
+        }
+    }
+
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
 #endif
+
+    DebugSharp();
 
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
+    
+    printf("Fix hierarchy!\n");
+    DebugSharp();
 
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
+
+    DebugSharp();
 
 #ifdef LOG_OUTPUT
     printf("Post Linear Solver...\n");

@@ -126,6 +126,7 @@ public:
 	std::vector<int> bad_vertices;
 	std::vector<double> counter;
     std::vector<int> sharp_edges;   // sharp_edges[deid]: whether deid is a sharp edge that should be preserved
+    std::vector<int> allow_changes; // allow_changes[variable_id]: whether var can be changed based on sharp edges
     std::vector<Vector2i> edge_diff;  // edge_diff[edgeIds[i](j)]:  t_ij+t_ji under edge_values[edgeIds[i](j)].x's Q value
     std::vector<DEdge> edge_values;  // see above
     std::vector<Vector3i> face_edgeIds; // face_edgeIds[i](j): ith face jth edge's "undirected edge ID"
