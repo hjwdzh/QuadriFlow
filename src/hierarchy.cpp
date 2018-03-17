@@ -604,14 +604,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mSing.resize(levels);
     mToUpperEdges.resize(levels - 1);
     mToUpperOrients.resize(levels - 1);
-    int sharps = 0;
-    for (int i = 0; i < sharp_edges.size(); ++i) {
-        sharps += sharp_edges[i];
-    }
-    sharps = 0;
-    for (int i = 0; i < mSharpEdges.back().size(); ++i) {
-        sharps += mSharpEdges.back()[i];
-    }
 }
 
 void Hierarchy::FixFlipSat() {

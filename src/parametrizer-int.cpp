@@ -108,6 +108,16 @@ void Parametrizer::BuildIntegerConstraints() {
         }
     }
     
+    for (int i = 0; i < E2D.size(); ++i) {
+        auto& edge_c = E2D[i];
+        int f0 = edge_c.first / 3;
+        int f1 = edge_c.second / 3;
+        if (singularities.count(f0) || singularities.count(f1) || sharpUE[i]) continue;
+        int orient1 = face_edgeOrients[f0][edge_c.first % 3];
+        int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
+        disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
+    }
+    
     for (int i = 0; i < sharpUE.size(); ++i) {
         if (sharpUE[i] == 0)
             continue;
@@ -116,16 +126,6 @@ void Parametrizer::BuildIntegerConstraints() {
         int f1 = edge_c.second / 3;
         if (singularities.count(f0) || singularities.count(f1))
             continue;
-        int orient1 = face_edgeOrients[f0][edge_c.first % 3];
-        int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
-        disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
-    }
-    
-    for (int i = 0; i < E2D.size(); ++i) {
-        auto& edge_c = E2D[i];
-        int f0 = edge_c.first / 3;
-        int f1 = edge_c.second / 3;
-        if (singularities.count(f0) || singularities.count(f1) || sharpUE[i]) continue;
         int orient1 = face_edgeOrients[f0][edge_c.first % 3];
         int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
         disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
@@ -218,7 +218,7 @@ void Parametrizer::BuildIntegerConstraints() {
     // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
     std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
     for (int i = 0; i < variables.size(); ++i) {
-        if (variables[i].second != 0 && sharpUE[i] == 0) {
+        if (variables[i].second != 0 && sharpUE[i/2] == 0) {
             int find = colors[variables[i].first[0]/2];
             if (total_flows[find] > 0) {
                 if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
@@ -250,7 +250,7 @@ void Parametrizer::BuildIntegerConstraints() {
             edge_diff[info.first / 2][info.first % 2] += info.second;
         }
     }
-
+    
     total_flows.clear();
     total_flows.resize(num_component, 0);
     // check if each component is full-flow

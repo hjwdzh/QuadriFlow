@@ -78,6 +78,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             }
         }
     }
+    
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
