@@ -262,16 +262,10 @@ void Parametrizer::BuildIntegerConstraints() {
         }
         total_flows[colors[i]] += diff[0] + diff[1];
     }
-    
-    printf("Finish...\n");
 }
 
 void Parametrizer::ComputeMaxFlow() {
-    printf("Downsample!\n");
-    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, sharp_edges, allow_changes, 6);
-    for (int i = 0; i < hierarchy.mEdgeDiff.size(); ++i) {
-        printf("sample %d %d\n", hierarchy.mEdgeDiff[i].size(), hierarchy.mAllowChanges[i].size());
-    }
+    hierarchy.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, 6);
     Optimizer::optimize_integer_constraints(hierarchy, singularities);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }

@@ -91,7 +91,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
     BuildIntegerConstraints();
 
-    printf("MAX FLOW...\n");
     ComputeMaxFlow();
 
     // potential bug
@@ -117,14 +116,14 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     printf("Fix flip advance...\n");
 #endif
 
-    DebugSharp();
-
     int t1 = GetCurrentTime64();
     FixFlipHierarchy();
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
 
+    DebugSharp();
+    
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
 

@@ -399,7 +399,7 @@ void Hierarchy::UpdateGraphValue(std::vector<Vector3i>& FQ, std::vector<Vector3i
 }
 
 void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
-                                    std::vector<Vector2i>& edge_diff, std::vector<int>& sharp_edges,
+                                    std::vector<Vector2i>& edge_diff,
                                     std::vector<int>& allow_changes, int level) {
     std::vector<Vector2i> E2F(edge_diff.size(), Vector2i(-1, -1));
     for (int i = 0; i < F2E.size(); ++i) {
@@ -416,7 +416,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mF2E.resize(levels);
     mE2F.resize(levels);
     mEdgeDiff.resize(levels);
-    mSharpEdges.resize(levels);
     mAllowChanges.resize(levels);
     mSing.resize(levels);
     mToUpperEdges.resize(levels - 1);
@@ -430,7 +429,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             mSing[0].push_back(i);
         }
     }
-    mSharpEdges[0] = sharp_edges;
     mAllowChanges[0] = allow_changes;
     mFQ[0] = std::move(FQ);
     mF2E[0] = std::move(F2E);
@@ -440,7 +438,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         auto& FQ = mFQ[l];
         auto& E2F = mE2F[l];
         auto& F2E = mF2E[l];
-        auto& Sharp = mSharpEdges[l];
         auto& Allow = mAllowChanges[l];
         auto& EdgeDiff = mEdgeDiff[l];
         auto& Sing = mSing[l];
@@ -457,7 +454,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         auto& nFQ = mFQ[l + 1];
         auto& nE2F = mE2F[l + 1];
         auto& nF2E = mF2E[l + 1];
-        auto& nSharp = mSharpEdges[l + 1];
         auto& nAllow = mAllowChanges[l + 1];
         auto& nEdgeDiff = mEdgeDiff[l + 1];
         auto& nSing = mSing[l + 1];
@@ -556,25 +552,25 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             }
         }
         nEdgeDiff.resize(numE);
-        nAllow.resize(numE * 2);
+        nAllow.resize(numE * 2, 1);
         for (int i = 0; i < toUpper.size(); ++i) {
             if (toUpper[i] >= 0 && toUpperOrients[i] == 0) {
                 nEdgeDiff[toUpper[i]] = EdgeDiff[i];
-                nAllow[toUpper[i] * 2] = Allow[i * 2];
-                nAllow[toUpper[i] * 2 + 1] = Allow[i * 2 + 1];
+            }
+            if (toUpper[i] >= 0) {
+                int dimension = toUpperOrients[i] % 2;
+                if (Allow[i * 2 + dimension] == 0)
+                    nAllow[toUpper[i] * 2] = 0;
+                if (Allow[i * 2 + 1 - dimension] == 0)
+                    nAllow[toUpper[i] * 2 + 1] = 0;
             }
         }
         std::vector<int> upperface(F2E.size(), -1);
         
         for (int i = 0; i < F2E.size(); ++i) {
             Vector3i eid;
-            Vector3i s;
             for (int j = 0; j < 3; ++j) {
                 eid[j] = toUpper[F2E[i][j]];
-                if (i * 3 + j >= Sharp.size()) {
-                    printf("....\n");
-                }
-                s[j] = Sharp[i * 3 + j];
             }
             if (eid[0] >= 0 && eid[1] >= 0 && eid[2] >= 0) {
                 Vector3i eid_orient;
@@ -583,9 +579,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 }
                 upperface[i] = nF2E.size();
                 nF2E.push_back(eid);
-                for (int j = 0; j < 3; ++j) {
-                    nSharp.push_back(s[j]);
-                }
                 nFQ.push_back(eid_orient);
             }
         }
@@ -599,6 +592,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             if (upperface[s] >= 0) nSing.push_back(upperface[s]);
         }
         mToUpperFaces.push_back(std::move(upperface));
+
         if (nEdgeDiff.size() == EdgeDiff.size()) {
             levels = l + 1;
             break;
@@ -606,7 +600,6 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     }
     mFQ.resize(levels);
     mF2E.resize(levels);
-    mSharpEdges.resize(levels);
     mAllowChanges.resize(levels);
     mE2F.resize(levels);
     mEdgeDiff.resize(levels);
@@ -886,6 +879,8 @@ void Hierarchy::FixFlip() {
     auto& E2F = mE2F[l];
     auto& FQ = mFQ[l];
     auto& EdgeDiff = mEdgeDiff[l];
+    auto& AllowChange = mAllowChanges[l];
+
     // build E2E
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
@@ -949,6 +944,10 @@ void Hierarchy::FixFlip() {
         for (int i = 0; i < corresponding_diff.size(); ++i) {
             int deid = corresponding_edges[i];
             int eid = F2E[deid / 3][deid % 3];
+            for (int j = 0; j < 2; ++j) {
+                if (corresponding_diff[i][j] != 0 && AllowChange[eid * 2 + j] == 0)
+                    return false;
+            }
             auto& res = new_values[eid];
             res -= corresponding_diff[i];
             int edge_thres = allowed_edge_length;
@@ -1013,7 +1012,7 @@ void Hierarchy::FixFlip() {
     }
     if (update) {
         Hierarchy flip_hierarchy;
-        flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(), mSharpEdges.back(), mAllowChanges.back(), -1);
+        flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(), mAllowChanges.back(), -1);
         flip_hierarchy.FixFlip();
         flip_hierarchy.UpdateGraphValue(mFQ.back(), mF2E.back(), mEdgeDiff.back());
     }
