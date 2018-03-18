@@ -118,22 +118,11 @@ void Parametrizer::BuildIntegerConstraints() {
         disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
     }
     
-    for (int i = 0; i < sharpUE.size(); ++i) {
-        if (sharpUE[i] == 0)
-            continue;
-        auto& edge_c = E2D[i];
-        int f0 = edge_c.first / 3;
-        int f1 = edge_c.second / 3;
-        if (singularities.count(f0) || singularities.count(f1))
-            continue;
-        int orient1 = face_edgeOrients[f0][edge_c.first % 3];
-        int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
-        disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
-    }
-    
     // merge singularity later
     for (auto& f : singularities) {
         for (int i = 0; i < 3; ++i) {
+            if (sharpUE[face_edgeIds[f.first][i]])
+                continue;
             auto& edge_c = E2D[face_edgeIds[f.first][i]];
             int v0 = edge_c.first / 3;
             int v1 = edge_c.second / 3;
@@ -143,6 +132,17 @@ void Parametrizer::BuildIntegerConstraints() {
         }
     }
     
+    for (int i = 0; i < sharpUE.size(); ++i) {
+        if (sharpUE[i] == 0)
+            continue;
+        auto& edge_c = E2D[i];
+        int f0 = edge_c.first / 3;
+        int f1 = edge_c.second / 3;
+        int orient1 = face_edgeOrients[f0][edge_c.first % 3];
+        int orient0 = (face_edgeOrients[f1][edge_c.second % 3] + 2) % 4;
+        disajoint_orient_tree.Merge(f0, f1, orient0, orient1);
+    }
+    
     // all the face has the same parent.  we rotate every face to the space of that parent.
     for (int i = 0; i < face_edgeOrients.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
@@ -150,6 +150,112 @@ void Parametrizer::BuildIntegerConstraints() {
         }
     }
 
+    std::vector<int> sharp_colors(face_edgeIds.size(), -1);
+    int num_sharp_component = 0;
+    // label the connected component connected by non-fixed edges
+    // we need this because we need sink flow (demand) == source flow (supply) for each component rather than global
+    for (int i = 0; i < sharp_colors.size(); ++i) {
+        if (sharp_colors[i] != -1)
+            continue;
+        sharp_colors[i] = num_sharp_component;
+        std::queue<int> q;
+        q.push(i);
+        int counter = 0;
+        while (!q.empty()) {
+            int v = q.front();
+            q.pop();
+            for (int i = 0; i < 3; ++i) {
+                int e = face_edgeIds[v][i];
+                if (abs(face_edgeOrients[E2D[e].first/3][E2D[e].first%3] -
+                        face_edgeOrients[E2D[e].second/3][E2D[e].second%3] + 4) % 4 != 2
+                    || sharpUE[e]) {
+                    continue;
+                }
+                for (int k = 0; k < 2; ++k) {
+                    int f = (k == 0) ? E2D[e].first/3 : E2D[e].second / 3;
+                    if (sharp_colors[f] == -1) {
+                        sharp_colors[f] = num_sharp_component;
+                        q.push(f);
+                    }
+                }
+            }
+            counter += 1;
+        }
+        num_sharp_component += 1;
+    }
+    {
+        
+        std::vector<int> total_flows(num_sharp_component);
+        // check if each component is full-flow
+        for (int i = 0; i < face_edgeIds.size(); ++i) {
+            Vector2i diff(0, 0);
+            for (int j = 0; j < 3; ++j) {
+                int orient = face_edgeOrients[i][j];
+                diff += rshift90(edge_diff[face_edgeIds[i][j]], orient);
+            }
+            total_flows[sharp_colors[i]] += diff[0] + diff[1];
+        }
+        
+        // build "variable"
+        variables.resize(edge_diff.size() * 2, std::make_pair(Vector2i(-1, -1), 0));
+        for (int i = 0; i < face_edgeIds.size(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                Vector2i sign = rshift90(Vector2i(1, 1), face_edgeOrients[i][j]);
+                int eid = face_edgeIds[i][j];
+                Vector2i index = rshift90(Vector2i(eid * 2, eid * 2 + 1), face_edgeOrients[i][j]);
+                for (int k = 0; k < 2; ++k) {
+                    auto& p = variables[abs(index[k])];
+                    if (p.first[0] == -1)
+                        p.first[0] = i * 2 + k;
+                    else
+                        p.first[1] = i * 2 + k;
+                    p.second += sign[k];
+                }
+            }
+        }
+        
+        // fixed variable that might be manually modified.
+        // modified_variables[component_od][].first = fixed_variable_id
+        // modified_variables[component_od][].second = 1 if two positive signs -1 if two negative signs
+        std::vector<std::vector<std::pair<int, int> > > modified_variables(total_flows.size());
+        for (int i = 0; i < variables.size(); ++i) {
+            if (variables[i].second != 0 && allow_changes[i] == 1) {
+                int find = sharp_colors[variables[i].first[0]/2];
+                if (total_flows[find] > 0) {
+                    if (variables[i].second > 0 && edge_diff[i / 2][i % 2] > -1) {
+                        modified_variables[find].push_back(std::make_pair(i, -1));
+                    }
+                    if (variables[i].second < 0 && edge_diff[i / 2][i % 2] < 1) {
+                        modified_variables[find].push_back(std::make_pair(i, 1));
+                    }
+                } else if (total_flows[find] < 0) {
+                    if (variables[i].second < 0 && edge_diff[i / 2][i % 2] > -1) {
+                        modified_variables[find].push_back(std::make_pair(i, -1));
+                    }
+                    if (variables[i].second > 0 && edge_diff[i / 2][i % 2] < 1) {
+                        modified_variables[find].push_back(std::make_pair(i, 1));
+                    }
+                }
+            }
+        }
+        
+        // uniformly random manually modify variables so that the network has full flow.
+        for (auto& modified_var : modified_variables)
+            std::random_shuffle(modified_var.begin(), modified_var.end());
+        
+        for (int j = 0; j < total_flows.size(); ++j) {
+            if (total_flows[j] == 0)
+                continue;
+            int max_num = std::min(abs(total_flows[j]) / 2, (int)modified_variables[j].size());
+            for (int i = 0; i < max_num; ++i) {
+                auto& info = modified_variables[j][i];
+                edge_diff[info.first / 2][info.first % 2] += info.second;
+            }
+        }
+        
+    }
+    
+//
     // each connected component are labeled with the same color
     std::vector<int> colors(face_edgeIds.size(), -1);
     int num_component = 0;
@@ -183,6 +289,8 @@ void Parametrizer::BuildIntegerConstraints() {
         }
         num_component += 1;
     }
+
+    printf("%d %d\n", num_component, num_sharp_component);
     
     std::vector<int> total_flows(num_component);
     // check if each component is full-flow
@@ -262,6 +370,11 @@ void Parametrizer::BuildIntegerConstraints() {
         }
         total_flows[colors[i]] += diff[0] + diff[1];
     }
+
+    for (int i = 0; i < total_flows.size(); ++i) {
+        printf("Flow %d\n", total_flows[i]);
+    }
+    printf("\n");
 }
 
 void Parametrizer::ComputeMaxFlow() {

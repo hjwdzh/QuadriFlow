@@ -28,30 +28,14 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     BuildEdgeInfo();
 
-    std::vector<int> sharpv(V.cols(), 0);
-    std::vector<int> sharpE(F.cols() * 3, 0);
-    DisajointTree tree(V.cols());
-    for (int i = 0; i < edge_diff.size(); ++i) {
-        if (edge_diff[i][0] == 0 && edge_diff[i][1] == 0)
-            tree.Merge(edge_values[i].x, edge_values[i].y);
-    }
     for (int i = 0; i < sharp_edges.size(); ++i) {
-        if (sharp_edges[i] == 0)
-            continue;
-        int v1 = F(i%3, i/3);
-        int v2 = F((i+1)%3, i/3);
-        sharpv[tree.Parent(v1)] = 1;
-        sharpv[tree.Parent(v2)] = 1;
-    }
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            if (edge_diff[face_edgeIds[i][j]].array().abs().sum() == 1) {
-                if (sharpv[tree.Parent(F(j, i))] && sharpv[tree.Parent(F((j+1)%3,i))])
-                    sharpE[i * 3 + j] = 1;
+        if (sharp_edges[i]) {
+            int e = face_edgeIds[i/3][i%3];
+            if (edge_diff[e][0] * edge_diff[e][1] != 0) {
+                sharp_edges[i] = 0;
             }
         }
     }
-    std::swap(sharpE, sharp_edges);
     allow_changes.resize(edge_diff.size() * 2, 1);
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i] == 0)
@@ -66,16 +50,19 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     // Debug Sharp
     auto DebugSharp = [&]()
     {
+        bool flag = true;
         for (int i = 0; i < sharp_edges.size(); ++i) {
             if (sharp_edges[i] == 0)
                 continue;
             int e = face_edgeIds[i/3][i%3];
             if (edge_diff[e][0] * edge_diff[e][1] != 0) {
-                printf("Sharp condition violated!\n");
-                exit(0);
+                flag = false;
             }
         }
-        printf("Sharp condition pass!\n");
+        if (flag)
+            printf("Sharp condition pass!\n");
+        else
+            printf("Sharp condition violated!\n");
     };
     
     for (int i = 0; i < edge_diff.size(); ++i) {
@@ -188,6 +175,27 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                             int dedge = o2e[key];
                             diff_count[dedge] += 1;
                             diffs[dedge] -= C;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    for (int i = 0; i < F.cols(); ++i) {
+        Vector2i d1 = rshift90(edge_diff[face_edgeIds[i][0]], face_edgeOrients[i][0]);
+        Vector2i d2 = rshift90(edge_diff[face_edgeIds[i][1]], face_edgeOrients[i][1]);
+        if (d1[0] * d2[1] - d1[1] * d2[0] < 0) {
+            for (int j = 0; j < 3; ++j) {
+                int v1 = F(j, i);
+                int v2 = F((j + 1) % 3, i);
+                for (auto o1 : v2o[v1]) {
+                    for (auto o2 : v2o[v2]) {
+                        auto key = std::make_pair(o1, o2);
+                        if (o2e.count(key)) {
+                            int dedge = o2e[key];
+                            diff_count[dedge] = 0;
+                            diffs[dedge] = Vector3d(0, 0, 0);
                         }
                     }
                 }

@@ -313,6 +313,13 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
                                            std::vector<int>& E2E_compact, double mScale,
                                            std::vector<Vector3d>& diffs, std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e) {
+    std::set<int> uncertain;
+    for (auto& info : o2e) {
+        if (diff_count[info.second] == 0) {
+            uncertain.insert(info.first.first);
+            uncertain.insert(info.first.second);
+        }
+    }
     std::vector<int> Vind(O_compact.size(), -1);
     std::vector<std::list<int>> links(O_compact.size());
     std::vector<std::list<int>> dedges(O_compact.size());
@@ -601,8 +608,9 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         
         // forgive my hack...
         if (iter + 1 == max_iter) {
+            for (int iter = 0; iter < 5; ++iter) {
             for (int i = 0; i < O_compact.size(); ++i) {
-                if (dedges[i].size() != 4) {
+                if (dedges[i].size() != 4 || uncertain.count(i)) {
                     Vector3d n(0,0,0), v(0,0,0);
                     Vector3d v0 = O_compact[i];
                     for (auto e : dedges[i]) {
@@ -616,6 +624,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                     offset -= offset.dot(n) * n;
                     O_compact[i] += offset;
                 }
+            }
             }
         }
     }
@@ -883,6 +892,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             if (flow_count == supply) {
                 FullFlow = true;
             }
+            printf("Supply demand flow: %d %d %d\n", supply, demand, flow_count);
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
             printf("Not full flow, edge_capacity += 1\n");

@@ -34,8 +34,6 @@ void Parametrizer::ComputePositionSingularities(int with_scale) {
     pos_rank.resize(F.rows(), F.cols());
     pos_index.resize(6, F.cols());
     for (int f = 0; f < F.cols(); ++f) {
-        if (singularities.count(f)) continue;
-
         Vector2i index = Vector2i::Zero();
         uint32_t i0 = F(0, f), i1 = F(1, f), i2 = F(2, f);
 
