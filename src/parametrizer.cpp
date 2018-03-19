@@ -109,7 +109,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                        edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
 
-    DebugSharp();
+//    DebugSharp();
     
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
@@ -117,9 +117,30 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #ifdef LOG_OUTPUT
     printf("Post Linear Solver...\n");
 #endif
-    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, with_scale);
+    std::set<int> sharp_vertices;
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i] == 1) {
+            sharp_vertices.insert(F(i%3,i/3));
+            sharp_vertices.insert(F((i+1)%3,i/3));
+        }
+    }
+    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
+
+    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, with_scale);
     AdvancedExtractQuad();
     FixValence();
+    std::vector<int> sharp_o(O_compact.size(), 0);
+    for (int i = 0; i < Vset.size(); ++i) {
+        int sharpv = -1;
+        for (auto& p : Vset[i]) {
+            if (sharp_vertices.count(p))
+                sharpv = p;
+        }
+        if (sharpv >= 0) {
+            sharp_o[i] = 1;
+            O_compact[i] = O.col(sharpv);
+        }
+    }
     std::map<std::pair<int, int>, int> o2e;
     for (int i = 0; i < F_compact.size(); ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -205,7 +226,8 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
-                                          diffs, diff_count, o2e);
+                                          diffs, diff_count, o2e, sharp_o);
+    
     //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
     //    E2E_compact,
     //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree,

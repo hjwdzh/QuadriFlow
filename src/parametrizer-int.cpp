@@ -290,8 +290,6 @@ void Parametrizer::BuildIntegerConstraints() {
         num_component += 1;
     }
 
-    printf("%d %d\n", num_component, num_sharp_component);
-    
     std::vector<int> total_flows(num_component);
     // check if each component is full-flow
     for (int i = 0; i < face_edgeIds.size(); ++i) {
@@ -371,10 +369,6 @@ void Parametrizer::BuildIntegerConstraints() {
         total_flows[colors[i]] += diff[0] + diff[1];
     }
 
-    for (int i = 0; i < total_flows.size(); ++i) {
-        printf("Flow %d\n", total_flows[i]);
-    }
-    printf("\n");
 }
 
 void Parametrizer::ComputeMaxFlow() {

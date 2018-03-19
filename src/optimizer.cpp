@@ -312,7 +312,9 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<Vector3d>& O_compact,
                                            std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
                                            std::vector<int>& E2E_compact, double mScale,
-                                           std::vector<Vector3d>& diffs, std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e) {
+                                           std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
+                                           std::map<std::pair<int, int>, int>& o2e,
+                                           std::vector<int>& sharp_o) {
     std::set<int> uncertain;
     for (auto& info : o2e) {
         if (diff_count[info.second] == 0) {
@@ -561,6 +563,24 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 }
             }
         }
+        // fix sharp edges
+        for (int i = 0; i < entries.size(); ++i) {
+            if (sharp_o[i / 2]) {
+                b[i] = x[i];
+                entries[i].clear();
+                entries[i][i] = 1;
+            } else {
+                std::unordered_map<int, double> newmap;
+                for (auto& rec : entries[i]) {
+                    if (sharp_o[rec.first/2]) {
+                        b[i] -= rec.second * x[rec.first];
+                    } else {
+                        newmap[rec.first] = rec.second;
+                    }
+                }
+                std::swap(entries[i], newmap);
+            }
+        }
         std::vector<Eigen::Triplet<double>> lhsTriplets;
         lhsTriplets.reserve(F_compact.size() * 8);
         Eigen::SparseMatrix<double> A(O_compact.size() * 2, O_compact.size() * 2);
@@ -593,6 +613,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
 
 //        solver.compute(A);
         VectorXd x_new = solver.solve(rhs); //solver.solveWithGuess(rhs, x0);
+
 #ifdef LOG_OUTPUT
         std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
         std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
@@ -610,6 +631,8 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         if (iter + 1 == max_iter) {
             for (int iter = 0; iter < 5; ++iter) {
             for (int i = 0; i < O_compact.size(); ++i) {
+                if (sharp_o[i])
+                    continue;
                 if (dedges[i].size() != 4 || uncertain.count(i)) {
                     Vector3d n(0,0,0), v(0,0,0);
                     Vector3d v0 = O_compact[i];
@@ -631,8 +654,200 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
     
 }
 
+void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& edge_values,
+                                         std::vector<Vector2i>& edge_diff,
+                                         std::vector<int>& sharp_edges,
+                                         std::set<int>& sharp_vertices,
+                                         int with_scale) {
+    auto& V = mRes.mV[0];
+    auto& F = mRes.mF;
+    auto& Q = mRes.mQ[0];
+    auto& N = mRes.mN[0];
+    auto& O = mRes.mO[0];
+    //    auto &S = hierarchy.mS[0];
+    
+    DisajointTree tree(V.cols());
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (edge_diff[i].array().abs().sum() == 0) {
+            tree.Merge(edge_values[i].x, edge_values[i].y);
+        }
+    }
+    tree.BuildCompactParent();
+    std::map<int, int> compact_sharp_indices;
+    std::set<DEdge> compact_sharp_edges;
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i] == 1) {
+            int v1 = tree.Index(F(i%3,i/3));
+            int v2 = tree.Index(F((i+1)%3,i/3));
+            compact_sharp_edges.insert(DEdge(v1, v2));
+        }
+    }
+    for (auto& v : sharp_vertices) {
+        int p = tree.Index(v);
+        if (compact_sharp_indices.count(p) == 0) {
+            int s = compact_sharp_indices.size();
+            compact_sharp_indices[p] = s;
+        }
+    }
+    std::vector<std::vector<int> > sharp_to_original_indices(compact_sharp_indices.size());
+    for (auto v : sharp_vertices) {
+        int p = tree.Index(v);
+        sharp_to_original_indices[compact_sharp_indices[p]].push_back(v);
+    }
+
+    for (int i = 0; i < V.cols(); ++i) {
+        if (sharp_vertices.count(i))
+            continue;
+        int p = tree.Index(i);
+        if (compact_sharp_indices.count(p))
+            sharp_to_original_indices[compact_sharp_indices[p]].push_back(i);
+    }
+    int num = sharp_to_original_indices.size();
+    std::vector<std::set<int> > links(sharp_to_original_indices.size());
+    for (int e = 0; e < edge_diff.size(); ++e) {
+        int v1 = edge_values[e].x;
+        int v2 = edge_values[e].y;
+        int p1 = tree.Index(v1);
+        int p2 = tree.Index(v2);
+        if (p1 == p2 || compact_sharp_edges.count(DEdge(p1, p2)) == 0)
+            continue;
+        p1 = compact_sharp_indices[p1];
+        p2 = compact_sharp_indices[p2];
+        
+        links[p1].insert(p2);
+        links[p2].insert(p1);
+    }
+    
+    std::ofstream os0("/Users/jingwei/Desktop/sharp.obj");
+    for (int i = 0; i < links.size(); ++i) {
+        int v = sharp_to_original_indices[i][0];
+        os0 << "v " << O(0, v) << " " << O(1, v) << " " << O(2, v) << "\n";
+    }
+    for (int i = 0; i < links.size(); ++i) {
+        for (auto& v : links[i]) {
+            os0 << "l " << i + 1 << " " << v + 1 << "\n";
+        }
+    }
+    os0.close();
+    
+    std::vector<int> hash(links.size(), 0);
+    std::vector<std::vector<Vector3d> > loops;
+    for (int i = 0; i < num; ++i) {
+        if (hash[i] == 1)
+            continue;
+        if (links[i].size() == 2) {
+            std::vector<int> q;
+            q.push_back(i);
+            hash[i] = 1;
+            int v = i;
+            int prev_v = -1;
+            bool is_loop = false;
+            while (links[v].size() == 2) {
+                int next_v = -1;
+                for (auto nv : links[v])
+                    if (nv != prev_v)
+                        next_v = nv;
+                if (hash[next_v]) {
+                    is_loop = true;
+                    break;
+                }
+                if (links[next_v].size() == 2)
+                    hash[next_v] = true;
+                q.push_back(next_v);
+                prev_v = v;
+                v = next_v;
+            }
+            if (!is_loop && q.size() >= 2) {
+                std::vector<int> q1;
+                int v = i;
+                int prev_v = q[1];
+                while (links[v].size() == 2) {
+                    int next_v = -1;
+                    for (auto nv : links[v])
+                        if (nv != prev_v)
+                            next_v = nv;
+                    if (hash[next_v]) {
+                        is_loop = true;
+                        break;
+                    }
+                    if (links[next_v].size() == 2)
+                        hash[next_v] = true;
+                    q1.push_back(next_v);
+                    prev_v = v;
+                    v = next_v;
+                }
+                std::reverse(q1.begin(), q1.end());
+                q1.insert(q1.end(), q.begin(), q.end());
+                std::swap(q1, q);
+            }
+            if (q.size() < 3)
+                continue;
+            if (is_loop)
+                q.push_back(q.front());
+            double len = 0;
+            std::vector<Vector3d> o(q.size()), new_o(q.size());
+            for (int i = 0; i < q.size() - 1; ++i) {
+                int v1 = q[i];
+                int v2 = q[i + 1];
+                auto it = links[v1].find(v2);
+                if (it == links[v1].end()) {
+                    printf("Non exist!\n");
+                    exit(0);
+                }
+            }
+            for (int i = 0; i < q.size(); ++i) {
+                o[i] = O.col(sharp_to_original_indices[q[i]][0]);
+                new_o[i] = o[i];
+            }
+            for (int i = 0; i < q.size() - 1; ++i) {
+                len += (o[i + 1] - o[i]).norm();
+            }
+            int next_m = q.size() - 1;
+            len /= q.size() - 1;
+            
+            /*
+            double left_norm = len;
+            int current_v = 0;
+            double current_norm = (o[1] - o[0]).norm();
+            for (int i = 1; i < next_m; ++i) {
+                while (left_norm >= current_norm) {
+                    left_norm -= current_norm;
+                    current_v += 1;
+                    current_norm = (o[current_v + 1] - o[current_v]).norm();
+                }
+                new_o[i] = (o[current_v + 1] * left_norm + o[current_v] * (current_norm - left_norm)) / current_norm;
+                o[current_v] = new_o[i];
+                current_norm -= left_norm;
+                left_norm = len;
+            }
+            for (int i = 0; i < q.size(); ++i) {
+                for (auto v : sharp_to_original_indices[q[i]]) {
+                    O.col(v) = new_o[i];
+                }
+            }
+             */
+            loops.push_back(new_o);
+        }
+    }
+    std::ofstream os("/Users/jingwei/Desktop/loops.obj");
+    for (int i = 0; i < loops.size(); ++i) {
+        for (auto& v : loops[i]) {
+            os << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
+        }
+    }
+    int offset = 1;
+    for (int i = 0; i < loops.size(); ++i) {
+        for (int j = 0; j < loops[i].size() - 1; ++j) {
+            os << "l " << offset + j << " " << offset + j + 1 << "\n";
+        }
+        offset += loops[i].size();
+    }
+    os.close();
+}
+
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
-                                         std::vector<Vector2i>& edge_diff, int with_scale) {
+                                         std::vector<Vector2i>& edge_diff, std::set<int>& sharp_vertices,
+                                         int with_scale) {
     auto& V = mRes.mV[0];
     auto& F = mRes.mF;
     auto& Q = mRes.mQ[0];
@@ -670,6 +885,10 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             v_distance[p] = dis;
             v_index[p] = i;
         }
+    }
+    for (auto& v : sharp_vertices) {
+        v_positions[tree.Index(v)] = O.col(v);
+        v_index[tree.Index(v)] = v;
     }
 
     std::vector<std::map<int, std::pair<int, Vector3d> > > ideal_distances(tree.CompactNum());
@@ -736,7 +955,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             }
         }
     }
-
+    
     std::vector<double> x(num * 2);
 #ifdef WITH_OMP
 #pragma omp parallel for
@@ -748,6 +967,25 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         Vector3d q_y = n.cross(q);
         x[i * 2] = (v_positions[i] - V.col(p)).dot(q);
         x[i * 2 + 1] = (v_positions[i] - V.col(p)).dot(q_y);
+    }
+    
+    // fix sharp edges
+    for (int i = 0; i < entries.size(); ++i) {
+        if (sharp_vertices.count(i / 2)) {
+            b[i] = x[i];
+            entries[i].clear();
+            entries[i][i] = 1;
+        } else {
+            std::unordered_map<int, double> newmap;
+            for (auto& rec : entries[i]) {
+                if (sharp_vertices.count(rec.first/2)) {
+                    b[i] -= rec.second * x[rec.first];
+                } else {
+                    newmap[rec.first] = rec.second;
+                }
+            }
+            std::swap(entries[i], newmap);
+        }
     }
 
     std::vector<Eigen::Triplet<double>> lhsTriplets;
@@ -892,10 +1130,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             if (flow_count == supply) {
                 FullFlow = true;
             }
-            printf("Supply demand flow: %d %d %d\n", supply, demand, flow_count);
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
-            printf("Not full flow, edge_capacity += 1\n");
 #ifdef LOG_OUTPUT
             printf("Not full flow, edge_capacity += 1\n");
 #endif
