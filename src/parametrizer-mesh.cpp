@@ -133,6 +133,50 @@ void Parametrizer::ComputeSharpEdges() {
     }
 }
 
+void Parametrizer::ComputeSharpO() {
+    auto& F = hierarchy.mF;
+    auto& V = hierarchy.mV[0];
+    auto& O = hierarchy.mO[0];
+    DisajointTree tree(V.cols());
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (edge_diff[i][0] == 0 && edge_diff[i][1] == 0) {
+            tree.Merge(edge_values[i].x, edge_values[i].y);
+        }
+    }
+    std::map<DEdge, std::vector<Vector3d> > edge_normals;
+    for (int i = 0; i < F.cols(); ++i) {
+        int pv[] = {tree.Parent(F(0, i)), tree.Parent(F(1, i)), tree.Parent(F(2, i))};
+        if (pv[0] == pv[1] || pv[1] == pv[2] || pv[2] == pv[0])
+            continue;
+        DEdge e[] = {DEdge(pv[0], pv[1]), DEdge(pv[1], pv[2]), DEdge(pv[2], pv[0])};
+        Vector3d d1 = O.col(F(1, i)) - O.col(F(0, i));
+        Vector3d d2 = O.col(F(2, i)) - O.col(F(0, i));
+        Vector3d n = d1.cross(d2).normalized();
+        for (int j = 0; j < 3; ++j) {
+            if (edge_normals.count(e[j]) == 0)
+                edge_normals[e[j]] = std::vector<Vector3d>();
+            edge_normals[e[j]].push_back(n);
+        }
+    }
+    std::vector<DEdge> sharps;
+    for (auto& info : edge_normals) {
+        auto& normals = info.second;
+        bool sharp = false;
+        for (int i = 0; i < normals.size(); ++i) {
+            for (int j = i + 1; j < normals.size(); ++j) {
+                if (normals[i].dot(normals[j]) < cos(60.0 / 180.0 * 3.141592654)) {
+                    sharp = true;
+                    break;
+                }
+            }
+            if (sharp)
+                break;
+        }
+        if (sharp)
+            sharps.push_back(info.first);
+    }
+}
+
 void Parametrizer::ComputeSmoothNormal() {
     /* Compute face normals */
     Nf.resize(3, F.cols());

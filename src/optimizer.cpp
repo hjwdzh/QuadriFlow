@@ -148,8 +148,8 @@ void Optimizer::optimize_scale(Hierarchy& mRes) {
             if (index.first % 2 != index.second % 2) {
                 std::swap(v2_x, v2_y);
             }
-            double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.1), 10));
-            double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.1), 10));
+            double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.3), 3));
+            double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.3), 3));
 
             auto it = entries[v1_x].find(v2_x);
             if (it == entries[v1_x].end()) {
@@ -191,16 +191,10 @@ void Optimizer::optimize_scale(Hierarchy& mRes) {
         total_area += S(0, i) * S(1, i);
     }
     total_area = sqrt(V.cols() / total_area);
-    double min_s = 1e30, max_s = -1e30;
     for (int i = 0; i < V.cols(); ++i) {
         S(0, i) *= total_area;
         S(1, i) *= total_area;
-        min_s = fmin(S(0, i), min_s);
-        min_s = fmin(S(1, i), min_s);
-        max_s = fmax(S(0, i), max_s);
-        max_s = fmax(S(1, i), max_s);
     }
-
     for (int l = 0; l < mRes.mS.size() - 1; ++l) {
         const MatrixXd& S = mRes.mS[l];
         MatrixXd& S_next = mRes.mS[l + 1];
@@ -670,7 +664,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
     auto& Q = mRes.mQ[0];
     auto& N = mRes.mN[0];
     auto& O = mRes.mO[0];
-    //    auto &S = hierarchy.mS[0];
+    auto &S = mRes.mS[0];
     
     DisajointTree tree(V.cols());
     for (int i = 0; i < edge_diff.size(); ++i) {
@@ -778,8 +772,9 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                 continue;
             if (is_loop)
                 q.push_back(q.front());
-            double len = 0;
+            double len = 0, scale = 0;
             std::vector<Vector3d> o(q.size()), new_o(q.size());
+            std::vector<double> sc(q.size());
             for (int i = 0; i < q.size() - 1; ++i) {
                 int v1 = q[i];
                 int v2 = q[i + 1];
@@ -789,17 +784,29 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                     exit(0);
                 }
             }
+            
             for (int i = 0; i < q.size(); ++i) {
                 o[i] = O.col(sharp_to_original_indices[q[i]][0]);
+                Vector3d qx = Q.col(sharp_to_original_indices[q[i]][0]);
+                Vector3d qy = Vector3d(N.col(sharp_to_original_indices[q[i]][0])).cross(qx);
+                int fst = sharp_to_original_indices[q[1]][0];
+                Vector3d dis = (i == 0)
+                    ? (Vector3d(O.col(fst)) - o[i])
+                    : o[i] - o[i - 1];
+                sc[i] = (abs(qx.dot(dis)) > abs(qy.dot(dis)))
+                    ? S(0, sharp_to_original_indices[q[i]][0])
+                    : S(1, sharp_to_original_indices[q[i]][0]);
                 new_o[i] = o[i];
             }
+            
             for (int i = 0; i < q.size() - 1; ++i) {
                 len += (o[i + 1] - o[i]).norm();
+                scale += sc[i];
             }
+
             int next_m = q.size() - 1;
-            len /= q.size() - 1;
             
-            double left_norm = len;
+            double left_norm = len * sc[0] / scale;
             int current_v = 0;
             double current_norm = (o[1] - o[0]).norm();
             for (int i = 1; i < next_m; ++i) {
@@ -811,7 +818,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                 new_o[i] = (o[current_v + 1] * left_norm + o[current_v] * (current_norm - left_norm)) / current_norm;
                 o[current_v] = new_o[i];
                 current_norm -= left_norm;
-                left_norm = len;
+                left_norm = len * sc[current_v] / scale;
             }
             for (int i = 0; i < q.size(); ++i) {
                 for (auto v : sharp_to_original_indices[q[i]]) {
@@ -822,6 +829,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             loops.push_back(new_o);
         }
     }
+    
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,

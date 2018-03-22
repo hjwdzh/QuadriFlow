@@ -28,6 +28,10 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     // ComputeOrientationSingularities();
 
     BuildEdgeInfo();
+    if (flag_preserve_sharp == 1) {
+        ComputeSharpO();
+    }
+
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i]) {
             int e = face_edgeIds[i/3][i%3];
@@ -123,16 +127,16 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     std::set<int> sharp_vertices;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i] == 1) {
-//            sharp_vertices.insert(F(i%3,i/3));
-//            sharp_vertices.insert(F((i+1)%3,i/3));
+            sharp_vertices.insert(F(i%3,i/3));
+            sharp_vertices.insert(F((i+1)%3,i/3));
         }
     }
-//    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
+    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, flag_preserve_sharp);
     AdvancedExtractQuad();
 
     FixValence();
-
+    
     std::vector<int> sharp_o(O_compact.size(), 0);
     for (int i = 0; i < Vset.size(); ++i) {
         int sharpv = -1;

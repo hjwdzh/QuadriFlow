@@ -45,6 +45,7 @@ public:
     void ComputeMeshStatus();
     void ComputeSmoothNormal();
     void ComputeSharpEdges();
+    void ComputeSharpO();
     void ComputeVertexArea();
 	void Initialize(int faces);
 	
