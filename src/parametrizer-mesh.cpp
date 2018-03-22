@@ -136,6 +136,8 @@ void Parametrizer::ComputeSharpEdges() {
 
     double cos_thres = cos(60.0/180.0*3.141592654);
     sharp_edges.resize(F.cols() * 3, 0);
+    if (flag_preserve_sharp == 0)
+        return;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         int e = i;
         int re = E2E[e];
@@ -176,7 +178,19 @@ void Parametrizer::ComputeSmoothNormal() {
             continue;
         }
         
+        
         int stop = edge;
+        do {
+            if (sharp_edges[edge])
+                break;
+            edge = E2E[edge];
+            if (edge != -1)
+                edge = dedge_next_3(edge);
+        } while (edge != stop && edge != -1);
+        if (edge == -1)
+            edge = stop;
+        else
+            stop = edge;
         Vector3d normal = Vector3d::Zero();
         do {
             int idx = edge % 3;
@@ -193,6 +207,8 @@ void Parametrizer::ComputeSmoothNormal() {
             if (opp == -1) break;
             
             edge = dedge_next_3(opp);
+            if (sharp_edges[edge])
+                break;
         } while (edge != stop);
         double norm = normal.norm();
         N.col(i) = norm > RCPOVERFLOW ? Vector3d(normal / norm) : Vector3d::UnitX();

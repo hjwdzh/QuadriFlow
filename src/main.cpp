@@ -33,6 +33,9 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "-o") == 0) {
             output_obj = argv[i + 1];
         }
+        if (strcmp(argv[i], "-sharp") == 0) {
+            field.flag_preserve_sharp = 1;
+        }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
     fflush(stdout);

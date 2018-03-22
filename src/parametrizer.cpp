@@ -16,6 +16,7 @@
 #include <queue>
 #include <set>
 
+#define LOG_OUTPUT
 void Parametrizer::ComputeIndexMap(int with_scale) {
     // build edge info
     auto& V = hierarchy.mV[0];
@@ -27,7 +28,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     // ComputeOrientationSingularities();
 
     BuildEdgeInfo();
-
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i]) {
             int e = face_edgeIds[i/3][i%3];
@@ -42,8 +42,10 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             continue;
         int e = face_edgeIds[i/3][i%3];
         for (int k = 0; k < 2; ++k) {
-            if (edge_diff[e][k] == 0)
-                allow_changes[e * 2 + k] = 0;
+            if (edge_diff[e][k] == 0) {
+                if (sharp_edges[i])
+                    allow_changes[e * 2 + k] = 0;
+            }
         }
     }
     
@@ -64,15 +66,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         else
             printf("Sharp condition violated!\n");
     };
-    
-    for (int i = 0; i < edge_diff.size(); ++i) {
-        for (int j = 0; j < 2; ++j) {
-            if (abs(edge_diff[i][j]) > 1) {
-                edge_diff[i][j] /= abs(edge_diff[i][j]);
-            }
-        }
-    }
-    
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
@@ -104,7 +97,19 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #endif
 
     int t1 = GetCurrentTime64();
+    
+    for (int i = 0; i < face_edgeIds.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            diff += rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
+        }
+        if (diff != Vector2i::Zero()) {
+            printf("Non zero!\n");
+            exit(0);
+        }
+    }
     FixFlipHierarchy();
+
     subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
                        edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
@@ -120,13 +125,13 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     std::set<int> sharp_vertices;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i] == 1) {
-            sharp_vertices.insert(F(i%3,i/3));
-            sharp_vertices.insert(F((i+1)%3,i/3));
+//            sharp_vertices.insert(F(i%3,i/3));
+//            sharp_vertices.insert(F((i+1)%3,i/3));
         }
     }
-    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
+//    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
 
-    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, with_scale);
+//    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, with_scale);
     AdvancedExtractQuad();
     FixValence();
     std::vector<int> sharp_o(O_compact.size(), 0);

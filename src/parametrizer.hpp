@@ -37,6 +37,9 @@ struct ExpandInfo
 class Parametrizer
 {
 public:
+    Parametrizer()
+    : flag_preserve_sharp(0)
+    {}
     // Mesh Initialization
 	void Load(const char* filename);
     void ComputeMeshStatus();
@@ -151,6 +154,9 @@ public:
         int edge;
     };
     std::vector<QuadInfo> quad_info;
+    
+    // flag
+    int flag_preserve_sharp;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,

@@ -718,18 +718,6 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
         links[p2].insert(p1);
     }
     
-    std::ofstream os0("/Users/jingwei/Desktop/sharp.obj");
-    for (int i = 0; i < links.size(); ++i) {
-        int v = sharp_to_original_indices[i][0];
-        os0 << "v " << O(0, v) << " " << O(1, v) << " " << O(2, v) << "\n";
-    }
-    for (int i = 0; i < links.size(); ++i) {
-        for (auto& v : links[i]) {
-            os0 << "l " << i + 1 << " " << v + 1 << "\n";
-        }
-    }
-    os0.close();
-    
     std::vector<int> hash(links.size(), 0);
     std::vector<std::vector<Vector3d> > loops;
     for (int i = 0; i < num; ++i) {
@@ -805,7 +793,6 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             int next_m = q.size() - 1;
             len /= q.size() - 1;
             
-            /*
             double left_norm = len;
             int current_v = 0;
             double current_norm = (o[1] - o[0]).norm();
@@ -825,24 +812,10 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                     O.col(v) = new_o[i];
                 }
             }
-             */
+             
             loops.push_back(new_o);
         }
     }
-    std::ofstream os("/Users/jingwei/Desktop/loops.obj");
-    for (int i = 0; i < loops.size(); ++i) {
-        for (auto& v : loops[i]) {
-            os << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
-        }
-    }
-    int offset = 1;
-    for (int i = 0; i < loops.size(); ++i) {
-        for (int j = 0; j < loops[i].size() - 1; ++j) {
-            os << "l " << offset + j << " " << offset + j + 1 << "\n";
-        }
-        offset += loops[i].size();
-    }
-    os.close();
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
@@ -1085,7 +1058,10 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                     if (edge_to_constraints[i][1] < 0) std::swap(v1, v2);
                     int current_v = EdgeDiff[i / 2][i % 2];
                     arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
-                    arc_ids.push_back(i);
+                    if (AllowChange[level][i] == 1)
+                        arc_ids.push_back(i + 1);
+                    else
+                        arc_ids.push_back(-(i+1));
                 }
             }
             int supply = 0;
@@ -1117,8 +1093,17 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                 if (v1 == 0 || v2 == initial.size() + 1) {
                     flow->AddEdge(v1, v2, c, 0, -1);
                 } else {
-                    flow->AddEdge(v1, v2, std::max(0, c + edge_capacity),
-                                  std::max(0, -c + edge_capacity), arc_ids[i]);
+                    if (arc_ids[i] > 0)
+                        flow->AddEdge(v1, v2, std::max(0, c + edge_capacity),
+                                  std::max(0, -c + edge_capacity), arc_ids[i] - 1);
+                    else {
+                        if (c > 0)
+                            flow->AddEdge(v1, v2, std::max(0, c - 1),
+                                      std::max(0, -c + edge_capacity), -1 - arc_ids[i]);
+                        else
+                            flow->AddEdge(v1, v2, std::max(0, c + edge_capacity),
+                                          std::max(0, -c - 1), -1 - arc_ids[i]);
+                    }
                 }
             }
 
