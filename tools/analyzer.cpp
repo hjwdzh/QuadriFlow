@@ -11,6 +11,59 @@ MatrixXd V;
 MatrixXi F;
 std::vector<std::vector<int> > IrregularF;
 
+void Upsampling()
+{
+	std::map<std::pair<int, int>, int> edgeid;
+	for (int i = 0; i < F.cols(); ++i) {
+		for (int j = 0; j < 4; ++j) {
+			int v1 = F(j, i);
+			int v2 = F((j + 1) % 4, i);
+			if (v1 > v2)
+				std::swap(v1, v2);
+			auto key = std::make_pair(v1, v2);
+			int s = edgeid.size();
+			if (edgeid.count(key) == 0)
+				edgeid[key] = s;
+		}
+	}
+	std::vector<Vector4i> faces(F.cols() * 4);
+	std::vector<Vector3d> vertices(V.cols() + edgeid.size() + F.cols());
+	for (int i = 0; i < V.cols(); ++i) {
+		vertices[i] = V.col(i);
+	}
+	for (auto info : edgeid)
+		vertices[V.cols() + info.second] = 0.5 * (V.col(info.first.first) + V.col(info.first.second));
+	for (int i = 0; i < F.cols(); ++i) {
+		Vector3d p(0, 0, 0);
+		for (int j = 0; j < 4; ++j) {
+			p += V.col(F(j, i));
+		}
+		p *= 0.25;
+		vertices[V.cols() + edgeid.size() + i] = p;
+	}
+	for (int i = 0; i < F.cols(); ++i) {
+		int eid[4];
+		for (int j = 0; j < 4; ++j) {
+			int v1 = F(j, i);
+			int v2 = F((j + 1) % 4, i);
+			if (v1 > v2)
+				std::swap(v1, v2);
+			auto key = std::make_pair(v1, v2);
+			if (edgeid.count(key) == 0) {
+				printf("OMG!\n");
+			}
+			eid[j] = edgeid[key];
+		}
+		for (int j = 0; j < 4; ++j) {
+			faces[i * 4 + j] =
+				Vector4i(F(j, i), eid[j] + V.cols(), V.cols() + edgeid.size() + i, eid[(j + 3) % 4] + V.cols());
+		}
+	}
+	V.resize(3, vertices.size());
+	memcpy(V.data(), vertices.data(), sizeof(double) * 3 * vertices.size());
+	F.resize(4, faces.size());
+	memcpy(F.data(), faces.data(), sizeof(int) * 4 * faces.size());
+}
 void Load(const char* filename) {
 	std::vector<Vector3d> positions;
 	std::vector<Vector4i> faces;
@@ -155,14 +208,21 @@ void Analyze()
 
 int main(int argc, char** argv) {
 	if (argc < 2) {
-		printf("./analyzer input.obj [output.txt]\n");
+		printf("./analyzer input.obj [scale] [output.txt]\n");
 		return 0;
 	}
 
 	Load(argv[1]);
 
+	int scale = 1;
 	if (argc >= 3) {
-		freopen(argv[2],"w",stdout);
+		sscanf(argv[2], "%d", &scale);
+	}
+	for (int i = 1; i < scale; ++i) {
+		Upsampling();
+	}
+	if (argc >= 4) {
+		freopen(argv[3],"w",stdout);
 	}
 
 	Analyze();
