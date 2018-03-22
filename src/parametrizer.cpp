@@ -24,7 +24,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
     auto& O = hierarchy.mO[0];
-
+    auto& S = hierarchy.mS[0];
     // ComputeOrientationSingularities();
 
     BuildEdgeInfo();
@@ -77,8 +77,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
-    subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                       edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
+    subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 
     allow_changes.clear();
     allow_changes.resize(edge_diff.size() * 2, 1);
@@ -110,8 +109,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     }
     FixFlipHierarchy();
 
-    subdivide_edgeDiff(F, V, N, Q, O, V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff,
-                       edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
+    subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
 //    FixFlipSat();
 
 //    DebugSharp();
@@ -130,10 +128,11 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
 //    Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
-
-//    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, with_scale);
+    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, flag_preserve_sharp);
     AdvancedExtractQuad();
+
     FixValence();
+
     std::vector<int> sharp_o(O_compact.size(), 0);
     for (int i = 0; i < Vset.size(); ++i) {
         int sharpv = -1;
@@ -184,13 +183,15 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                         Vector3d q_1_y = n_1.cross(q_1);
                         Vector3d q_2_y = n_2.cross(q_2);
                         auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
-                        //        double s_x1 = S(0, v1), s_y1 = S(1, v1);
-                        //        double s_x2 = S(0, v2), s_y2 = S(1, v2);
+                        double s_x1 = S(0, v1), s_y1 = S(1, v1);
+                        double s_x2 = S(0, v2), s_y2 = S(1, v2);
                         int rank_diff = (index.second + 4 - index.first) % 4;
+                        if (rank_diff % 2 == 1)
+                            std::swap(s_x2, s_y2);
                         Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
                         Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-                        double scale_x = /*(with_scale ? 0.5 * (s_x1 + s_x2) : 1) */ hierarchy.mScale;
-                        double scale_y = /*(with_scale ? 0.5 * (s_y1 + s_y2) : 1) */ hierarchy.mScale;
+                        double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * hierarchy.mScale;
+                        double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * hierarchy.mScale;
                         Vector2i diff = edge_diff[face_edgeIds[i][j]];
                         Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y;
                         
@@ -229,9 +230,16 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
 
+    for (int i = 0; i < diff_count.size(); ++i) {
+        if (diff_count[i] != 0) {
+            diffs[i] /= diff_count[i];
+            diff_count[i] = 1;
+        }
+    }
+    
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
-                                          diffs, diff_count, o2e, sharp_o);
+                                          diffs, diff_count, o2e, sharp_o, flag_adaptive_scale);
     
     //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
     //    E2E_compact,

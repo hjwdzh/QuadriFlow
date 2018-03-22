@@ -11,12 +11,6 @@
 Parametrizer field;
 
 int main(int argc, char** argv) {
-#ifdef WITH_SCALE
-    int with_scale = 1;
-#else
-    int with_scale = 0;
-#endif
-
 #ifdef WITH_CUDA
     cudaFree(0);
 #endif
@@ -36,6 +30,9 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "-sharp") == 0) {
             field.flag_preserve_sharp = 1;
         }
+        if (strcmp(argv[i], "-adaptive") == 0) {
+            field.flag_adaptive_scale = 1;
+        }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
     fflush(stdout);
@@ -47,7 +44,7 @@ int main(int argc, char** argv) {
 
     printf("Initialize...\n");
     fflush(stdout);
-    field.Initialize(faces, with_scale);
+    field.Initialize(faces);
 
     printf("Solve Orientation Field...\n");
     fflush(stdout);
@@ -59,12 +56,10 @@ int main(int argc, char** argv) {
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     fflush(stdout);
 
-#ifdef WITH_SCALE
-    if (with_scale == 1) {
-        printf("estimate for scale...\n");
-        fflush(stdout);
+    if (field.flag_adaptive_scale == 1) {
+        printf("Estimate Slop...\n");
         t1 = GetCurrentTime64();
-        field.EstimateScale();
+        field.EstimateSlope();
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
@@ -74,21 +69,20 @@ int main(int argc, char** argv) {
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     }
-#endif
     
     printf("Solve for position field...\n");
     fflush(stdout);
     t1 = GetCurrentTime64();
-    Optimizer::optimize_positions(field.hierarchy, with_scale);
+    Optimizer::optimize_positions(field.hierarchy, field.flag_adaptive_scale);
     
-    field.ComputePositionSingularities(with_scale);
+    field.ComputePositionSingularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     fflush(stdout);
     t1 = GetCurrentTime64();
     printf("Solve index map...\n");
     fflush(stdout);
-    field.ComputeIndexMap(with_scale);
+    field.ComputeIndexMap();
     t2 = GetCurrentTime64();
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
     fflush(stdout);

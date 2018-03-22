@@ -78,6 +78,7 @@ set(
     src/parametrizer-flip.cpp
     src/parametrizer-int.cpp
     src/parametrizer-mesh.cpp
+    src/parametrizer-scale.cpp
     src/parametrizer-sing.cpp
     src/parametrizer.hpp
     src/post-solver.cpp

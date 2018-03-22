@@ -138,11 +138,11 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
     E2E.conservativeResize(nF * 3);
 }
 
-void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, VectorXi &V2E,
-                    VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
-                    std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
-                    std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
-                    std::vector<int>& sharp_edges, std::map<int, int> &singularities, int max_len) {
+void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, MatrixXd* S,
+                        VectorXi &V2E, VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
+                        std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
+                        std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
+                        std::vector<int>& sharp_edges, std::map<int, int> &singularities, int max_len) {
     struct EdgeLink {
         int id;
         double length;
@@ -296,15 +296,20 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
             N.conservativeResize(N.rows(), N.cols() * 2);
             Q.conservativeResize(Q.rows(), Q.cols() * 2);
             O.conservativeResize(O.rows(), O.cols() * 2);
+            if (S)
+                S->conservativeResize(S->rows(), S->cols() * 2);
             V2E.conservativeResize(V.cols());
             boundary.conservativeResize(V.cols());
             nonmanifold.conservativeResize(V.cols());
         }
 
-        V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5f;
+        V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5;
         N.col(vn) = N.col(v0);
         Q.col(vn) = Q.col(v0);
         O.col(vn) = (O.col(v0) + O.col(v1)) * 0.5;
+        if (S)
+            S->col(vn) = S->col(v0);
+        
         nonmanifold[vn] = false;
         boundary[vn] = is_boundary;
 
@@ -474,6 +479,8 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
     N.conservativeResize(V.rows(), nV);
     Q.conservativeResize(V.rows(), nV);
     O.conservativeResize(V.rows(), nV);
+    if (S)
+        S->conservativeResize(S->rows(), nV);
     V2E.conservativeResize(nV);
     boundary.conservativeResize(nV);
     nonmanifold.conservativeResize(nV);

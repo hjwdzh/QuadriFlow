@@ -41,11 +41,8 @@ void Hierarchy::Initialize(double scale, int with_scale) {
     }
     mQ.resize(mV.size());
     mO.resize(mV.size());
-    
-    if (with_scale) {
-        mS.resize(mV.size());
-        mK.resize(mV.size());
-    }
+    mS.resize(mV.size());
+    mK.resize(mV.size());
     
     mScale = scale;
 #ifdef WITH_OMP
@@ -54,10 +51,8 @@ void Hierarchy::Initialize(double scale, int with_scale) {
     for (int i = 0; i < mV.size(); ++i) {
         mQ[i].resize(mN[i].rows(), mN[i].cols());
         mO[i].resize(mN[i].rows(), mN[i].cols());
-        if (with_scale) {
-            mS[i].resize(2, mN[i].cols());
-            mK[i].resize(2, mN[i].cols());
-        }
+        mS[i].resize(2, mN[i].cols());
+        mK[i].resize(2, mN[i].cols());
         for (int j = 0; j < mN[i].cols(); ++j) {
             Vector3d s, t;
             coordinate_system(mN[i].col(j), s, t);

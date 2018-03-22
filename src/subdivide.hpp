@@ -6,8 +6,8 @@ using namespace Eigen;
 void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
                VectorXi &nonmanifold, double maxLength);
 
-void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, VectorXi &V2E,
-                    VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
+void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, MatrixXd &O, MatrixXd* S,
+                    VectorXi &V2E, VectorXi &E2E, VectorXi &boundary, VectorXi &nonmanifold,
                     std::vector<Vector2i> &edge_diff, std::vector<DEdge> &edge_values,
                     std::vector<Vector3i> &face_edgeOrients, std::vector<Vector3i> &face_edgeIds,
                     std::vector<int>& sharp_edges, std::map<int, int> &singularities, int max_len);

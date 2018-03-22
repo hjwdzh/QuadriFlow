@@ -24,7 +24,7 @@ class Optimizer {
                                            std::vector<int>& E2E_compact, double mScale,
                                            std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
                                            std::map<std::pair<int, int>, int>& o2e,
-                                           std::vector<int>& sharp_o);
+                                           std::vector<int>& sharp_o, int with_scale);
 #ifdef WITH_CUDA
     static void optimize_orientations_cuda(Hierarchy& mRes);
     static void optimize_positions_cuda(Hierarchy& mRes);

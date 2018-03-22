@@ -165,16 +165,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes) {
             }
         }
     }
-
-    for (int i = 0; i < entries.size(); ++i) {
-        for (auto& j : entries[i]) {
-            if (abs(j.second + entries[j.first][i]) > 1e-6) {
-                printf("not true... %f %f\n", j.second, entries[j.first][i]);
-                exit(0);
-            }
-        }
-    }
-
+    
     Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
     VectorXd rhs(V.cols() * 2);
     rhs.setZero();
@@ -193,9 +184,21 @@ void Optimizer::optimize_scale(Hierarchy& mRes) {
 
     VectorXd result = solver.solve(rhs);
 
+    double total_area = 0;
     for (int i = 0; i < V.cols(); ++i) {
         S(0, i) = exp(result(i * 2));
         S(1, i) = exp(result(i * 2 + 1));
+        total_area += S(0, i) * S(1, i);
+    }
+    total_area = sqrt(V.cols() / total_area);
+    double min_s = 1e30, max_s = -1e30;
+    for (int i = 0; i < V.cols(); ++i) {
+        S(0, i) *= total_area;
+        S(1, i) *= total_area;
+        min_s = fmin(S(0, i), min_s);
+        min_s = fmin(S(1, i), min_s);
+        max_s = fmax(S(0, i), max_s);
+        max_s = fmax(S(1, i), max_s);
     }
 
     for (int l = 0; l < mRes.mS.size() - 1; ++l) {
@@ -226,6 +229,7 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
             AdjacentMatrix& adj = mRes.mAdj[level];
             const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
             MatrixXd& O = mRes.mO[level];
+            MatrixXd& S = mRes.mS[level];
             auto& phases = mRes.mPhases[level];
             for (int phase = 0; phase < phases.size(); ++phase) {
                 auto& p = phases[phase];
@@ -236,10 +240,10 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
                     int i = p[pi];
                     double scale_x = mRes.mScale;
                     double scale_y = mRes.mScale;
-                    //                    if (with_scale) {
-                    //                        scale_x *= S(0, i);
-                    //                        scale_y *= S(1, i);
-                    //                    }
+                    if (with_scale) {
+                        scale_x *= S(0, i);
+                        scale_y *= S(1, i);
+                    }
                     double inv_scale_x = 1.0f / scale_x;
                     double inv_scale_y = 1.0f / scale_y;
                     const Vector3d n_i = N.col(i), v_i = V.col(i);
@@ -256,8 +260,8 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
                         double scale_x_1 = mRes.mScale;
                         double scale_y_1 = mRes.mScale;
                         if (with_scale) {
-                            //                            scale_x_1 *= S(0, j);
-                            //                            scale_y_1 *= S(1, j);
+                            scale_x_1 *= S(0, j);
+                            scale_y_1 *= S(1, j);
                         }
                         double inv_scale_x_1 = 1.0f / scale_x_1;
                         double inv_scale_y_1 = 1.0f / scale_y_1;
@@ -314,7 +318,8 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<int>& E2E_compact, double mScale,
                                            std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
                                            std::map<std::pair<int, int>, int>& o2e,
-                                           std::vector<int>& sharp_o) {
+                                           std::vector<int>& sharp_o, int with_scale) {
+    
     std::set<int> uncertain;
     for (auto& info : o2e) {
         if (diff_count[info.second] == 0) {
@@ -352,10 +357,13 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 }
             } else {
                 int current_v = Vind[i];
+                Vector3d n = N.col(current_v);
                 double current_dis = (O_compact[i] - V.col(current_v)).squaredNorm();
                 while (true) {
                     int next_v = -1;
                     for (auto& v : adj[current_v]) {
+                        if (N.col(v).dot(n) < cos(10.0 / 180.0 * 3.141592654))
+                            continue;
                         double dis = (O_compact[i] - V.col(v)).squaredNorm();
                         if (dis < current_dis) {
                             current_dis = dis;
@@ -411,13 +419,6 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
     
     std::vector<Vector3d> lines;
     auto ComputeDistance = [&]() {
-        for (int i = 0; i < diffs.size(); ++i) {
-            if (diff_count[i] > 0) {
-                diffs[i] = diffs[i].normalized() * mScale;
-                diff_count[i] = 1;
-            }
-        }
-        
         std::set<int> unobserved;
         for (auto& info : o2e) {
             if (diff_count[info.second] == 0) {
@@ -462,7 +463,11 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                             j = 0;
                     }
                     Vector3d dl = diffs[edges[(interp.front() + edges.size() - 1) % edges.size()]];
+                    double lenl = dl.norm();
                     Vector3d dr = diffs[edges[(interp.back() + 1) % edges.size()]];
+                    double lenr = dr.norm();
+                    dl /= lenl;
+                    dr /= lenr;
                     Vector3d n = dl.cross(dr).normalized();
                     double angle = atan2(dl.cross(dr).norm(), dl.dot(dr));
                     if (angle < 0)
@@ -472,8 +477,9 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                         n = -n;
                         angle = 2 * 3.141592654 - angle;
                     }
+                    double step = (lenr - lenl) / (interp.size() + 1);
                     angle /= interp.size() + 1;
-                    Vector3d dlp = nc.cross(dl);
+                    Vector3d dlp = nc.cross(dl).normalized();
                     int t = 0;
                     for (auto q : interp) {
                         t += 1;
@@ -482,7 +488,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                         int e = edges[q];
                         int re = E2E_compact[e];
                         diff_count[e] = 2;
-                        diffs[e] = cos(ad) * dl + sin(ad) * dlp;
+                        diffs[e] = (cos(ad) * dl + sin(ad) * dlp) * (lenl + step * t);
                         if (re != -1) {
                             diff_count[re] = 2;
                             diffs[re] = -diffs[e];
@@ -826,7 +832,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     auto& Q = mRes.mQ[0];
     auto& N = mRes.mN[0];
     auto& O = mRes.mO[0];
-    //    auto &S = hierarchy.mS[0];
+    auto &S = mRes.mS[0];
 
     DisajointTree tree(V.cols());
     for (int i = 0; i < edge_diff.size(); ++i) {
@@ -863,7 +869,6 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         v_positions[tree.Index(v)] = O.col(v);
         v_index[tree.Index(v)] = v;
     }
-
     std::vector<std::map<int, std::pair<int, Vector3d> > > ideal_distances(tree.CompactNum());
     for (int e = 0; e < edge_diff.size(); ++e) {
         int v1 = edge_values[e].x;
@@ -881,13 +886,15 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         Vector3d q_1_y = n_1.cross(q_1);
         Vector3d q_2_y = n_2.cross(q_2);
         auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
-        //        double s_x1 = S(0, v1), s_y1 = S(1, v1);
-        //        double s_x2 = S(0, v2), s_y2 = S(1, v2);
+        double s_x1 = S(0, v1), s_y1 = S(1, v1);
+        double s_x2 = S(0, v2), s_y2 = S(1, v2);
         int rank_diff = (index.second + 4 - index.first) % 4;
+        if (rank_diff % 2 == 1)
+            std::swap(s_x2, s_y2);
         Vector3d qd_x = 0.5 * (rotate90_by(q_2, n_2, rank_diff) + q_1);
         Vector3d qd_y = 0.5 * (rotate90_by(q_2_y, n_2, rank_diff) + q_1_y);
-        double scale_x = /*(with_scale ? 0.5 * (s_x1 + s_x2) : 1) */ mRes.mScale;
-        double scale_y = /*(with_scale ? 0.5 * (s_y1 + s_y2) : 1) */ mRes.mScale;
+        double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * mRes.mScale;
+        double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.mScale;
         Vector2i diff = edge_diff[e];
         Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + V.col(q1) - V.col(q2);
         auto it = ideal_distances[p1].find(p2);

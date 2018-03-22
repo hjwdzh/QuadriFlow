@@ -40,7 +40,7 @@ void Parametrizer::Load(const char* filename) {
     //    merge_close(V, F, 1e-6);
 }
 
-void Parametrizer::Initialize(int faces, int with_scale) {
+void Parametrizer::Initialize(int faces) {
     ComputeMeshStatus();
 #ifdef PERFORMANCE_TEST
     num_vertices = V.cols() * 10;
@@ -75,25 +75,9 @@ void Parametrizer::Initialize(int faces, int with_scale) {
     ComputeSmoothNormal();
     ComputeVertexArea();
     
-    if (with_scale) {
-        triangle_space.resize(F.cols());
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
-        for (int i = 0; i < F.cols(); ++i) {
-            Matrix3d p, q;
-            p.col(0) = V.col(F(1, i)) - V.col(F(0, i));
-            p.col(1) = V.col(F(2, i)) - V.col(F(0, i));
-            p.col(2) = Nf.col(i);
-            q = p.inverse();
-            triangle_space[i].resize(2, 3);
-            for (int j = 0; j < 2; ++j) {
-                for (int k = 0; k < 3; ++k) {
-                    triangle_space[i](j, k) = q(j, k);
-                }
-            }
-        }
-    }
+    if (flag_adaptive_scale)
+        ComputeInverseAffine();
+    
 #ifdef LOG_OUTPUT
     printf("V: %d F: %d\n", (int)V.cols(), (int)F.cols());
 #endif
@@ -103,7 +87,7 @@ void Parametrizer::Initialize(int faces, int with_scale) {
     hierarchy.mV[0] = std::move(V);
     hierarchy.mE2E = std::move(E2E);
     hierarchy.mF = std::move(F);
-    hierarchy.Initialize(scale, with_scale);
+    hierarchy.Initialize(scale, flag_adaptive_scale);
     int t2 = GetCurrentTime64();
     printf("Initialize use time: %lf\n", (t2 - t1) * 1e-3);
 }
@@ -252,7 +236,7 @@ void Parametrizer::ComputeVertexArea() {
 void Parametrizer::FixValence()
 {
     // Remove Valence 2
-    while (true) {
+    while (false) {
         bool update = false;
         std::vector<int> marks(V2E_compact.size(), 0);
         std::vector<int> erasedF(F_compact.size(), 0);

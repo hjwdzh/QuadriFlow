@@ -38,7 +38,7 @@ class Parametrizer
 {
 public:
     Parametrizer()
-    : flag_preserve_sharp(0)
+    : flag_preserve_sharp(0), flag_adaptive_scale(0)
     {}
     // Mesh Initialization
 	void Load(const char* filename);
@@ -46,15 +46,12 @@ public:
     void ComputeSmoothNormal();
     void ComputeSharpEdges();
     void ComputeVertexArea();
-	void Initialize(int faces, int with_scale = 0);
+	void Initialize(int faces);
 	
 	// Singularity and Mesh property
     void AnalyzeValence();
 	void ComputeOrientationSingularities();
-	void ComputePositionSingularities(int with_scale = 0);
-#ifdef WITH_SCALE
-	void EstimateScale();
-#endif
+	void ComputePositionSingularities();
     
 	// Integer Grid Map Pipeline
 	void ComputeIndexMap(int with_scale = 0);
@@ -90,8 +87,7 @@ public:
 
     double normalize_scale;
     Vector3d normalize_offset;
-	std::vector<MatrixXd> triangle_space;
-
+    
 	// data structures
 	VectorXi V2E;
 	VectorXi E2E;
@@ -155,8 +151,14 @@ public:
     };
     std::vector<QuadInfo> quad_info;
     
+    // scale
+    void ComputeInverseAffine();
+    void EstimateSlope();
+    std::vector<MatrixXd> triangle_space;
+    
     // flag
     int flag_preserve_sharp;
+    int flag_adaptive_scale;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,
