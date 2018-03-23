@@ -1047,10 +1047,8 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 #endif
 
     for (int i = 0; i < x.size(); ++i) {
-        x[i] = x_new[i];
-        if (isnan(x[i])) {
-            printf("Nan produced solver...\n");
-        }
+        if (!isnan(x_new[i]))
+            x[i] = x_new[i];
     }
 
     for (int i = 0; i < O.cols(); ++i) {
