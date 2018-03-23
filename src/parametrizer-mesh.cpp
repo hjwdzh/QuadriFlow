@@ -137,6 +137,7 @@ void Parametrizer::ComputeSharpO() {
     auto& F = hierarchy.mF;
     auto& V = hierarchy.mV[0];
     auto& O = hierarchy.mO[0];
+    auto& E2E = hierarchy.mE2E;
     DisajointTree tree(V.cols());
     for (int i = 0; i < edge_diff.size(); ++i) {
         if (edge_diff[i][0] == 0 && edge_diff[i][1] == 0) {
@@ -158,7 +159,7 @@ void Parametrizer::ComputeSharpO() {
             edge_normals[e[j]].push_back(n);
         }
     }
-    std::vector<DEdge> sharps;
+    std::map<DEdge, int> sharps;
     for (auto& info : edge_normals) {
         auto& normals = info.second;
         bool sharp = false;
@@ -172,9 +173,35 @@ void Parametrizer::ComputeSharpO() {
             if (sharp)
                 break;
         }
-        if (sharp)
-            sharps.push_back(info.first);
+        if (sharp) {
+            int s = sharps.size();
+            sharps[info.first] = s;
+        }
     }
+    
+    std::vector<int> sharp_hash(sharps.size(), 0);
+    printf("Sharp O!\n");
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int v1 = tree.Parent(F(j, i));
+            int v2 = tree.Parent(F((j + 1) % 3, i));
+            DEdge e(v1, v2);
+            if (sharps.count(e) == 0)
+                continue;
+            int id = sharps[e];
+            if (sharp_hash[id])
+                continue;
+            sharp_hash[id] = 1;
+            sharp_edges[i * 3 + j] = 1;
+            sharp_edges[E2E[i * 3 + j]] = 1;
+        }
+    }
+    return;
+    std::ofstream os("/Users/jingwei/Desktop/sharp.obj");
+    for (int i = 0; i < O.cols(); ++i) {
+        os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
+    }
+
 }
 
 void Parametrizer::ComputeSmoothNormal() {

@@ -28,8 +28,22 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     // ComputeOrientationSingularities();
 
     BuildEdgeInfo();
+    {
+        std::ofstream os("/Users/jingwei/Desktop/sharp0.obj");
+        for (int i = 0; i < O.cols(); ++i) {
+            os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
+        }
+        for (int i = 0; i < F.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                if (sharp_edges[i * 3 + j]) {
+                    os << "l " <<  F(j, i) + 1 << " " << F((j+1)%3, i) + 1 << "\n";
+                }
+            }
+        }
+        os.close();
+    }
     if (flag_preserve_sharp == 1) {
-        ComputeSharpO();
+//        ComputeSharpO();
     }
 
     for (int i = 0; i < sharp_edges.size(); ++i) {
@@ -131,12 +145,43 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             sharp_vertices.insert(F((i+1)%3,i/3));
         }
     }
+    
+    std::ofstream os("/Users/jingwei/Desktop/sharp1.obj");
+    for (int i = 0; i < O.cols(); ++i) {
+        os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
+    }
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            if (sharp_edges[i * 3 + j]) {
+                os << "l " <<  F(j, i) + 1 << " " << F((j+1)%3, i) + 1 << "\n";
+            }
+        }
+    }
+    os.close();
+
     Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, with_scale);
-    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, flag_preserve_sharp);
+
+    Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, flag_adaptive_scale);
+    {
+    std::ofstream os("/Users/jingwei/Desktop/sharp2.obj");
+    for (int i = 0; i < O.cols(); ++i) {
+        os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
+    }
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            if (sharp_edges[i * 3 + j]) {
+                os << "l " <<  F(j, i) + 1 << " " << F((j+1)%3, i) + 1 << "\n";
+            }
+        }
+    }
+    os.close();
+    }
+    this->normalize_scale = 1;
+    this->normalize_offset = Vector3d::Zero();
     AdvancedExtractQuad();
 
     FixValence();
-    
+
     std::vector<int> sharp_o(O_compact.size(), 0);
     for (int i = 0; i < Vset.size(); ++i) {
         int sharpv = -1;

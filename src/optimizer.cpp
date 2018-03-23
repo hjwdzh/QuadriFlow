@@ -563,6 +563,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 }
             }
         }
+        
         // fix sharp edges
         for (int i = 0; i < entries.size(); ++i) {
             if (sharp_o[i / 2]) {
@@ -689,10 +690,28 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             compact_sharp_indices[p] = s;
         }
     }
+    std::map<int, std::set<int> > sharp_vertices_links;
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i]) {
+            int v1 = F(i%3, i/3);
+            int v2 = F((i+1)%3, i/3);
+            if (sharp_vertices_links.count(v1) == 0)
+                sharp_vertices_links[v1] = std::set<int>();
+            sharp_vertices_links[v1].insert(v2);
+        }
+    }
     std::vector<std::vector<int> > sharp_to_original_indices(compact_sharp_indices.size());
-    for (auto v : sharp_vertices) {
-        int p = tree.Index(v);
-        sharp_to_original_indices[compact_sharp_indices[p]].push_back(v);
+    for (auto& v : sharp_vertices_links) {
+        if (v.second.size() == 2)
+            continue;
+        int p = tree.Index(v.first);
+        sharp_to_original_indices[compact_sharp_indices[p]].push_back(v.first);
+    }
+    for (auto& v : sharp_vertices_links) {
+        if (v.second.size() != 2)
+            continue;
+        int p = tree.Index(v.first);
+        sharp_to_original_indices[compact_sharp_indices[p]].push_back(v.first);
     }
 
     for (int i = 0; i < V.cols(); ++i) {
@@ -775,6 +794,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             double len = 0, scale = 0;
             std::vector<Vector3d> o(q.size()), new_o(q.size());
             std::vector<double> sc(q.size());
+            
             for (int i = 0; i < q.size() - 1; ++i) {
                 int v1 = q[i];
                 int v2 = q[i + 1];
@@ -793,9 +813,12 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                 Vector3d dis = (i == 0)
                     ? (Vector3d(O.col(fst)) - o[i])
                     : o[i] - o[i - 1];
-                sc[i] = (abs(qx.dot(dis)) > abs(qy.dot(dis)))
-                    ? S(0, sharp_to_original_indices[q[i]][0])
-                    : S(1, sharp_to_original_indices[q[i]][0]);
+                if (with_scale)
+                    sc[i] = (abs(qx.dot(dis)) > abs(qy.dot(dis)))
+                        ? S(0, sharp_to_original_indices[q[i]][0])
+                        : S(1, sharp_to_original_indices[q[i]][0]);
+                else
+                    sc[i] = 1;
                 new_o[i] = o[i];
             }
             
@@ -829,7 +852,6 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             loops.push_back(new_o);
         }
     }
-    
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
@@ -873,9 +895,13 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             v_index[p] = i;
         }
     }
+    
+    std::set<int> compact_sharp_vertices;
     for (auto& v : sharp_vertices) {
         v_positions[tree.Index(v)] = O.col(v);
         v_index[tree.Index(v)] = v;
+        V.col(v) = O.col(v);
+        compact_sharp_vertices.insert(tree.Index(v));
     }
     std::vector<std::map<int, std::pair<int, Vector3d> > > ideal_distances(tree.CompactNum());
     for (int e = 0; e < edge_diff.size(); ++e) {
@@ -959,7 +985,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     
     // fix sharp edges
     for (int i = 0; i < entries.size(); ++i) {
-        if (sharp_vertices.count(i / 2)) {
+        if (compact_sharp_vertices.count(i / 2)) {
             b[i] = x[i];
             entries[i].clear();
             entries[i][i] = 1;
@@ -983,8 +1009,16 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     rhs.setZero();
     for (int i = 0; i < entries.size(); ++i) {
         rhs(i) = b[i];
+        if (isnan(b[i])) {
+            printf("Equation has nan!\n");
+            exit(0);
+        }
         for (auto& rec : entries[i]) {
             lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
+            if (isnan(rec.second)) {
+                printf("Equation has nan!\n");
+                exit(0);
+            }
         }
     }
     A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
