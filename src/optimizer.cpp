@@ -1048,7 +1048,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         } else {
             std::unordered_map<int, double> newmap;
             for (auto& rec : entries[i]) {
-                if (fixed_dim[i]) {
+                if (fixed_dim[rec.first]) {
                     b[i] -= rec.second * x[rec.first];
                 } else {
                     newmap[rec.first] = rec.second;
@@ -1117,7 +1117,6 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
                         t = 0;
                     total += t * res.second;
                 }
-//                printf("<%lf %lf> => <%lf %lf>\n", x[i], x_new[i], total, b[i]);
             }
             x[i] = x_new[i];
         }
