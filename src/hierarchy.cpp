@@ -7,9 +7,9 @@
 #include "tbb_common.h"
 #endif
 #include <queue>
+#include "localsat.hpp"
 #include "pcg32/pcg32.h"
 #include "pss/parallel_stable_sort.h"
-#include "localsat.hpp"
 Hierarchy::Hierarchy() {
     mAdj.resize(MAX_DEPTH + 1);
     mV.resize(MAX_DEPTH + 1);
@@ -43,7 +43,7 @@ void Hierarchy::Initialize(double scale, int with_scale) {
     mO.resize(mV.size());
     mS.resize(mV.size());
     mK.resize(mV.size());
-    
+
     mScale = scale;
 #ifdef WITH_OMP
 #pragma omp parallel for
@@ -82,15 +82,15 @@ void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix& adj,
         uint32_t nNodes[256];
         ColorData() : nColors(0) {}
     };
-    
+
     const uint8_t INVALID_COLOR = 0xFF;
     phases.clear();
-    
+
     /* Generate a permutation */
     std::vector<uint32_t> perm(size);
     std::vector<tbb::spin_mutex> mutex(size);
     for (uint32_t i = 0; i < size; ++i) perm[i] = i;
-    
+
     tbb::parallel_for(tbb::blocked_range<uint32_t>(0u, size, GRAIN_SIZE),
                       [&](const tbb::blocked_range<uint32_t>& range) {
                           pcg32 rng;
@@ -104,101 +104,101 @@ void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix& adj,
                               std::swap(perm[j], perm[k]);
                           }
                       });
-    
+
     std::vector<uint8_t> color(size, INVALID_COLOR);
     ColorData colorData = tbb::parallel_reduce(
-                                               tbb::blocked_range<uint32_t>(0u, size, GRAIN_SIZE), ColorData(),
-                                               [&](const tbb::blocked_range<uint32_t>& range, ColorData colorData) -> ColorData {
-                                                   std::vector<uint32_t> neighborhood;
-                                                   bool possible_colors[256];
-                                                   
-                                                   for (uint32_t pidx = range.begin(); pidx != range.end(); ++pidx) {
-                                                       uint32_t i = perm[pidx];
-                                                       
-                                                       neighborhood.clear();
-                                                       neighborhood.push_back(i);
-                                                       //            for (const Link *link = adj[i]; link != adj[i + 1]; ++link)
-                                                       for (auto& link : adj[i]) neighborhood.push_back(link.id);
-                                                       std::sort(neighborhood.begin(), neighborhood.end());
-                                                       for (uint32_t j : neighborhood) mutex[j].lock();
-                                                       
-                                                       std::fill(possible_colors, possible_colors + colorData.nColors, true);
-                                                       
-                                                       //            for (const Link *link = adj[i]; link != adj[i + 1]; ++link) {
-                                                       for (auto& link : adj[i]) {
-                                                           uint8_t c = color[link.id];
-                                                           if (c != INVALID_COLOR) {
-                                                               while (c >= colorData.nColors) {
-                                                                   possible_colors[colorData.nColors] = true;
-                                                                   colorData.nNodes[colorData.nColors] = 0;
-                                                                   colorData.nColors++;
-                                                               }
-                                                               possible_colors[c] = false;
-                                                           }
-                                                       }
-                                                       
-                                                       uint8_t chosen_color = INVALID_COLOR;
-                                                       for (uint8_t j = 0; j < colorData.nColors; ++j) {
-                                                           if (possible_colors[j]) {
-                                                               chosen_color = j;
-                                                               break;
-                                                           }
-                                                       }
-                                                       if (chosen_color == INVALID_COLOR) {
-                                                           if (colorData.nColors == INVALID_COLOR - 1)
-                                                               throw std::runtime_error(
-                                                                                        "Ran out of colors during graph coloring! "
-                                                                                        "The input mesh is very likely corrupt.");
-                                                           colorData.nNodes[colorData.nColors] = 1;
-                                                           color[i] = colorData.nColors++;
-                                                       } else {
-                                                           colorData.nNodes[chosen_color]++;
-                                                           color[i] = chosen_color;
-                                                       }
-                                                       
-                                                       for (uint32_t j : neighborhood) mutex[j].unlock();
-                                                   }
-                                                   return colorData;
-                                               },
-                                               [](ColorData c1, ColorData c2) -> ColorData {
-                                                   ColorData result;
-                                                   result.nColors = std::max(c1.nColors, c2.nColors);
-                                                   memset(result.nNodes, 0, sizeof(uint32_t) * result.nColors);
-                                                   for (uint8_t i = 0; i < c1.nColors; ++i) result.nNodes[i] += c1.nNodes[i];
-                                                   for (uint8_t i = 0; i < c2.nColors; ++i) result.nNodes[i] += c2.nNodes[i];
-                                                   return result;
-                                               });
-    
+        tbb::blocked_range<uint32_t>(0u, size, GRAIN_SIZE), ColorData(),
+        [&](const tbb::blocked_range<uint32_t>& range, ColorData colorData) -> ColorData {
+            std::vector<uint32_t> neighborhood;
+            bool possible_colors[256];
+
+            for (uint32_t pidx = range.begin(); pidx != range.end(); ++pidx) {
+                uint32_t i = perm[pidx];
+
+                neighborhood.clear();
+                neighborhood.push_back(i);
+                //            for (const Link *link = adj[i]; link != adj[i + 1]; ++link)
+                for (auto& link : adj[i]) neighborhood.push_back(link.id);
+                std::sort(neighborhood.begin(), neighborhood.end());
+                for (uint32_t j : neighborhood) mutex[j].lock();
+
+                std::fill(possible_colors, possible_colors + colorData.nColors, true);
+
+                //            for (const Link *link = adj[i]; link != adj[i + 1]; ++link) {
+                for (auto& link : adj[i]) {
+                    uint8_t c = color[link.id];
+                    if (c != INVALID_COLOR) {
+                        while (c >= colorData.nColors) {
+                            possible_colors[colorData.nColors] = true;
+                            colorData.nNodes[colorData.nColors] = 0;
+                            colorData.nColors++;
+                        }
+                        possible_colors[c] = false;
+                    }
+                }
+
+                uint8_t chosen_color = INVALID_COLOR;
+                for (uint8_t j = 0; j < colorData.nColors; ++j) {
+                    if (possible_colors[j]) {
+                        chosen_color = j;
+                        break;
+                    }
+                }
+                if (chosen_color == INVALID_COLOR) {
+                    if (colorData.nColors == INVALID_COLOR - 1)
+                        throw std::runtime_error(
+                            "Ran out of colors during graph coloring! "
+                            "The input mesh is very likely corrupt.");
+                    colorData.nNodes[colorData.nColors] = 1;
+                    color[i] = colorData.nColors++;
+                } else {
+                    colorData.nNodes[chosen_color]++;
+                    color[i] = chosen_color;
+                }
+
+                for (uint32_t j : neighborhood) mutex[j].unlock();
+            }
+            return colorData;
+        },
+        [](ColorData c1, ColorData c2) -> ColorData {
+            ColorData result;
+            result.nColors = std::max(c1.nColors, c2.nColors);
+            memset(result.nNodes, 0, sizeof(uint32_t) * result.nColors);
+            for (uint8_t i = 0; i < c1.nColors; ++i) result.nNodes[i] += c1.nNodes[i];
+            for (uint8_t i = 0; i < c2.nColors; ++i) result.nNodes[i] += c2.nNodes[i];
+            return result;
+        });
+
     phases.resize(colorData.nColors);
     for (int i = 0; i < colorData.nColors; ++i) phases[i].reserve(colorData.nNodes[i]);
-    
+
     for (uint32_t i = 0; i < size; ++i) phases[color[i]].push_back(i);
 }
 #else
 void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix& adj, int size,
                                                       std::vector<std::vector<int>>& phases) {
     phases.clear();
-    
+
     std::vector<uint32_t> perm(size);
     for (uint32_t i = 0; i < size; ++i) perm[i] = i;
     pcg32 rng;
     rng.shuffle(perm.begin(), perm.end());
-    
+
     std::vector<int> color(size, -1);
     std::vector<uint8_t> possible_colors;
     std::vector<int> size_per_color;
     int ncolors = 0;
-    
+
     for (uint32_t i = 0; i < size; ++i) {
         uint32_t ip = perm[i];
-        
+
         std::fill(possible_colors.begin(), possible_colors.end(), 1);
-        
+
         for (auto& link : adj[ip]) {
             int c = color[link.id];
             if (c >= 0) possible_colors[c] = 0;
         }
-        
+
         int chosen_color = -1;
         for (uint32_t j = 0; j < possible_colors.size(); ++j) {
             if (possible_colors[j]) {
@@ -206,13 +206,13 @@ void Hierarchy::generate_graph_coloring_deterministic(const AdjacentMatrix& adj,
                 break;
             }
         }
-        
+
         if (chosen_color < 0) {
             chosen_color = ncolors++;
             possible_colors.resize(ncolors);
             size_per_color.push_back(0);
         }
-        
+
         color[ip] = chosen_color;
         size_per_color[chosen_color]++;
     }
@@ -233,7 +233,7 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
         inline bool operator<(const Entry& e) const { return order > e.order; }
         inline bool operator==(const Entry& e) const { return order == e.order; }
     };
-    
+
     int nLinks = 0;
     for (auto& adj_i : adj) nLinks += adj_i.size();
     std::vector<Entry> entries(nLinks);
@@ -241,7 +241,7 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
     for (int i = 1; i < bases.size(); ++i) {
         bases[i] = bases[i - 1] + adj[i - 1].size();
     }
-    
+
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
@@ -256,11 +256,11 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
             *entry_it = Entry(i, k, dp * ratio);
         }
     }
-    
+
     pss::parallel_stable_sort(entries.begin(), entries.end(), std::less<Entry>());
-    
+
     std::vector<bool> mergeFlag(V.cols(), false);
-    
+
     int nCollapsed = 0;
     for (int i = 0; i < nLinks; ++i) {
         const Entry& e = entries[i];
@@ -269,14 +269,14 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
         entries[nCollapsed++] = entries[i];
     }
     int vertexCount = V.cols() - nCollapsed;
-    
+
     // Allocate memory for coarsened graph
     V_p.resize(3, vertexCount);
     N_p.resize(3, vertexCount);
     A_p.resize(vertexCount);
     to_upper.resize(2, vertexCount);
     to_lower.resize(V.cols());
-    
+
 #ifdef WITH_OMP
 #pragma omp parallel for
 #endif
@@ -295,9 +295,9 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
         to_lower[e.i] = i;
         to_lower[e.j] = i;
     }
-    
+
     int offset = nCollapsed;
-    
+
     for (int i = 0; i < V.cols(); ++i) {
         if (!mergeFlag[i]) {
             int idx = offset++;
@@ -308,7 +308,7 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
             to_lower[i] = idx;
         }
     }
-    
+
     adj_p.resize(V_p.cols());
     std::vector<int> capacity(V_p.cols());
     std::vector<std::vector<Link>> scratches(V_p.cols());
@@ -440,19 +440,19 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         for (auto& s : Sing) {
             fixed_faces[s] = 1;
         }
-        
+
         auto& toUpper = mToUpperEdges[l];
         auto& toUpperOrients = mToUpperOrients[l];
         toUpper.resize(E2F.size(), -1);
         toUpperOrients.resize(E2F.size(), 0);
-        
+
         auto& nFQ = mFQ[l + 1];
         auto& nE2F = mE2F[l + 1];
         auto& nF2E = mF2E[l + 1];
         auto& nAllow = mAllowChanges[l + 1];
         auto& nEdgeDiff = mEdgeDiff[l + 1];
         auto& nSing = mSing[l + 1];
-        
+
         for (int i = 0; i < E2F.size(); ++i) {
             if (EdgeDiff[i] != Vector2i::Zero()) continue;
             if (fixed_faces[E2F[i][0]] || fixed_faces[E2F[i][1]]) {
@@ -526,7 +526,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                             break;
                         }
                     }
-                    
+
                     if (ind1 != -1) {
                         paths.push_back(std::make_pair(e, (FQ[f][ind1] - FQ[f][ind0] + 6) % 4));
                     } else {
@@ -565,7 +565,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             }
         }
         std::vector<int> upperface(F2E.size(), -1);
-        
+
         for (int i = 0; i < F2E.size(); ++i) {
             Vector3i eid;
             for (int j = 0; j < 3; ++j) {
@@ -586,7 +586,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 nE2F[i][j] = upperface[nE2F[i][j]];
             }
         }
-        
+
         for (auto& s : Sing) {
             if (upperface[s] >= 0) nSing.push_back(upperface[s]);
         }
@@ -597,6 +597,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
             break;
         }
     }
+
     mFQ.resize(levels);
     mF2E.resize(levels);
     mAllowChanges.resize(levels);
@@ -607,267 +608,247 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
     mToUpperOrients.resize(levels - 1);
 }
 
-void Hierarchy::FixFlipSat() {
-    for (int l = mF2E.size() - 1; l >= 0; --l) {
-        auto& F2E = mF2E[l];
-        auto& E2F = mE2F[l];
-        auto& FQ = mFQ[l];
-        auto& EdgeDiff = mEdgeDiff[l];
-        // build E2E
-        std::vector<int> E2E(F2E.size() * 3, -1);
-        for (int i = 0; i < E2F.size(); ++i) {
-            int v1 = E2F[i][0];
-            int v2 = E2F[i][1];
-            int t1 = 0;
-            int t2 = 2;
-            while (F2E[v1][t1] != i) t1 += 1;
-            while (F2E[v2][t2] != i) t2 -= 1;
-            t1 += v1 * 3;
-            t2 += v2 * 3;
-            E2E[t1] = t2;
-            E2E[t2] = t1;
-        }
-        
-        std::deque<std::pair<int, int>> Q;
-        std::vector<bool> mark_dedges(F2E.size() * 3, false);
-        for (int i = 0; i < F2E.size(); ++i) {
-            Vector2i diff[3];
+int Hierarchy::FixFlipSat(int depth, int threshold) {
+    auto& F2E = mF2E[depth];
+    auto& E2F = mE2F[depth];
+    auto& FQ = mFQ[depth];
+    auto& EdgeDiff = mEdgeDiff[depth];
+    auto& AllowChanges = mAllowChanges[depth];
+
+    // build E2E
+    std::vector<int> E2E(F2E.size() * 3, -1);
+    for (int i = 0; i < E2F.size(); ++i) {
+        int v1 = E2F[i][0];
+        int v2 = E2F[i][1];
+        int t1 = 0;
+        int t2 = 2;
+        while (F2E[v1][t1] != i) t1 += 1;
+        while (F2E[v2][t2] != i) t2 -= 1;
+        t1 += v1 * 3;
+        t2 += v2 * 3;
+        E2E[t1] = t2;
+        E2E[t2] = t1;
+    }
+
+    auto IntegerArea = [&](int f) {
+        Vector2i diff1 = rshift90(EdgeDiff[F2E[f][0]], FQ[f][0]);
+        Vector2i diff2 = rshift90(EdgeDiff[F2E[f][1]], FQ[f][1]);
+        return diff1[0] * diff2[1] - diff1[1] * diff2[0];
+    };
+
+    std::deque<std::pair<int, int>> Q;
+    std::vector<bool> mark_dedges(F2E.size() * 3, false);
+    for (int f = 0; f < F2E.size(); ++f) {
+        if (IntegerArea(f) < 0) {
             for (int j = 0; j < 3; ++j) {
-                int edgeid = F2E[i][j];
-                diff[j] = rshift90(EdgeDiff[edgeid], FQ[i][j]);
-            }
-            int area = diff[0][0] * diff[1][1] - diff[0][1] * diff[1][0];
-            if (area < 0) {
-                for (int j = 0; j < 3; ++j) {
-                    if (mark_dedges[i * 3 + j]) continue;
-                    Q.push_back(std::make_pair(i * 3 + j, 0));
-                    mark_dedges[i * 3 + j] = true;
-                }
+                if (mark_dedges[f * 3 + j]) continue;
+                Q.push_back(std::make_pair(f * 3 + j, 0));
+                mark_dedges[f * 3 + j] = true;
             }
         }
-        
-        int mark_count = Q.size();
-        int thres = 5;
-        while (!Q.empty()) {
-            int e0 = Q.front().first;
-            int depth = Q.front().second;
-            Q.pop_front();
-            if (depth >= thres)
-                continue;
-            mark_count++;
-            int e = e0;
-            for (;;) {
-                int e1 = E2E[e];
-                if (!mark_dedges[e1]) {
-                    mark_dedges[e1] = true;
-                    Q.push_back(std::make_pair(e1, depth + EdgeDiff[F2E[e1/3][e1%3]].array().abs().sum()));
-                }
-                e = e1 / 3 * 3 + (e1 + 1) % 3;
-                if (!mark_dedges[e]) {
-                    mark_dedges[e] = true;
-                }
-                if (e == e0) break;
+    }
+
+    int mark_count = 0;
+    while (!Q.empty()) {
+        int e0 = Q.front().first;
+        int depth = Q.front().second;
+        Q.pop_front();
+        mark_count++;
+
+        int e = e0;
+        for (;;) {
+            int e1 = E2E[e];
+            int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
+            if (length == 0 && !mark_dedges[e1]) {
+                mark_dedges[e1] = true;
+                Q.push_front(std::make_pair(e1, depth));
             }
-        }
-        printf("Level %d: fixed = %d\n", l, mark_count);
-        
-        std::vector<bool> flexible(EdgeDiff.size(), false);
-        for (int i = 0; i < F2E.size(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                int dedge = i * 3 + j;
-                int edgeid = F2E[i][j];
-                if (mark_dedges[dedge]) {
-                    flexible[edgeid] = true;
-                } else {
-//                    assert(face_area[i] >= 0);
-                }
-            }
-        }
-        for (int i = 0; i < flexible.size(); ++i) {
-            if (E2F[i][0] == E2F[i][1]) {
-                flexible[i] = false;
-            }
+            e = e1 / 3 * 3 + (e1 + 1) % 3;
+            mark_dedges[e] = true;
+            if (e == e0) break;
         }
 
-        // Reindexing and solve
-        std::vector<int> groups(EdgeDiff.size(), -1);
-        std::vector<int> indices(EdgeDiff.size(), -1);
-        int num_group = 0;
-        for (int i = 0; i < EdgeDiff.size(); ++i) {
-            if (groups[i] == -1 && flexible[i]) {
-                //group it
-                std::queue<int> q;
-                q.push(i);
-                groups[i] = num_group;
-                while (!q.empty()) {
-                    int e = q.front();
-                    q.pop();
-                    int f[] = {E2F[e][0], E2F[e][1]};
-                    for (int j = 0; j < 2; ++j) {
-                        for (int k = 0; k < 3; ++k) {
-                            int e1 = F2E[f[j]][k];
-                            if (flexible[e1] && groups[e1] == -1) {
-                                groups[e1] = num_group;
-                                q.push(e1);
-                            }
+        for (;;) {
+            int e1 = E2E[e];
+            int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
+            if (length > 0 && depth + length <= threshold && !mark_dedges[e1]) {
+                mark_dedges[e1] = true;
+                Q.push_back(std::make_pair(e1, depth + length));
+            }
+            e = e1 / 3 * 3 + (e1 + 1) % 3;
+            mark_dedges[e] = true;
+            if (e == e0) break;
+        }
+    }
+    lprintf("[FlipH] Level %2d: marked = %d\n", depth, mark_count);
+
+    std::vector<bool> flexible(EdgeDiff.size(), false);
+    for (int i = 0; i < F2E.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            int dedge = i * 3 + j;
+            int edgeid = F2E[i][j];
+            if (mark_dedges[dedge]) {
+                flexible[edgeid] = true;
+            }
+        }
+    }
+    for (int i = 0; i < flexible.size(); ++i) {
+        if (E2F[i][0] == E2F[i][1]) flexible[i] = false;
+        if (AllowChanges[i] == 0) flexible[i] = false;
+    }
+
+    // Reindexing and solve
+    int num_group = 0;
+    std::vector<int> groups(EdgeDiff.size(), -1);
+    std::vector<int> indices(EdgeDiff.size(), -1);
+    for (int i = 0; i < EdgeDiff.size(); ++i) {
+        if (groups[i] == -1 && flexible[i]) {
+            // group it
+            std::queue<int> q;
+            q.push(i);
+            groups[i] = num_group;
+            while (!q.empty()) {
+                int e = q.front();
+                q.pop();
+                int f[] = {E2F[e][0], E2F[e][1]};
+                for (int j = 0; j < 2; ++j) {
+                    for (int k = 0; k < 3; ++k) {
+                        int e1 = F2E[f[j]][k];
+                        if (flexible[e1] && groups[e1] == -1) {
+                            groups[e1] = num_group;
+                            q.push(e1);
                         }
                     }
                 }
-                num_group += 1;
             }
+            num_group += 1;
         }
-        std::vector<int> num_edges_per_group(num_group);
-        std::vector<std::vector<int> > values_per_group(num_group);
-        std::vector<std::vector<Vector3i> > variable_eq_per_group(num_group);
-        std::vector<std::vector<Vector3i> > constant_eq_per_group(num_group);
-        std::vector<std::vector<Vector4i> > variable_ge_per_group(num_group);
-        std::vector<std::vector<Vector2i> > constant_ge_per_group(num_group);
-        for (int i = 0; i < groups.size(); ++i) {
-            if (groups[i] != -1) {
-                indices[i] = num_edges_per_group[groups[i]]++;
-                values_per_group[groups[i]].push_back(EdgeDiff[i][0]);
-                values_per_group[groups[i]].push_back(EdgeDiff[i][1]);
-            }
+    }
+    std::vector<int> num_edges(num_group);
+    std::vector<int> num_flips(num_group);
+    std::vector<std::vector<int>> values(num_group);
+    std::vector<std::vector<Vector3i>> variable_eq(num_group);
+    std::vector<std::vector<Vector3i>> constant_eq(num_group);
+    std::vector<std::vector<Vector4i>> variable_ge(num_group);
+    std::vector<std::vector<Vector2i>> constant_ge(num_group);
+    for (int i = 0; i < groups.size(); ++i) {
+        if (groups[i] != -1) {
+            indices[i] = num_edges[groups[i]]++;
+            values[groups[i]].push_back(EdgeDiff[i][0]);
+            values[groups[i]].push_back(EdgeDiff[i][1]);
         }
-        std::vector<int> num_edges_flexible_per_group = num_edges_per_group;
-        
-        std::map<std::pair<int, int>, int> fixed_variables;
-        
-        for (int i = 0; i < F2E.size(); ++i) {
-            Vector2i var[3];
-            Vector2i cst[3];
-            int gind = 0;
-            while (gind < 3 && groups[F2E[i][gind]] == -1)
-                gind += 1;
-            if (gind == 3)
-                continue;
-            int group = groups[F2E[i][gind]];
-            int ind[3] = {-1, -1, -1};
-            for (int j = 0; j < 3; ++j) {
-                int g = groups[F2E[i][j]];
-                if (g != group) {
-                    if (g == -1) {
-                        auto key = std::make_pair(F2E[i][j], group);
-                        auto it = fixed_variables.find(key);
-                        if (it == fixed_variables.end()) {
-                            ind[j] = num_edges_per_group[group];
-                            values_per_group[group].push_back(EdgeDiff[F2E[i][j]][0]);
-                            values_per_group[group].push_back(EdgeDiff[F2E[i][j]][1]);
-                            fixed_variables[key] = num_edges_per_group[group]++;
-                        } else {
-                            ind[j] = it->second;
-                        }
+    }
+    std::vector<int> num_edges_flexible = num_edges;
+    std::map<std::pair<int, int>, int> fixed_variables;
+    for (int i = 0; i < F2E.size(); ++i) {
+        Vector2i var[3];
+        Vector2i cst[3];
+        int gind = 0;
+        while (gind < 3 && groups[F2E[i][gind]] == -1) gind += 1;
+        if (gind == 3) continue;
+        int group = groups[F2E[i][gind]];
+        int ind[3] = {-1, -1, -1};
+        for (int j = 0; j < 3; ++j) {
+            int g = groups[F2E[i][j]];
+            if (g != group) {
+                if (g == -1) {
+                    auto key = std::make_pair(F2E[i][j], group);
+                    auto it = fixed_variables.find(key);
+                    if (it == fixed_variables.end()) {
+                        ind[j] = num_edges[group];
+                        values[group].push_back(EdgeDiff[F2E[i][j]][0]);
+                        values[group].push_back(EdgeDiff[F2E[i][j]][1]);
+                        fixed_variables[key] = num_edges[group]++;
+                    } else {
+                        ind[j] = it->second;
                     }
-                } else {
-                    ind[j] = indices[F2E[i][j]];
                 }
+            } else {
+                ind[j] = indices[F2E[i][j]];
             }
-            for (int j = 0; j < 3; ++j) {
-                var[j] = rshift90(Vector2i(ind[j] * 2 + 1, ind[j] * 2 + 2), FQ[i][j]);
-                cst[j] = var[j].array().sign();
-                var[j] = var[j].array().abs() - 1;
-            }
-            
-            variable_eq_per_group[group].push_back(Vector3i(var[0][0], var[1][0], var[2][0]));
-            constant_eq_per_group[group].push_back(Vector3i(cst[0][0], cst[1][0], cst[2][0]));
-            variable_eq_per_group[group].push_back(Vector3i(var[0][1], var[1][1], var[2][1]));
-            constant_eq_per_group[group].push_back(Vector3i(cst[0][1], cst[1][1], cst[2][1]));
-            
-            variable_ge_per_group[group].push_back(Vector4i(var[0][0], var[1][1], var[0][1], var[1][0]));
-            constant_ge_per_group[group].push_back(Vector2i(cst[0][0] * cst[1][1], cst[0][1] * cst[1][0]));
         }
-        auto Area = [&](int f) {
-            Vector2i diff1 = rshift90(EdgeDiff[F2E[f][0]], FQ[f][0]);
-            Vector2i diff2 = rshift90(EdgeDiff[F2E[f][1]], FQ[f][1]);
-            return diff1[0] * diff2[1] - diff1[1] * diff2[0];
-        };
-        int counter0 = 0, counter1 = 0;
-        for (int i = 0; i < F2E.size(); ++i) {
-            int area = Area(i);
-            if (area < 0)
-                counter0 -= area;
+        for (int j = 0; j < 3; ++j) {
+            var[j] = rshift90(Vector2i(ind[j] * 2 + 1, ind[j] * 2 + 2), FQ[i][j]);
+            cst[j] = var[j].array().sign();
+            var[j] = var[j].array().abs() - 1;
         }
 
-        for (int i = 0; i < num_group; ++i) {
-            std::vector<bool> flexible_per_group(values_per_group[i].size(), true);
-            for (int j = num_edges_flexible_per_group[i] * 2; j < flexible_per_group.size(); ++j) {
-                flexible_per_group[j] = false;
-            }
-            SolveSatProblem(values_per_group[i].size(), values_per_group[i], flexible_per_group, variable_eq_per_group[i], constant_eq_per_group[i], variable_ge_per_group[i], constant_ge_per_group[i]);
-        }
-        for (int i = 0; i < F2E.size(); ++i) {
-            Vector2i diff(0, 0);
-            for (int j = 0; j < 3; ++j) {
-                diff += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
-            }
-            if (diff != Vector2i::Zero()) {
-                printf("Non zero!\n");
-            }
-        }
-        
-        for (int i = 0; i < EdgeDiff.size(); ++i) {
-            int group = groups[i];
-            if (group == -1)
-                continue;
-            EdgeDiff[i][0] = values_per_group[group][2 * indices[i] + 0];
-            EdgeDiff[i][1] = values_per_group[group][2 * indices[i] + 1];
-        }
-        for (int i = 0; i < F2E.size(); ++i) {
-            Vector2i diff(0, 0);
-            for (int j = 0; j < 3; ++j) {
-                diff += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
-            }
-            if (diff != Vector2i::Zero()) {
-                printf("Non zerossssss!\n");
-            }
-        }
-        for (int i = 0; i < F2E.size(); ++i) {
-            int area = Area(i);
-            if (area < 0)
-                counter1 -= area;
-        }
-        
+        num_flips[group] += IntegerArea(i) < 0;
+        variable_eq[group].push_back(Vector3i(var[0][0], var[1][0], var[2][0]));
+        constant_eq[group].push_back(Vector3i(cst[0][0], cst[1][0], cst[2][0]));
+        variable_eq[group].push_back(Vector3i(var[0][1], var[1][1], var[2][1]));
+        constant_eq[group].push_back(Vector3i(cst[0][1], cst[1][1], cst[2][1]));
 
-        printf("%d %d\n", counter0, counter1);
-        if (l > 0) {
-            auto& nEdgeDiff = mEdgeDiff[l - 1];
-            auto& toUpper = mToUpperEdges[l - 1];
-            auto& toUpperOrients = mToUpperOrients[l - 1];
-            auto& toUpperFaces = mToUpperFaces[l - 1];
-            for (int i = 0; i < toUpper.size(); ++i) {
-                if (toUpper[i] >= 0) {
-                    int orient = (4 - toUpperOrients[i]) % 4;
-                    nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
-                } else {
-                    nEdgeDiff[i] = Vector2i(0, 0);
-                }
+        variable_ge[group].push_back(Vector4i(var[0][0], var[1][1], var[0][1], var[1][0]));
+        constant_ge[group].push_back(Vector2i(cst[0][0] * cst[1][1], cst[0][1] * cst[1][0]));
+    }
+    int flip_before = 0, flip_after = 0;
+    for (int i = 0; i < F2E.size(); ++i) {
+        int area = IntegerArea(i);
+        if (area < 0) flip_before++;
+    }
+
+    for (int i = 0; i < num_group; ++i) {
+        std::vector<bool> flexible(values[i].size(), true);
+        for (int j = num_edges_flexible[i] * 2; j < flexible.size(); ++j) {
+            flexible[j] = false;
+        }
+        SolveSatProblem(values[i].size(), values[i], flexible, variable_eq[i], constant_eq[i],
+                        variable_ge[i], constant_ge[i], depth == 6 && num_flips[i] > 10);
+    }
+
+    for (int i = 0; i < EdgeDiff.size(); ++i) {
+        int group = groups[i];
+        if (group == -1) continue;
+        EdgeDiff[i][0] = values[group][2 * indices[i] + 0];
+        EdgeDiff[i][1] = values[group][2 * indices[i] + 1];
+    }
+    for (int i = 0; i < F2E.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            diff += rshift90(EdgeDiff[F2E[i][j]], FQ[i][j]);
+        }
+        assert(diff == Vector2i::Zero());
+
+        int area = IntegerArea(i);
+        if (area < 0) flip_after++;
+    }
+
+    lprintf("[FlipH] FlipArea, Before: %d After %d\n", flip_before, flip_after);
+    return flip_after;
+}
+
+void Hierarchy::PushDownwardFlip(int depth) {
+    auto& EdgeDiff = mEdgeDiff[depth];
+    auto& nEdgeDiff = mEdgeDiff[depth - 1];
+    auto& toUpper = mToUpperEdges[depth - 1];
+    auto& toUpperOrients = mToUpperOrients[depth - 1];
+    auto& toUpperFaces = mToUpperFaces[depth - 1];
+    for (int i = 0; i < toUpper.size(); ++i) {
+        if (toUpper[i] >= 0) {
+            int orient = (4 - toUpperOrients[i]) % 4;
+            nEdgeDiff[i] = rshift90(EdgeDiff[toUpper[i]], orient);
+        } else {
+            nEdgeDiff[i] = Vector2i(0, 0);
+        }
+    }
+    auto& nF2E = mF2E[depth - 1];
+    auto& nFQ = mFQ[depth - 1];
+    for (int i = 0; i < nF2E.size(); ++i) {
+        Vector2i diff(0, 0);
+        for (int j = 0; j < 3; ++j) {
+            diff += rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
+        }
+        if (diff != Vector2i::Zero()) {
+            printf("Fail!!!!!!! %d\n", i);
+            for (int j = 0; j < 3; ++j) {
+                Vector2i d = rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
+                printf("<%d %d %d>\n", nF2E[i][j], nFQ[i][j], toUpperOrients[nF2E[i][j]]);
+                printf("%d %d\n", d[0], d[1]);
+                printf("%d -> %d\n", nF2E[i][j], toUpper[nF2E[i][j]]);
             }
-            auto& nF2E = mF2E[l - 1];
-            auto& nFQ = mFQ[l - 1];
-            for (int i = 0; i < nF2E.size(); ++i) {
-                Vector2i diff(0, 0);
-                for (int j = 0; j < 3; ++j) {
-                    diff += rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
-                }
-                if (diff != Vector2i::Zero()) {
-                    printf("Fail!!!!!!! %d\n", i);
-                    for (int j = 0; j < 3; ++j) {
-                        Vector2i d = rshift90(nEdgeDiff[nF2E[i][j]], nFQ[i][j]);
-                        printf("<%d %d %d>\n", nF2E[i][j], nFQ[i][j], toUpperOrients[nF2E[i][j]]);
-                        printf("%d %d\n", d[0], d[1]);
-                        printf("%d -> %d\n", nF2E[i][j], toUpper[nF2E[i][j]]);
-                    }
-                    for (int j = 0; j < toUpper.size(); ++j) {
-                        if (toUpper[j] == 15748) {
-                            printf("OMG %d\n", j);
-                        }
-                    }
-                    printf("E2F %d %d\n", E2F[15748][0], E2F[15748][1]);
-                    printf("Fuck!\n");
-                    printf("%d -> %d\n", i, toUpperFaces[i]);
-                    exit(0);
-                }
-            }
+            printf("%d -> %d\n", i, toUpperFaces[i]);
+            exit(1);
         }
     }
 }
@@ -900,9 +881,10 @@ void Hierarchy::FixFlip() {
         Vector2i diff2 = rshift90(EdgeDiff[F2E[f][1]], FQ[f][1]);
         return diff1[0] * diff2[1] - diff1[1] * diff2[0];
     };
-    std::vector<int> valences(F2E.size() * 3, -10000); // comment this line
-    auto CheckShrink = [&] (int deid, int allowed_edge_length) {
-        // Check if we want shrink direct edge deid so that all edge length is smaller than allowed_edge_length
+    std::vector<int> valences(F2E.size() * 3, -10000);  // comment this line
+    auto CheckShrink = [&](int deid, int allowed_edge_length) {
+        // Check if we want shrink direct edge deid so that all edge length is smaller than
+        // allowed_edge_length
         if (deid == -1) {
             return false;
         }
@@ -944,18 +926,15 @@ void Hierarchy::FixFlip() {
             int deid = corresponding_edges[i];
             int eid = F2E[deid / 3][deid % 3];
             for (int j = 0; j < 2; ++j) {
-                if (corresponding_diff[i][j] != 0 && AllowChange[eid * 2 + j] == 0)
-                    return false;
+                if (corresponding_diff[i][j] != 0 && AllowChange[eid * 2 + j] == 0) return false;
             }
             auto& res = new_values[eid];
             res -= corresponding_diff[i];
             int edge_thres = allowed_edge_length;
-            if (abs(res[0]) > edge_thres ||
-                abs(res[1]) > edge_thres) {
+            if (abs(res[0]) > edge_thres || abs(res[1]) > edge_thres) {
                 return false;
             }
-            if ((abs(res[0]) > 1 && abs(res[1]) != 0) ||
-                (abs(res[1]) > 1 && abs(res[0]) != 0))
+            if ((abs(res[0]) > 1 && abs(res[1]) != 0) || (abs(res[1]) > 1 && abs(res[0]) != 0))
                 return false;
         }
         int prev_area = 0, current_area = 0;
@@ -988,7 +967,7 @@ void Hierarchy::FixFlip() {
             flipped.push(i);
         }
     }
-    
+
     bool update = false;
     int max_len = 1;
     while (!update && max_len <= 2) {
@@ -999,8 +978,7 @@ void Hierarchy::FixFlip() {
                 continue;
             }
             for (int i = 0; i < 3; ++i) {
-                if (CheckShrink(f * 3 + i, max_len) ||
-                    CheckShrink(E2E[f * 3 + i], max_len)) {
+                if (CheckShrink(f * 3 + i, max_len) || CheckShrink(E2E[f * 3 + i], max_len)) {
                     update = true;
                     break;
                 }
@@ -1011,15 +989,15 @@ void Hierarchy::FixFlip() {
     }
     if (update) {
         Hierarchy flip_hierarchy;
-        flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(), mAllowChanges.back(), -1);
+        flip_hierarchy.DownsampleEdgeGraph(mFQ.back(), mF2E.back(), mEdgeDiff.back(),
+                                           mAllowChanges.back(), -1);
         flip_hierarchy.FixFlip();
         flip_hierarchy.UpdateGraphValue(mFQ.back(), mF2E.back(), mEdgeDiff.back());
     }
     PropagateEdge();
 }
 
-void Hierarchy::PropagateEdge()
-{
+void Hierarchy::PropagateEdge() {
     for (int level = mToUpperEdges.size(); level > 0; --level) {
         auto& EdgeDiff = mEdgeDiff[level];
         auto& nEdgeDiff = mEdgeDiff[level - 1];
@@ -1038,8 +1016,7 @@ void Hierarchy::PropagateEdge()
             }
         }
         for (int i = 0; i < toUpperFace.size(); ++i) {
-            if (toUpperFace[i] == -1)
-                continue;
+            if (toUpperFace[i] == -1) continue;
             Vector3i eid_orient = FQ[toUpperFace[i]];
             for (int j = 0; j < 3; ++j) {
                 nFQ[i][j] = (eid_orient[j] + toUpperOrients[F2E[i][j]]) % 4;
@@ -1066,7 +1043,7 @@ void Hierarchy::CopyToDevice() {
             //            cudaAdjOffset[i] = (int*)malloc(sizeof(int) * (mAdj[i].size() + 1));
             //            memcpy(cudaAdjOffset[i], offset.data(), sizeof(int) * (mAdj[i].size() +
             //            1));
-            
+
             cudaMalloc(&cudaAdj[i], sizeof(Link) * offset.back());
             //            cudaAdj[i] = (Link*)malloc(sizeof(Link) * offset.back());
             std::vector<Link> plainlink(offset.back());
@@ -1078,7 +1055,7 @@ void Hierarchy::CopyToDevice() {
                        cudaMemcpyHostToDevice);
         }
     }
-    
+
     if (cudaN.empty()) {
         cudaN.resize(mN.size());
         for (int i = 0; i < mN.size(); ++i) {
@@ -1091,7 +1068,7 @@ void Hierarchy::CopyToDevice() {
                    cudaMemcpyHostToDevice);
         //        memcpy(cudaN[i], mN[i].data(), sizeof(glm::dvec3) * mN[i].cols());
     }
-    
+
     if (cudaV.empty()) {
         cudaV.resize(mV.size());
         for (int i = 0; i < mV.size(); ++i) {
@@ -1104,7 +1081,7 @@ void Hierarchy::CopyToDevice() {
                    cudaMemcpyHostToDevice);
         //        memcpy(cudaV[i], mV[i].data(), sizeof(glm::dvec3) * mV[i].cols());
     }
-    
+
     if (cudaQ.empty()) {
         cudaQ.resize(mQ.size());
         for (int i = 0; i < mQ.size(); ++i) {
@@ -1168,4 +1145,3 @@ void Hierarchy::CopyToDevice() {
 void Hierarchy::CopyToHost() {}
 
 #endif
-

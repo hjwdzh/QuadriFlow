@@ -531,14 +531,12 @@ void Optimizer::optimize_positions_dynamic(
         for (int i = 0; i < O_compact.size(); ++i) {
             Vector3d qx = Q_compact[i];
             Vector3d qy = N_compact[i];
-            Vector3d n1 = qy;
             qy = qy.cross(qx);
             auto dedge_it = dedges[i].begin();
             for (auto it = links[i].begin(); it != links[i].end(); ++it, ++dedge_it) {
                 int j = *it;
                 Vector3d qx2 = Q_compact[j];
                 Vector3d qy2 = N_compact[j];
-                Vector3d n2 = qy2;
                 qy2 = qy2.cross(qx2);
 
                 int de = o2e[std::make_pair(i, j)];
@@ -626,8 +624,8 @@ void Optimizer::optimize_positions_dynamic(
         VectorXd x_new = solver.solve(rhs);  // solver.solveWithGuess(rhs, x0);
 
 #ifdef LOG_OUTPUT
-        std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
-        std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
+        // std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
+        // std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
         int t2 = GetCurrentTime64();
         printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif
@@ -807,7 +805,6 @@ void Optimizer::optimize_positions_sharp(
             }
 
             for (int i = 0; i < q.size(); ++i) {
-                int vind = sharp_to_original_indices[q[i]][0];
                 o[i] = O.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qx = Q.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qy = Vector3d(N.col(sharp_to_original_indices[q[i]][0])).cross(qx);
@@ -1115,8 +1112,8 @@ void Optimizer::optimize_positions_fixed(
 
     VectorXd x_new = solver.solve(rhs);
 #ifdef LOG_OUTPUT
-    std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
-    std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
+    // std::cout << "[LSQ] n_iteration:" << solver.iterations() << std::endl;
+    // std::cout << "[LSQ] estimated error:" << solver.error() << std::endl;
     int t2 = GetCurrentTime64();
     printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif

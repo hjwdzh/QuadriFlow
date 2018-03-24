@@ -20,7 +20,8 @@ class Hierarchy {
     void generate_graph_coloring_deterministic(const AdjacentMatrix& adj, int size,
                                                std::vector<std::vector<int>>& phases);
     void FixFlip();
-    void FixFlipSat();
+    int FixFlipSat(int depth, int threshold = 0);
+    void PushDownwardFlip(int depth);
     void PropagateEdge();
     void DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vector3i>& F2E,
                              std::vector<Vector2i>& edge_diff,
@@ -35,7 +36,7 @@ class Hierarchy {
 
     double mScale;
 
-    MatrixXi mF; // mF(i, j) i \in [0, 3) ith index in face j
+    MatrixXi mF;    // mF(i, j) i \in [0, 3) ith index in face j
     VectorXi mE2E;  // inverse edge
     std::vector<AdjacentMatrix> mAdj;
     std::vector<MatrixXd> mV;
@@ -53,7 +54,7 @@ class Hierarchy {
     int with_scale;
 
     // upper: fine to coarse
-    std::vector<std::vector<int>> mToUpperFaces; // face correspondance
+    std::vector<std::vector<int>> mToUpperFaces;  // face correspondance
     std::vector<std::vector<int>> mSing;
     std::vector<std::vector<int>> mToUpperEdges; // edge correspondance
     std::vector<std::vector<int>> mToUpperOrients; // rotation of edges from fine to coarse

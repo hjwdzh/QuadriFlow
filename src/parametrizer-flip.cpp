@@ -1,12 +1,14 @@
-#include "parametrizer.hpp"
 #include "dedge.hpp"
+#include "parametrizer.hpp"
+
+#include <algorithm>
+#include <queue>
 #include <unordered_map>
 #include <vector>
-#include <queue>
-double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads, int level)
-{
-    if (loop_vertices.size() < 4)
-        return 0;
+
+double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads,
+                                int level) {
+    if (loop_vertices.size() < 4) return 0;
     if (loop_vertices.size() == 4) {
         double energy = 0;
         for (int j = 0; j < 4; ++j) {
@@ -17,22 +19,22 @@ double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vec
             Vector3d pt2 = (O_compact[v2] - O_compact[v0]).normalized();
             Vector3d n = pt1.cross(pt2);
             double sina = n.norm();
-            if (n.dot(N_compact[v0]) < 0)
-                sina = -sina;
+            if (n.dot(N_compact[v0]) < 0) sina = -sina;
             double cosa = pt1.dot(pt2);
             double angle = atan2(sina, cosa) / 3.141592654 * 180.0;
-            if (angle < 0)
-                angle = 360 + angle;
+            if (angle < 0) angle = 360 + angle;
             energy += angle * angle;
         }
-        res_quads.push_back(Vector4i(loop_vertices[0],loop_vertices[3],loop_vertices[2],loop_vertices[1]));
+        res_quads.push_back(
+            Vector4i(loop_vertices[0], loop_vertices[3], loop_vertices[2], loop_vertices[1]));
         return energy;
     }
     double max_energy = 1e30;
     for (int seg1 = 2; seg1 < loop_vertices.size(); seg1 += 2) {
         for (int seg2 = seg1 + 1; seg2 < loop_vertices.size(); seg2 += 2) {
             std::vector<Vector4i> quads[4];
-            std::vector<int> vertices = {loop_vertices[0], loop_vertices[1], loop_vertices[seg1], loop_vertices[seg2]};
+            std::vector<int> vertices = {loop_vertices[0], loop_vertices[1], loop_vertices[seg1],
+                                         loop_vertices[seg2]};
             double energy = 0;
             energy += QuadEnergy(vertices, quads[0], level + 1);
             if (seg1 > 2) {
@@ -41,7 +43,8 @@ double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vec
                 energy += QuadEnergy(vertices, quads[1], level + 1);
             }
             if (seg2 != seg1 + 1) {
-                std::vector<int> vertices(loop_vertices.begin() + seg1, loop_vertices.begin() + seg2);
+                std::vector<int> vertices(loop_vertices.begin() + seg1,
+                                          loop_vertices.begin() + seg2);
                 vertices.push_back(loop_vertices[seg2]);
                 energy += QuadEnergy(vertices, quads[2], level + 2);
             }
@@ -65,7 +68,7 @@ double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vec
 }
 
 void Parametrizer::FixHoles(std::vector<int>& loop_vertices) {
-    std::vector<std::vector<int> > loop_vertices_array;
+    std::vector<std::vector<int>> loop_vertices_array;
     std::unordered_map<int, int> map_loops;
     for (int i = 0; i < loop_vertices.size(); ++i) {
         if (map_loops.count(loop_vertices[i])) {
@@ -95,8 +98,7 @@ void Parametrizer::FixHoles(std::vector<int>& loop_vertices) {
     }
     for (int i = 0; i < loop_vertices_array.size(); ++i) {
         auto& loop_vertices = loop_vertices_array[i];
-        if (loop_vertices.size() == 0)
-            return;
+        if (loop_vertices.size() == 0) return;
         std::vector<Vector4i> quads;
 #ifdef LOG_OUTPUT
 //        printf("Compute energy for loop: %d\n", (int)loop_vertices.size());
@@ -126,7 +128,6 @@ void Parametrizer::FixHoles(std::vector<int>& loop_vertices) {
                 F_compact.push_back(p);
             }
         }
-        
     }
 }
 
@@ -141,11 +142,10 @@ void Parametrizer::FixHoles() {
     }
     std::vector<int> detected_boundary(E2E_compact.size(), 0);
     for (int i = 0; i < E2E_compact.size(); ++i) {
-        if (detected_boundary[i] != 0 || E2E_compact[i] != -1)
-            continue;
+        if (detected_boundary[i] != 0 || E2E_compact[i] != -1) continue;
         std::vector<int> loop_edges;
         int current_e = i;
-        
+
         while (detected_boundary[current_e] == 0) {
             detected_boundary[current_e] = 1;
             loop_edges.push_back(current_e);
@@ -157,10 +157,9 @@ void Parametrizer::FixHoles() {
         }
         std::vector<int> loop_vertices(loop_edges.size());
         for (int j = 0; j < loop_edges.size(); ++j) {
-            loop_vertices[j] = F_compact[loop_edges[j]/4][loop_edges[j]%4];
+            loop_vertices[j] = F_compact[loop_edges[j] / 4][loop_edges[j] % 4];
         }
-        if (loop_vertices.size() < 25)
-            FixHoles(loop_vertices);
+        if (loop_vertices.size() < 25) FixHoles(loop_vertices);
     }
 }
 
@@ -172,10 +171,20 @@ void Parametrizer::FixFlipHierarchy() {
 }
 
 void Parametrizer::FixFlipSat() {
-    Hierarchy fh;
-    fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
-    fh.FixFlipSat();
-    fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
+    for (int threshold = 1; threshold <= 4; ++threshold) {
+        lprintf("[FixFlipSat] threshold = %d\n", threshold);
+
+        int nflip;
+        Hierarchy fh;
+        fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
+        for (int depth = std::min(5, (int)fh.mFQ.size() - 1); depth >= 0; --depth) {
+            nflip = fh.FixFlipSat(depth, threshold);
+            if (depth > 0) fh.PushDownwardFlip(depth);
+            if (nflip == 0) break;
+        }
+        fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
+        if (nflip == 0) break;
+    }
 }
 
 void Parametrizer::AdvancedExtractQuad() {
@@ -195,7 +204,7 @@ void Parametrizer::AdvancedExtractQuad() {
     auto& E2F = fh.mE2F.back();
     auto& EdgeDiff = fh.mEdgeDiff.back();
     auto& FQ = fh.mFQ.back();
-    
+
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
         int v1 = E2F[i][0];
@@ -209,31 +218,27 @@ void Parametrizer::AdvancedExtractQuad() {
         E2E[t1] = t2;
         E2E[t2] = t1;
     }
-    
+
     std::vector<int> edge(E2F.size());
     std::vector<int> face(F2E.size());
     for (int i = 0; i < diffs.size(); ++i) {
         int t = i;
         for (int j = 0; j < fh.mToUpperEdges.size(); ++j) {
             t = fh.mToUpperEdges[j][t];
-            if (t < 0)
-                break;
+            if (t < 0) break;
         }
-        if (t >= 0)
-            edge[t] = i;
+        if (t >= 0) edge[t] = i;
     }
     for (int i = 0; i < F.cols(); ++i) {
         int t = i;
         for (int j = 0; j < fh.mToUpperFaces.size(); ++j) {
             t = fh.mToUpperFaces[j][t];
-            if (t < 0)
-                break;
+            if (t < 0) break;
         }
-        if (t >= 0)
-            face[t] = i;
+        if (t >= 0) face[t] = i;
     }
     fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
-    
+
     auto& O = hierarchy.mO[0];
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
@@ -261,12 +266,15 @@ void Parametrizer::AdvancedExtractQuad() {
     for (int i = 0; i < O_compact.size(); ++i) {
         O_compact[i] /= counter[i];
     }
-    
+
     BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
 }
 
-void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vector<int>& edge, std::vector<int>& face, std::vector<DEdge>& edge_values, std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F, std::vector<Vector2i>& EdgeDiff, std::vector<Vector3i>& FQ)
-{
+void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vector<int>& edge,
+                                         std::vector<int>& face, std::vector<DEdge>& edge_values,
+                                         std::vector<Vector3i>& F2E, std::vector<Vector2i>& E2F,
+                                         std::vector<Vector2i>& EdgeDiff,
+                                         std::vector<Vector3i>& FQ) {
     auto& F = hierarchy.mF;
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
@@ -281,15 +289,14 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         E2E[t1] = t2;
         E2E[t2] = t1;
     }
-    
+
     std::vector<Vector3i> triangle_vertices(F2E.size(), Vector3i(-1, -1, -1));
     int num_v = 0;
     std::vector<Vector3d> N, Q, O;
-    std::vector<std::vector<int> > Vs;
+    std::vector<std::vector<int>> Vs;
     for (int i = 0; i < F2E.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
-            if (triangle_vertices[i][j] != -1)
-                continue;
+            if (triangle_vertices[i][j] != -1) continue;
             int f = face[i];
             int v = disajoint_tree.Index(F(j, f));
             Vs.push_back(Vset[v]);
@@ -299,8 +306,8 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
             int deid0 = i * 3 + j;
             int deid = deid0;
             do {
-                triangle_vertices[deid/3][deid%3] = num_v;
-                deid = E2E[deid/3*3+(deid+2)%3];
+                triangle_vertices[deid / 3][deid % 3] = num_v;
+                deid = E2E[deid / 3 * 3 + (deid + 2) % 3];
             } while (deid != deid0);
             num_v += 1;
         }
@@ -309,14 +316,13 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     int num_v0 = num_v;
     do {
         num_v0 = num_v;
-        std::vector<std::vector<int> > vert_to_dedge(num_v);
+        std::vector<std::vector<int>> vert_to_dedge(num_v);
         for (int i = 0; i < triangle_vertices.size(); ++i) {
             Vector3i pt = triangle_vertices[i];
             if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0]) {
                 for (int j = 0; j < 3; ++j) {
                     int t = E2E[i * 3 + j];
-                    if (t != -1)
-                        E2E[t] = -1;
+                    if (t != -1) E2E[t] = -1;
                 }
                 for (int j = 0; j < 3; ++j) {
                     E2E[i * 3 + j] = -1;
@@ -326,13 +332,13 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                     vert_to_dedge[triangle_vertices[i][j]].push_back(i * 3 + j);
             }
         }
-        std::vector<int> colors(triangle_vertices.size() * 3, -1), reverse_colors(triangle_vertices.size() * 3, -1);
+        std::vector<int> colors(triangle_vertices.size() * 3, -1),
+            reverse_colors(triangle_vertices.size() * 3, -1);
         for (int i = 0; i < vert_to_dedge.size(); ++i) {
             int num_color = 0;
             for (int j = 0; j < vert_to_dedge[i].size(); ++j) {
                 int deid = vert_to_dedge[i][j];
-                if (colors[deid] != -1)
-                    continue;
+                if (colors[deid] != -1) continue;
                 std::list<int> l;
                 int deid0 = deid;
                 do {
@@ -344,32 +350,29 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                     deid = deid0;
                     do {
                         deid = E2E[deid];
-                        if (deid == -1)
-                            break;
+                        if (deid == -1) break;
                         deid = deid / 3 * 3 + (deid + 1) % 3;
-                        if (deid == deid0)
-                            break;
+                        if (deid == deid0) break;
                         l.push_front(deid);
                     } while (true);
                 }
                 std::vector<int> dedges;
-                for (auto& e : l)
-                    dedges.push_back(e);
+                for (auto& e : l) dedges.push_back(e);
                 std::map<std::pair<int, int>, int> loc;
                 std::vector<int> deid_colors(dedges.size(), num_color);
                 num_color += 1;
                 for (int jj = 0; jj < dedges.size(); ++jj) {
                     int deid = dedges[jj];
                     colors[deid] = 0;
-                    int v1 = triangle_vertices[deid/3][deid%3];
-                    int v2 = triangle_vertices[deid/3][(deid+1)%3];
+                    int v1 = triangle_vertices[deid / 3][deid % 3];
+                    int v2 = triangle_vertices[deid / 3][(deid + 1) % 3];
                     std::pair<int, int> pt(v1, v2);
                     if (loc.count(pt)) {
                         int s = loc[pt];
                         for (int k = s; k < jj; ++k) {
                             int deid1 = dedges[k];
-                            int v11 = triangle_vertices[deid1/3][deid1%3];
-                            int v12 = triangle_vertices[deid1/3][(deid1+1)%3];
+                            int v11 = triangle_vertices[deid1 / 3][deid1 % 3];
+                            int v12 = triangle_vertices[deid1 / 3][(deid1 + 1) % 3];
                             std::pair<int, int> pt1(v11, v12);
                             loc.erase(pt1);
                             deid_colors[k] = num_color;
@@ -382,7 +385,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                     int deid = dedges[j];
                     int color = deid_colors[j];
                     if (color > 0) {
-                        triangle_vertices[deid/3][deid%3] = num_v + color - 1;
+                        triangle_vertices[deid / 3][deid % 3] = num_v + color - 1;
                     }
                 }
             }
@@ -401,8 +404,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     std::vector<Vector3i> triangle_edges, triangle_orients;
     for (int i = 0; i < triangle_vertices.size(); ++i) {
         Vector3i pt = triangle_vertices[i];
-        if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0])
-            continue;
+        if (pt[0] == pt[1] || pt[1] == pt[2] || pt[2] == pt[0]) continue;
         triangle_vertices[offset++] = triangle_vertices[i];
         triangle_edges.push_back(F2E[i]);
         triangle_orients.push_back(FQ[i]);
@@ -424,8 +426,8 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     memcpy(NF.data(), triangle_vertices.data(), sizeof(int) * 3 * triangle_vertices.size());
     VectorXi NV2E, NE2E, NB, NN;
     compute_direct_graph(NV, NF, NV2E, NE2E, NB, NN);
-    
-    std::map<DEdge, std::pair<Vector3i, Vector3i> > quads;
+
+    std::map<DEdge, std::pair<Vector3i, Vector3i>> quads;
     for (int i = 0; i < triangle_vertices.size(); ++i) {
         for (int j = 0; j < 3; ++j) {
             int e = triangle_edges[i][j];
@@ -452,7 +454,8 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     std::swap(O_compact, O);
     std::swap(N_compact, N);
     std::swap(Q_compact, Q);
-    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                              nonManifold_compact);
 
     while (true) {
         std::vector<int> erasedF(F_compact.size(), 0);
@@ -468,8 +471,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         for (int i = 0; i < O_compact.size(); ++i) {
             int v = 0;
             int e0 = V2E_compact[i];
-            if (e0 == -1)
-                continue;
+            if (e0 == -1) continue;
             std::vector<int> dedges;
             int e = e0;
             do {
@@ -482,25 +484,23 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                 int e = e0;
                 while (true) {
                     e = E2E_compact[e];
-                    if (e == -1)
-                        break;
+                    if (e == -1) break;
                     e = e / 4 * 4 + (e + 1) % 4;
                     v += 1;
                     dedges.push_back(e);
                 }
             }
             if (v == 2) {
-//                erasedF[dedges[1] / 4] = 1;
-//                F_compact[dedges[0]/4][dedges[0]%4] = F_compact[dedges[1]/4][(dedges[1]+2)%4];
+                //                erasedF[dedges[1] / 4] = 1;
+                //                F_compact[dedges[0]/4][dedges[0]%4] =
+                //                F_compact[dedges[1]/4][(dedges[1]+2)%4];
             }
         }
         offset = 0;
         for (int i = 0; i < F_compact.size(); ++i) {
-            if (erasedF[i] == 0)
-                F_compact[offset++] = F_compact[i];
+            if (erasedF[i] == 0) F_compact[offset++] = F_compact[i];
         }
-        if (offset == F_compact.size())
-            break;
+        if (offset == F_compact.size()) break;
         F_compact.resize(offset);
         compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                                   nonManifold_compact);
@@ -548,8 +548,8 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                 if (it == eraseF.end() || i != *it) {
                     bool need_erase = false;
                     for (int j = 0; j < 4; ++j) {
-                        if (valid_dedges.count(i * 4 + j) == 0 && boundaries.count(F_compact[i][j]) && boundaries.count(F_compact[i][(j + 1) % 4])) {
-                            need_erase = true;
+                        if (valid_dedges.count(i * 4 + j) == 0 && boundaries.count(F_compact[i][j])
+    && boundaries.count(F_compact[i][(j + 1) % 4])) { need_erase = true;
                         }
                     }
                     if (!need_erase)
@@ -559,12 +559,10 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                 }
             }
             F_compact.resize(offset);
-            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                      nonManifold_compact);
-            std::reverse(loop_vertices.begin(), loop_vertices.end());
-            FixHoles(loop_vertices);
-            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
-                                      nonManifold_compact);
+            compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact,
+    boundary_compact, nonManifold_compact); std::reverse(loop_vertices.begin(),
+    loop_vertices.end()); FixHoles(loop_vertices); compute_direct_graph_quad(O_compact, F_compact,
+    V2E_compact, E2E_compact, boundary_compact, nonManifold_compact);
         }
     }
     FixHoles();
@@ -572,4 +570,3 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                               nonManifold_compact);
      */
 }
-

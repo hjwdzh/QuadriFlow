@@ -29,6 +29,7 @@ endif()
 
 option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
 option(BUILD_OPENMP "Enable support for OpenMP" OFF)
+option(BUILD_LOG "Enable verbose log" OFF)
 
 include_directories(src)
 include_directories(3rd/pcg32)
@@ -48,6 +49,10 @@ endif(BUILD_PERFORMANCE_TEST)
 if(BUILD_OPENMP)
     add_definitions(-DWITH_OMP)
 endif(BUILD_OPENMP)
+
+if(BUILD_LOG)
+    add_definitions(-DLOG_OUTPUT)
+endif(BUILD_LOG)
 
 set(
     parametrize_SRC

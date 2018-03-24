@@ -11,6 +11,8 @@
 Parametrizer field;
 
 int main(int argc, char** argv) {
+    setbuf(stdout, NULL);
+
 #ifdef WITH_CUDA
     cudaFree(0);
 #endif
@@ -69,31 +71,27 @@ int main(int argc, char** argv) {
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     }
-    
+
     printf("Solve for position field...\n");
     fflush(stdout);
     t1 = GetCurrentTime64();
     Optimizer::optimize_positions(field.hierarchy, field.flag_adaptive_scale);
-    
+
     field.ComputePositionSingularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-    fflush(stdout);
     t1 = GetCurrentTime64();
     printf("Solve index map...\n");
-    fflush(stdout);
     field.ComputeIndexMap();
     t2 = GetCurrentTime64();
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
-    fflush(stdout);
     printf("Writing the file...\n");
-    fflush(stdout);
+
     if (output_obj.size() < 1)
         field.OutputMesh((std::string(DATA_PATH) + "/result.obj").c_str());
     else
         field.OutputMesh(output_obj.c_str());
     printf("finish...\n");
-    fflush(stdout);
     //	field.LoopFace(2);
 #ifdef WITH_OPENGL
     gldraw();

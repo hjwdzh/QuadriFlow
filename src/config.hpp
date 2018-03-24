@@ -12,7 +12,17 @@
 #define INVALID -1
 #define GRAIN_SIZE 1024
 
-//#define LOG_OUTPUT
+#ifdef LOG_OUTPUT
+
+#define lprintf(...) printf(__VA_ARGS__)
+#define lputs(...) puts(__VA_ARGS__)
+
+#else
+
+#define lprintf(...) void(0)
+#define lputs(...) void(0)
+
+#endif
 
 #include <chrono>
 
