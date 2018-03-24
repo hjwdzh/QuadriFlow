@@ -196,12 +196,6 @@ void Parametrizer::ComputeSharpO() {
             sharp_edges[E2E[i * 3 + j]] = 1;
         }
     }
-    return;
-    std::ofstream os("/Users/jingwei/Desktop/sharp.obj");
-    for (int i = 0; i < O.cols(); ++i) {
-        os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
-    }
-
 }
 
 void Parametrizer::ComputeSmoothNormal() {

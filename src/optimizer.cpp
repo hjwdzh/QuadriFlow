@@ -659,6 +659,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                                          std::vector<Vector2i>& edge_diff,
                                          std::vector<int>& sharp_edges,
                                          std::set<int>& sharp_vertices,
+                                         std::map<int, std::pair<Vector3d, Vector3d> >& sharp_constraints,
                                          int with_scale) {
     auto& V = mRes.mV[0];
     auto& F = mRes.mF;
@@ -710,6 +711,9 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
     for (auto& v : sharp_vertices_links) {
         if (v.second.size() != 2)
             continue;
+        auto it = v.second.begin();
+        int v1 = *it++;
+        int v2 = *it++;
         int p = tree.Index(v.first);
         sharp_to_original_indices[compact_sharp_indices[p]].push_back(v.first);
     }
@@ -822,6 +826,30 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                 new_o[i] = o[i];
             }
             
+            if (is_loop) {
+                for (int i = 0; i < q.size(); ++i) {
+                    Vector3d dir = (o[(i+1)%q.size()] - o[(i+q.size()-1)%q.size()]).normalized();
+                    for (auto& ind : sharp_to_original_indices[q[i]]) {
+                        sharp_constraints[ind] = std::make_pair(o[i], dir);
+                    }
+                }
+            } else {
+                for (int i = 0; i < q.size(); ++i) {
+                    Vector3d dir(0, 0, 0);
+                    if (i != 0 && i + 1 != q.size())
+                        dir = (o[i+1]-o[i-1]).normalized();
+                    else if (links[q[i]].size() == 1) {
+                        if (i == 0)
+                            dir = (o[i+1]-o[i]).normalized();
+                        else
+                            dir = (o[i]-o[i-1]).normalized();
+                    }
+                    for (auto& ind : sharp_to_original_indices[q[i]]) {
+                        sharp_constraints[ind] = std::make_pair(o[i], dir);
+                    }
+                }
+            }
+            
             for (int i = 0; i < q.size() - 1; ++i) {
                 len += (o[i + 1] - o[i]).norm();
                 scale += sc[i];
@@ -855,7 +883,9 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
-                                         std::vector<Vector2i>& edge_diff, std::set<int>& sharp_vertices,
+                                         std::vector<Vector2i>& edge_diff,
+                                         std::set<int>& sharp_vertices,
+                                         std::map<int, std::pair<Vector3d, Vector3d> >& sharp_constraints,
                                          int with_scale) {
     auto& V = mRes.mV[0];
     auto& F = mRes.mF;
@@ -915,6 +945,18 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         
         Vector3d q_1 = Q.col(v1);
         Vector3d q_2 = Q.col(v2);
+        /*
+        if (sharp_constraints.count(v1)) {
+            Vector3d d = sharp_constraints[v1].second;
+            if (d != Vector3d::Zero())
+                q_1 = d;
+        }
+        if (sharp_constraints.count(v2)) {
+            Vector3d d = sharp_constraints[v2].second;
+            if (d != Vector3d::Zero())
+                q_2 = d;
+        }
+         */
         Vector3d n_1 = N.col(v1);
         Vector3d n_2 = N.col(v2);
         Vector3d q_1_y = n_1.cross(q_1);
@@ -930,7 +972,10 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         double scale_x = (with_scale ? 0.5 * (s_x1 + s_x2) : 1) * mRes.mScale;
         double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.mScale;
         Vector2i diff = edge_diff[e];
-        Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + V.col(q1) - V.col(q2);
+        
+        Vector3d origin1 = V.col(q1);//(sharp_constraints.count(q1)) ? sharp_constraints[q1].first : V.col(q1);
+        Vector3d origin2 = V.col(q2);//(sharp_constraints.count(q2)) ? sharp_constraints[q2].first : V.col(q2);
+        Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + origin1 - origin2;
         auto it = ideal_distances[p1].find(p2);
         if (it == ideal_distances[p1].end()) {
             ideal_distances[p1][p2] = std::make_pair(1, C);
@@ -970,6 +1015,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         }
     }
     
+    std::vector<int> fixed_dim(num * 2, 0);
     std::vector<double> x(num * 2);
 #ifdef WITH_OMP
 #pragma omp parallel for
@@ -977,28 +1023,43 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
     for (int i = 0; i < num; ++i) {
         int p = v_index[i];
         Vector3d q = Q.col(p);
+        
+        if (sharp_constraints.count(p)) {
+            Vector3d dir = sharp_constraints[p].second;
+            fixed_dim[i * 2 + 1] = 1;
+            if (dir != Vector3d::Zero()) {
+//                q = dir;
+            }
+            else
+                fixed_dim[i * 2] = 1;
+        }
         Vector3d n = N.col(p);
         Vector3d q_y = n.cross(q);
         x[i * 2] = (v_positions[i] - V.col(p)).dot(q);
         x[i * 2 + 1] = (v_positions[i] - V.col(p)).dot(q_y);
     }
-    
+
     // fix sharp edges
     for (int i = 0; i < entries.size(); ++i) {
-        if (compact_sharp_vertices.count(i / 2)) {
+        if (fixed_dim[i]) {
             b[i] = x[i];
             entries[i].clear();
             entries[i][i] = 1;
         } else {
             std::unordered_map<int, double> newmap;
             for (auto& rec : entries[i]) {
-                if (sharp_vertices.count(rec.first/2)) {
+                if (fixed_dim[i]) {
                     b[i] -= rec.second * x[rec.first];
                 } else {
                     newmap[rec.first] = rec.second;
                 }
             }
             std::swap(entries[i], newmap);
+        }
+    }
+    for (int i = 0; i < entries.size(); ++i) {
+        if (entries[i].size() == 0) {
+            entries[i][i] = 1;
         }
     }
 
@@ -1047,14 +1108,30 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 #endif
 
     for (int i = 0; i < x.size(); ++i) {
-        if (!isnan(x_new[i]))
+        if (!isnan(x_new[i])) {
+            if (!fixed_dim[i / 2 * 2 + 1]) {
+                double total = 0;
+                for (auto& res : entries[i]) {
+                    double t = x_new[res.first];
+                    if (isnan(t))
+                        t = 0;
+                    total += t * res.second;
+                }
+//                printf("<%lf %lf> => <%lf %lf>\n", x[i], x_new[i], total, b[i]);
+            }
             x[i] = x_new[i];
+        }
     }
 
     for (int i = 0; i < O.cols(); ++i) {
         int p = tree.Index(i);
         int c = v_index[p];
         Vector3d q = Q.col(c);
+        if (fixed_dim[i * 2 + 1]) {
+//            Vector3d dir = sharp_constraints[p].second;
+//            if (dir != Vector3d::Zero())
+//                q = dir;
+        }
         Vector3d n = N.col(c);
         Vector3d q_y = n.cross(q);
         O.col(i) = V.col(c) + q * x[p * 2] + q_y * x[p * 2 + 1];

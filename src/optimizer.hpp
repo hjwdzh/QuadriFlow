@@ -12,11 +12,16 @@ class Optimizer {
     static void optimize_positions(Hierarchy& mRes, int with_scale = 0);
     static void optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities);
     static void optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
-                                         std::vector<Vector2i>& edge_diff, std::set<int>& sharp_vertices, int with_scale = 0);
+                                         std::vector<Vector2i>& edge_diff,
+                                         std::set<int>& sharp_vertices,
+                                         std::map<int, std::pair<Vector3d, Vector3d> >& sharp_constraints,
+                                         int with_scale = 0);
     static void optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& edge_values,
                                          std::vector<Vector2i>& edge_diff,
                                          std::vector<int>& sharp_edges,
-                                         std::set<int>& sharp_vertices, int with_scale = 0);
+                                         std::set<int>& sharp_vertices,
+                                         std::map<int, std::pair<Vector3d, Vector3d> >& sharp_constraints,
+                                         int with_scale = 0);
     static void optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q,
                                            std::vector<std::vector<int>>& Vset,
                                            std::vector<Vector3d>& O_compact,
