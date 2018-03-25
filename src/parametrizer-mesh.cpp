@@ -301,7 +301,7 @@ void Parametrizer::ComputeVertexArea() {
 void Parametrizer::FixValence()
 {
     // Remove Valence 2
-    while (false) {
+    while (true) {
         bool update = false;
         std::vector<int> marks(V2E_compact.size(), 0);
         std::vector<int> erasedF(F_compact.size(), 0);

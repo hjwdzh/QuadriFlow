@@ -513,7 +513,7 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         std::vector<int> fixed_dim(O_compact.size() * 2, 0);
         for (auto& info : compact_sharp_constraints) {
             fixed_dim[info.first * 2 + 1] = 1;
-            if (info.second.second == Vector3d::Zero())
+            if (info.second.second.norm() < 0.5)
                 fixed_dim[info.first * 2] = 1;
         }
         std::vector<double> b(O_compact.size() * 2);
@@ -523,16 +523,23 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
 #endif
         std::vector<Vector3d> Q_compact(O_compact.size());
         std::vector<Vector3d> N_compact(O_compact.size());
+        std::vector<Vector3d> V_compact(O_compact.size());
         for (int i = 0; i < O_compact.size(); ++i) {
             Q_compact[i] = Q.col(Vind[i]);
             N_compact[i] = N.col(Vind[i]);
+            V_compact[i] = V.col(Vind[i]);
+            if (fixed_dim[i * 2 + 1] && !fixed_dim[i * 2]) {
+                Q_compact[i] = compact_sharp_constraints[i].second;
+                V_compact[i] = compact_sharp_constraints[i].first;
+            }
         }
         for (int i = 0; i < O_compact.size(); ++i) {
             Vector3d q = Q_compact[i];
             Vector3d n = N_compact[i];
             Vector3d q_y = n.cross(q);
-            x[i * 2] = (O_compact[i] - V.col(Vind[i])).dot(q);
-            x[i * 2 + 1] = (O_compact[i] - V.col(Vind[i])).dot(q_y);
+            auto Vi = V_compact[i];
+            x[i * 2] = (O_compact[i] - Vi).dot(q);
+            x[i * 2 + 1] = (O_compact[i] - Vi).dot(q_y);
         }
         for (int i = 0; i < O_compact.size(); ++i) {
             Vector3d qx = Q_compact[i];
@@ -550,7 +557,11 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                 int de = o2e[std::make_pair(i, j)];
                 double lambda = (diff_count[de] == 1) ? 1 : 1;
                 Vector3d target_offset = diffs[de];
-                Vector3d offset = V.col(Vind[j]) - V.col(Vind[i]);
+                
+                auto Vi = V_compact[i];
+                auto Vj = V_compact[j];
+
+                Vector3d offset = Vj - Vi;
 
                 target_offset.normalize();
                 target_offset *= mScale;
@@ -574,14 +585,14 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         
         // fix sharp edges
         for (int i = 0; i < entries.size(); ++i) {
-            if (sharp_o[i / 2]) {
+            if (fixed_dim[i]) {
                 b[i] = x[i];
                 entries[i].clear();
                 entries[i][i] = 1;
             } else {
                 std::unordered_map<int, double> newmap;
                 for (auto& rec : entries[i]) {
-                    if (sharp_o[rec.first/2]) {
+                    if (fixed_dim[rec.first]) {
                         b[i] -= rec.second * x[rec.first];
                     } else {
                         newmap[rec.first] = rec.second;
@@ -630,10 +641,13 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         printf("[LSQ] Linear solver uses %lf seconds.\n", (t2 - t1) * 1e-3);
 #endif
         for (int i = 0; i < O_compact.size(); ++i) {
-            Vector3d q = Q.col(Vind[i]);
-            Vector3d n = N.col(Vind[i]);
+            //Vector3d q = Q.col(Vind[i]);
+            Vector3d q = Q_compact[i];
+            //Vector3d n = N.col(Vind[i]);
+            Vector3d n = N_compact[i];
             Vector3d q_y = n.cross(q);
-            O_compact[i] = V.col(Vind[i]) + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
+            auto Vi = V_compact[i];
+            O_compact[i] = Vi + q * x_new[i * 2] + q_y * x_new[i * 2 + 1];
         }
         
         // forgive my hack...
@@ -700,6 +714,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
         }
     }
     std::map<int, std::set<int> > sharp_vertices_links;
+    std::set<DEdge> sharp_dedges;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i]) {
             int v1 = F(i%3, i/3);
@@ -707,6 +722,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             if (sharp_vertices_links.count(v1) == 0)
                 sharp_vertices_links[v1] = std::set<int>();
             sharp_vertices_links[v1].insert(v2);
+            sharp_dedges.insert(DEdge(v1, v2));
         }
     }
     std::vector<std::vector<int> > sharp_to_original_indices(compact_sharp_indices.size());
@@ -719,9 +735,6 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
     for (auto& v : sharp_vertices_links) {
         if (v.second.size() != 2)
             continue;
-        auto it = v.second.begin();
-        int v1 = *it++;
-        int v2 = *it++;
         int p = tree.Index(v.first);
         sharp_to_original_indices[compact_sharp_indices[p]].push_back(v.first);
     }
@@ -733,6 +746,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
         if (compact_sharp_indices.count(p))
             sharp_to_original_indices[compact_sharp_indices[p]].push_back(i);
     }
+
     int num = sharp_to_original_indices.size();
     std::vector<std::set<int> > links(sharp_to_original_indices.size());
     for (int e = 0; e < edge_diff.size(); ++e) {
@@ -818,6 +832,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             }
             
             for (int i = 0; i < q.size(); ++i) {
+                int vind = sharp_to_original_indices[q[i]][0];
                 o[i] = O.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qx = Q.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qy = Vector3d(N.col(sharp_to_original_indices[q[i]][0])).cross(qx);
@@ -833,7 +848,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                     sc[i] = 1;
                 new_o[i] = o[i];
             }
-            
+
             if (is_loop) {
                 for (int i = 0; i < q.size(); ++i) {
                     Vector3d dir = (o[(i+1)%q.size()] - o[(i+q.size()-1)%q.size()]).normalized();
@@ -879,6 +894,7 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
                 current_norm -= left_norm;
                 left_norm = len * sc[current_v] / scale;
             }
+
             for (int i = 0; i < q.size(); ++i) {
                 for (auto v : sharp_to_original_indices[q[i]]) {
                     O.col(v) = new_o[i];
