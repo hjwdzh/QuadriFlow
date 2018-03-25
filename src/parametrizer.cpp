@@ -33,7 +33,14 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         if (sharp_edges[i]) {
             int e = face_edgeIds[i/3][i%3];
             if (edge_diff[e][0] * edge_diff[e][1] != 0) {
-                sharp_edges[i] = 0;
+                Vector3d d = O.col(edge_values[e].y) - O.col(edge_values[e].x);
+                Vector3d q = Q.col(edge_values[e].x);
+                Vector3d n = N.col(edge_values[e].x);
+                Vector3d qy = n.cross(q);
+                if (abs(q.dot(d)) > qy.dot(d))
+                    edge_diff[e][1] = 0;
+                else
+                    edge_diff[e][0] = 0;
             }
         }
     }

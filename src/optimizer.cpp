@@ -945,18 +945,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         
         Vector3d q_1 = Q.col(v1);
         Vector3d q_2 = Q.col(v2);
-        /*
-        if (sharp_constraints.count(v1)) {
-            Vector3d d = sharp_constraints[v1].second;
-            if (d != Vector3d::Zero())
-                q_1 = d;
-        }
-        if (sharp_constraints.count(v2)) {
-            Vector3d d = sharp_constraints[v2].second;
-            if (d != Vector3d::Zero())
-                q_2 = d;
-        }
-         */
+        
         Vector3d n_1 = N.col(v1);
         Vector3d n_2 = N.col(v2);
         Vector3d q_1_y = n_1.cross(q_1);
@@ -994,6 +983,17 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             int v2 = v_index[info.first];
             Vector3d q_1 = Q.col(v1);
             Vector3d q_2 = Q.col(v2);
+            if (sharp_constraints.count(v1)) {
+                Vector3d d = sharp_constraints[v1].second;
+                if (d != Vector3d::Zero())
+                    q_1 = d;
+            }
+            if (sharp_constraints.count(v2)) {
+                Vector3d d = sharp_constraints[v2].second;
+                if (d != Vector3d::Zero())
+                    q_2 = d;
+            }
+            
             Vector3d n_1 = N.col(v1);
             Vector3d n_2 = N.col(v2);
             Vector3d q_1_y = n_1.cross(q_1);
@@ -1028,7 +1028,7 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             Vector3d dir = sharp_constraints[p].second;
             fixed_dim[i * 2 + 1] = 1;
             if (dir != Vector3d::Zero()) {
-//                q = dir;
+                q = dir;
             }
             else
                 fixed_dim[i * 2] = 1;
@@ -1126,10 +1126,10 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         int p = tree.Index(i);
         int c = v_index[p];
         Vector3d q = Q.col(c);
-        if (fixed_dim[i * 2 + 1]) {
-//            Vector3d dir = sharp_constraints[p].second;
-//            if (dir != Vector3d::Zero())
-//                q = dir;
+        if (fixed_dim[p * 2 + 1]) {
+            Vector3d dir = sharp_constraints[c].second;
+            if (dir != Vector3d::Zero())
+                q = dir;
         }
         Vector3d n = N.col(c);
         Vector3d q_y = n.cross(q);
