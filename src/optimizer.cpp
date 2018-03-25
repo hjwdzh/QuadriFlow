@@ -312,7 +312,9 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
                                            std::vector<int>& E2E_compact, double mScale,
                                            std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
                                            std::map<std::pair<int, int>, int>& o2e,
-                                           std::vector<int>& sharp_o, int with_scale) {
+                                           std::vector<int>& sharp_o,
+                                           std::map<int, std::pair<Vector3d, Vector3d> >& compact_sharp_constraints,
+                                           int with_scale) {
     
     std::set<int> uncertain;
     for (auto& info : o2e) {
@@ -508,6 +510,12 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         ComputeDistance();
 
         std::vector<std::unordered_map<int, double>> entries(O_compact.size() * 2);
+        std::vector<int> fixed_dim(O_compact.size() * 2, 0);
+        for (auto& info : compact_sharp_constraints) {
+            fixed_dim[info.first * 2 + 1] = 1;
+            if (info.second.second == Vector3d::Zero())
+                fixed_dim[info.first * 2] = 1;
+        }
         std::vector<double> b(O_compact.size() * 2);
         std::vector<double> x(O_compact.size() * 2);
 #ifdef WITH_OMP
@@ -962,8 +970,8 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
         double scale_y = (with_scale ? 0.5 * (s_y1 + s_y2) : 1) * mRes.mScale;
         Vector2i diff = edge_diff[e];
         
-        Vector3d origin1 = V.col(q1);//(sharp_constraints.count(q1)) ? sharp_constraints[q1].first : V.col(q1);
-        Vector3d origin2 = V.col(q2);//(sharp_constraints.count(q2)) ? sharp_constraints[q2].first : V.col(q2);
+        Vector3d origin1 = /*(sharp_constraints.count(q1)) ? sharp_constraints[q1].first : */V.col(q1);
+        Vector3d origin2 = /*(sharp_constraints.count(q2)) ? sharp_constraints[q2].first : */V.col(q2);
         Vector3d C = diff[0] * scale_x * qd_x + diff[1] * scale_y * qd_y + origin1 - origin2;
         auto it = ideal_distances[p1].find(p2);
         if (it == ideal_distances[p1].end()) {
@@ -1001,16 +1009,19 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
             Vector3d weights[] = {q_2, q_2_y, -q_1, -q_1_y};
             int vid[] = {info.first * 2, info.first * 2 + 1, m * 2, m * 2 + 1};
             Vector3d dis = info.second.second / info.second.first;
+            double lambda = 1;
+            if (sharp_vertices.count(v1) && sharp_vertices.count(v2))
+                lambda = 1;
             for (int i = 0; i < 4; ++i) {
                 for (int j = 0; j < 4; ++j) {
                     auto it = entries[vid[i]].find(vid[j]);
                     if (it == entries[vid[i]].end()) {
-                        entries[vid[i]][vid[j]] = weights[i].dot(weights[j]);
+                        entries[vid[i]][vid[j]] = weights[i].dot(weights[j]) * lambda;
                     } else {
-                        entries[vid[i]][vid[j]] += weights[i].dot(weights[j]);
+                        entries[vid[i]][vid[j]] += weights[i].dot(weights[j]) * lambda;
                     }
                 }
-                b[vid[i]] += weights[i].dot(dis);
+                b[vid[i]] += weights[i].dot(dis) * lambda;
             }
         }
     }

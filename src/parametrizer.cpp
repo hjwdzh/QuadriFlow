@@ -146,17 +146,22 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     FixValence();
 
     std::vector<int> sharp_o(O_compact.size(), 0);
+    std::map<int, std::pair<Vector3d, Vector3d> > compact_sharp_constraints;
     for (int i = 0; i < Vset.size(); ++i) {
         int sharpv = -1;
         for (auto& p : Vset[i]) {
-            if (sharp_vertices.count(p))
+            if (sharp_vertices.count(p)) {
                 sharpv = p;
-        }
-        if (sharpv >= 0) {
-            sharp_o[i] = 1;
-            O_compact[i] = O.col(sharpv);
+                sharp_o[i] = 1;
+                if (compact_sharp_constraints.count(i) == 0 ||
+                    compact_sharp_constraints[i].second != Vector3d::Zero()) {
+                    compact_sharp_constraints[i] = sharp_constraints[sharpv];
+                    O_compact[i] = O.col(sharpv);
+                }
+            }
         }
     }
+    
     std::map<std::pair<int, int>, int> o2e;
     for (int i = 0; i < F_compact.size(); ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -241,7 +246,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             }
         }
     }
-
+    
     for (int i = 0; i < diff_count.size(); ++i) {
         if (diff_count[i] != 0) {
             diffs[i] /= diff_count[i];
@@ -251,7 +256,8 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
-                                          diffs, diff_count, o2e, sharp_o, flag_adaptive_scale);
+                                          diffs, diff_count, o2e, sharp_o,
+                                          compact_sharp_constraints, flag_adaptive_scale);
     
     //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
     //    E2E_compact,
