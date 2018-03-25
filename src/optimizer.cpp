@@ -563,8 +563,8 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
 
                 Vector3d offset = Vj - Vi;
 
-                target_offset.normalize();
-                target_offset *= mScale;
+//                target_offset.normalize();
+//                target_offset *= mScale;
                 Vector3d C = target_offset - offset;
                 int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                 Vector3d weights[] = {qx2, qy2, -qx, -qy};
@@ -585,6 +585,10 @@ void Optimizer::optimize_positions_dynamic(MatrixXi& F, MatrixXd& V, MatrixXd& N
         
         // fix sharp edges
         for (int i = 0; i < entries.size(); ++i) {
+            if (entries[i].size() == 0) {
+                entries[i][i] = 1;
+                b[i] = x[i];
+            }
             if (fixed_dim[i]) {
                 b[i] = x[i];
                 entries[i].clear();

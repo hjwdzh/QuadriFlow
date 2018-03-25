@@ -178,9 +178,9 @@ void Parametrizer::ComputeSharpO() {
             sharps[info.first] = s;
         }
     }
-    
+    for (auto& s : sharp_edges)
+        s = 0;
     std::vector<int> sharp_hash(sharps.size(), 0);
-    printf("Sharp O!\n");
     for (int i = 0; i < F.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
             int v1 = tree.Parent(F(j, i));
@@ -196,6 +196,7 @@ void Parametrizer::ComputeSharpO() {
             sharp_edges[E2E[i * 3 + j]] = 1;
         }
     }
+    
 }
 
 void Parametrizer::ComputeSmoothNormal() {

@@ -29,6 +29,9 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 
     BuildEdgeInfo();
 
+    if (flag_preserve_sharp) {
+//        ComputeSharpO();
+    }
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i]) {
             int e = face_edgeIds[i/3][i%3];
@@ -136,53 +139,12 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
     
-    {
-    std::ofstream os("/Users/jingwei/Desktop/sharp.obj");
-    for (int i = 0; i < O.cols(); ++i) {
-        os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
-    }
-    for (int i = 0; i < sharp_edges.size(); ++i) {
-        if (sharp_edges[i] == 0)
-            continue;
-        int v1 = F(i%3, i/3) + 1;
-        int v2 = F((i+1)%3, i/3)+1;
-        os << "l " << v1 << " " << v2 << "\n";
-    }
-    os.close();
-    }
     std::map<int, std::pair<Vector3d, Vector3d> > sharp_constraints;
 
     Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, sharp_constraints, with_scale);
-    {
-        std::ofstream os("/Users/jingwei/Desktop/sharp1.obj");
-        for (int i = 0; i < O.cols(); ++i) {
-            os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
-        }
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i] == 0)
-                continue;
-            int v1 = F(i%3, i/3) + 1;
-            int v2 = F((i+1)%3, i/3)+1;
-            os << "l " << v1 << " " << v2 << "\n";
-        }
-        os.close();
-    }
 
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, sharp_constraints, flag_adaptive_scale);
-    {
-        std::ofstream os("/Users/jingwei/Desktop/sharp2.obj");
-        for (int i = 0; i < O.cols(); ++i) {
-            os << "v " << O(0, i) << " " << O(1, i) << " " << O(2, i) << "\n";
-        }
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i] == 0)
-                continue;
-            int v1 = F(i%3, i/3) + 1;
-            int v2 = F((i+1)%3, i/3)+1;
-            os << "l " << v1 << " " << v2 << "\n";
-        }
-        os.close();
-    }
+
     AdvancedExtractQuad();
 
     FixValence();
