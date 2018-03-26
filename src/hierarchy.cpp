@@ -556,8 +556,12 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                 int dimension = toUpperOrients[i] % 2;
                 if (Allow[i * 2 + dimension] == 0)
                     nAllow[toUpper[i] * 2] = 0;
+                else if (Allow[i * 2 + dimension] == 2)
+                    nAllow[toUpper[i] * 2] = 2;
                 if (Allow[i * 2 + 1 - dimension] == 0)
                     nAllow[toUpper[i] * 2 + 1] = 0;
+                else if (Allow[i * 2 + 1 - dimension] == 2)
+                    nAllow[toUpper[i] * 2 + 1] = 2;
             }
         }
         std::vector<int> upperface(F2E.size(), -1);

@@ -908,6 +908,22 @@ void Optimizer::optimize_positions_sharp(Hierarchy& mRes, std::vector<DEdge>& ed
             loops.push_back(new_o);
         }
     }
+    return;
+    std::ofstream os("/Users/jingwei/Desktop/sharp.obj");
+    for (int i = 0; i < loops.size(); ++i) {
+        for (auto& v : loops[i]) {
+            os << "v " << v[0] << " " << v[1] << " " << v[2] << "\n";
+        }
+    }
+    int offset = 1;
+    for (int i = 0; i < loops.size(); ++i) {
+        for (int j = 0; j < loops[i].size() - 1; ++j) {
+            os << "l " << offset + j << " " << offset + j + 1 << "\n";
+        }
+        offset += loops[i].size();
+    }
+    os.close();
+    exit(0);
 }
 
 void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,
@@ -1169,10 +1185,9 @@ void Optimizer::optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& ed
 }
 
 void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
-    int edge_capacity = 2;
+    int edge_capacity = 1;
     bool FullFlow = false;
     std::vector<std::vector<int> >& AllowChange = mRes.mAllowChanges;
-
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
         auto& EdgeDiff = mRes.mEdgeDiff[level];
         auto& FQ = mRes.mFQ[level];
@@ -1214,8 +1229,9 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                     arcs.push_back(std::make_pair(Vector2i(v1, v2), current_v));
                     if (AllowChange[level][i] == 1)
                         arc_ids.push_back(i + 1);
-                    else
+                    else {
                         arc_ids.push_back(-(i+1));
+                    }
                 }
             }
             int supply = 0;
@@ -1269,6 +1285,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             if (flow_count == supply) {
                 FullFlow = true;
             }
+
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
 #ifdef LOG_OUTPUT

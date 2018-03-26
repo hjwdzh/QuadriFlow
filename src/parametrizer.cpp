@@ -47,49 +47,68 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             }
         }
     }
-    allow_changes.resize(edge_diff.size() * 2, 1);
+    std::map<int, std::pair<Vector3d, Vector3d> > sharp_constraints;
+    std::set<int> sharpvert;
     for (int i = 0; i < sharp_edges.size(); ++i) {
-        if (sharp_edges[i] == 0)
-            continue;
-        int e = face_edgeIds[i/3][i%3];
-        for (int k = 0; k < 2; ++k) {
-            if (edge_diff[e][k] == 0) {
-                if (sharp_edges[i])
-                    allow_changes[e * 2 + k] = 0;
-            }
+        if (sharp_edges[i]) {
+            sharpvert.insert(F(i%3,i/3));
+            sharpvert.insert(F((i+1)%3,i/3));
         }
     }
     
-    // Debug Sharp
-    auto DebugSharp = [&]()
-    {
-        bool flag = true;
-        for (int i = 0; i < sharp_edges.size(); ++i) {
-            if (sharp_edges[i] == 0)
-                continue;
-            int e = face_edgeIds[i/3][i%3];
-            if (edge_diff[e][0] * edge_diff[e][1] != 0) {
-                flag = false;
+    std::set<int> long_edge;
+    allow_changes.resize(edge_diff.size() * 2, 1);
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        int e = face_edgeIds[i/3][i%3];
+        if (sharpvert.count(edge_values[e].x) && sharpvert.count(edge_values[e].y)) {
+            if (sharp_edges[i] != 0) {
+                for (int k = 0; k < 2; ++k) {
+                    if (edge_diff[e][k] == 0) {
+                        allow_changes[e * 2 + k] = 0;
+                    } else {
+//                        allow_changes[e * 2 + k] = 2;
+                    }
+                }
+            } else {
+//                for (int k = 0; k < 2; ++k) {
+                    if (edge_diff[e][0] != 0 && edge_diff[e][1] != 0) {
+                        allow_changes[e * 2 + 0] = 2;
+                        allow_changes[e * 2 + 1] = 2;
+                        long_edge.insert(e * 2 + 0);
+                        long_edge.insert(e * 2 + 1);
+                    }
+//                }
             }
         }
-        if (flag)
-            printf("Sharp condition pass!\n");
-        else
-            printf("Sharp condition violated!\n");
-    };
+    }
+
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
     BuildIntegerConstraints();
 
     ComputeMaxFlow();
-
+    for (auto& e : long_edge) {
+        if (edge_diff[e/2][e%2] == 0) {
+            printf(".....\n");
+            exit(0);
+        }
+    }
+    
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
-
+    
+    sharpvert.clear();
+    for (int i = 0; i < sharp_edges.size(); ++i) {
+        if (sharp_edges[i]) {
+            sharpvert.insert(F(i%3,i/3));
+            sharpvert.insert(F((i+1)%3,i/3));
+        }
+    }
+    
     allow_changes.clear();
     allow_changes.resize(edge_diff.size() * 2, 1);
     for (int i = 0; i < sharp_edges.size(); ++i) {
@@ -139,8 +158,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
     
-    std::map<int, std::pair<Vector3d, Vector3d> > sharp_constraints;
-
     Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, sharp_constraints, with_scale);
 
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, sharp_constraints, flag_adaptive_scale);
