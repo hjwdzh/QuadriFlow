@@ -553,7 +553,6 @@ void Optimizer::optimize_positions_dynamic(
                 Vector3d C = target_offset - offset;
                 int vid[] = {j * 2, j * 2 + 1, i * 2, i * 2 + 1};
                 Vector3d weights[] = {qx2, qy2, -qx, -qy};
-
                 for (int ii = 0; ii < 4; ++ii) {
                     for (int jj = 0; jj < 4; ++jj) {
                         auto it = entries[vid[ii]].find(vid[jj]);

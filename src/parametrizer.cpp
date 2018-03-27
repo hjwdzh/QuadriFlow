@@ -118,6 +118,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
+    printf("Solve sat!\n");
     FixFlipSat();
 
     //    DebugSharp();
@@ -151,7 +152,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     for (int i = 0; i < Vset.size(); ++i) {
         int sharpv = -1;
         for (auto& p : Vset[i]) {
-            if (sharp_vertices.count(p)) {
+            if (sharp_constraints.count(p)) {
                 sharpv = p;
                 sharp_o[i] = 1;
                 if (compact_sharp_constraints.count(i) == 0 ||
