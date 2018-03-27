@@ -255,9 +255,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             diff_count[i] = 1;
         }
     }
-    
-    this->normalize_scale = 1;
-    this->normalize_offset = Vector3d::Zero();
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
                                           diffs, diff_count, o2e, sharp_o,
@@ -269,22 +266,3 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     //                            hierarchy.mScale, false);
 }
 
-    for (int i = 0; i < diff_count.size(); ++i) {
-        if (diff_count[i] != 0) {
-            diffs[i] /= diff_count[i];
-            diff_count[i] = 1;
-        }
-    }
-
-    this->normalize_scale = 1;
-    this->normalize_offset = Vector3d::Zero();
-    Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
-                                          E2E_compact, sqrt(surface_area / F_compact.size()),
-                                          diffs, diff_count, o2e, sharp_o,
-                                          compact_sharp_constraints, flag_adaptive_scale);
-    
-    //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
-    //    E2E_compact,
-    //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree,
-    //                            hierarchy.mScale, false);
-}
