@@ -5,6 +5,7 @@
 #include "merge-vertex.hpp"
 #include "parametrizer.hpp"
 #include "subdivide.hpp"
+#include "curvature.hpp"
 #include "dedge.hpp"
 #include <queue>
 
@@ -42,6 +43,8 @@ void Parametrizer::Load(const char* filename) {
 
 void Parametrizer::Initialize(int faces) {
     ComputeMeshStatus();
+    ComputeCurvature(V, F, rho);
+
 #ifdef PERFORMANCE_TEST
     num_vertices = V.cols() * 10;
     num_faces = num_vertices;
@@ -61,11 +64,19 @@ void Parametrizer::Initialize(int faces) {
 #ifdef PERFORMANCE_TEST
     scale = sqrt(surface_area / V.cols());
 #endif
+
     if (target_len < max_edge_length) {
         while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
             ;
-        subdivide(F, V, V2E, E2E, boundary, nonManifold, target_len);
+        subdivide(F, V, rho, V2E, E2E, boundary, nonManifold, target_len);
     }
+    double minK = 1e30, maxK = -1e30;
+    std::sort((double*)&rho[0], (double*)&rho[V.cols()-1]);
+    for (int i = 0; i < rho.size(); ++i) {
+        minK = std::min(minK, rho[i]);
+        maxK = std::max(maxK, rho[i]);
+    }
+
     int t1 = GetCurrentTime64();
     while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
         ;

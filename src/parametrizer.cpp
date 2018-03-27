@@ -69,8 +69,8 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                 }
             } else {
                 if (edge_diff[e][0] != 0 && edge_diff[e][1] != 0) {
-                    allow_changes[e * 2 + 0] = 2;
-                    allow_changes[e * 2 + 1] = 2;
+//                    allow_changes[e * 2 + 0] = 2;
+//                    allow_changes[e * 2 + 1] = 2;
                 }
             }
         }

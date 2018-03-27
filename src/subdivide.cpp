@@ -8,7 +8,7 @@
 #include "field-math.hpp"
 #include "parametrizer.hpp"
 
-void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
+void subdivide(MatrixXi &F, MatrixXd &V, VectorXd& rho, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
                VectorXi &nonmanifold, double maxLength) {
     typedef std::pair<double, int> Edge;
 
@@ -20,7 +20,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
         int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
         if (nonmanifold[v0] || nonmanifold[v1]) continue;
         double length = (V.col(v0) - V.col(v1)).squaredNorm();
-        if (length > maxLength) {
+        if (length > maxLength || length > std::max(maxLength * 0.25, std::min(rho[v0], rho[v1]) * 0.5) * 0.501) {
             int other = E2E[i];
             if (other == -1 || other > i) queue.push(Edge(length, i));
         }
@@ -61,6 +61,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
         /* Update V */
         if (nV > V.cols()) {
             V.conservativeResize(V.rows(), V.cols() * 2);
+            rho.conservativeResize(V.cols() * 2);
             V2E.conservativeResize(V.cols());
             boundary.conservativeResize(V.cols());
             nonmanifold.conservativeResize(V.cols());
@@ -68,6 +69,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
 
         /* Update V */
         V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5f;
+        rho[vn] = std::min(rho[v0], rho[v1]);
         nonmanifold[vn] = false;
         boundary[vn] = is_boundary;
 
@@ -119,7 +121,9 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
         auto schedule = [&](int f) {
             for (int i = 0; i < 3; ++i) {
                 double length = (V.col(F(i, f)) - V.col(F((i + 1) % 3, f))).squaredNorm();
-                if (length > maxLength) queue.push(Edge(length, f * 3 + i));
+                if (length > maxLength
+                    || length > std::max(maxLength * 0.25, std::min(rho[F(i, f)], rho[F((i + 1) % 3, f)]) * 0.5) * 0.501)
+                    queue.push(Edge(length, f * 3 + i));
             }
         };
 
@@ -132,6 +136,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXi &V2E, VectorXi &E2E, VectorXi 
     }
     F.conservativeResize(F.rows(), nF);
     V.conservativeResize(V.rows(), nV);
+    rho.conservativeResize(nV);
     V2E.conservativeResize(nV);
     boundary.conservativeResize(nV);
     nonmanifold.conservativeResize(nV);

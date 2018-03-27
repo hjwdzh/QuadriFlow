@@ -90,6 +90,7 @@ public:
     Vector3d normalize_offset;
     
 	// data structures
+    VectorXd rho;
 	VectorXi V2E;
 	VectorXi E2E;
 	VectorXi boundary;

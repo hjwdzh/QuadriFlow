@@ -371,7 +371,7 @@ protected:
     }
 
     static inline void binDRUP_flush(FILE* drup_file){
-        fwrite_unlocked(drup_buf, sizeof(unsigned char), buf_len, drup_file);
+        fwrite(drup_buf, sizeof(unsigned char), buf_len, drup_file);
         buf_ptr = drup_buf; buf_len = 0;
     }
 #endif

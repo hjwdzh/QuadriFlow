@@ -8,7 +8,7 @@ class Optimizer {
    public:
     Optimizer();
     static void optimize_orientations(Hierarchy& mRes);
-    static void optimize_scale(Hierarchy& mRes);
+    static void optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive);
     static void optimize_positions(Hierarchy& mRes, int with_scale = 0);
     static void optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities);
     static void optimize_positions_fixed(Hierarchy& mRes, std::vector<DEdge>& edge_values,

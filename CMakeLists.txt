@@ -34,6 +34,7 @@ option(BUILD_LOG "Enable verbose log" OFF)
 include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(3rd/pss)
+include_directories(3rd/libigl/include)
 include_directories(${CERES_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
@@ -60,6 +61,8 @@ set(
     src/adjacent-matrix.hpp
     src/compare-key.hpp
     src/config.hpp
+    src/curvature.hpp
+    src/curvature.cpp
     src/dedge.cpp
     src/dedge.hpp
     src/disajoint-tree.hpp

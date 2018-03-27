@@ -64,13 +64,12 @@ int main(int argc, char** argv) {
         field.EstimateSlope();
         t2 = GetCurrentTime64();
         printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-
-        printf("Solve for scale...\n");
-        t1 = GetCurrentTime64();
-        Optimizer::optimize_scale(field.hierarchy);
-        t2 = GetCurrentTime64();
-        printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
     }
+    printf("Solve for scale...\n");
+    t1 = GetCurrentTime64();
+    Optimizer::optimize_scale(field.hierarchy, field.rho, field.flag_adaptive_scale);
+    t2 = GetCurrentTime64();
+    printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     printf("Solve for position field...\n");
     fflush(stdout);

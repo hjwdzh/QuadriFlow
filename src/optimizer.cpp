@@ -116,86 +116,102 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
 #endif
 }
 
-void Optimizer::optimize_scale(Hierarchy& mRes) {
+void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
     const MatrixXd& N = mRes.mN[0];
     MatrixXd& Q = mRes.mQ[0];
     MatrixXd& V = mRes.mV[0];
     MatrixXd& S = mRes.mS[0];
     MatrixXd& K = mRes.mK[0];
     MatrixXi& F = mRes.mF;
-    std::vector<Eigen::Triplet<double>> lhsTriplets;
+    
+    if (adaptive) {
+        std::vector<Eigen::Triplet<double>> lhsTriplets;
 
-    lhsTriplets.reserve(F.cols() * 6);
-    std::vector<std::map<int, double>> entries(V.cols() * 2);
-    for (int i = 0; i < F.cols(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            int v1 = F(j, i);
-            int v2 = F((j + 1) % 3, i);
-            Vector3d diff = V.col(v2) - V.col(v1);
-            Vector3d q_1 = Q.col(v1);
-            Vector3d q_2 = Q.col(v2);
-            Vector3d n_1 = N.col(v1);
-            Vector3d n_2 = N.col(v2);
-            Vector3d q_1_y = n_1.cross(q_1);
-            auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
-            int v1_x = v1 * 2, v1_y = v1 * 2 + 1, v2_x = v2 * 2, v2_y = v2 * 2 + 1;
+        lhsTriplets.reserve(F.cols() * 6);
+        std::vector<std::map<int, double>> entries(V.cols() * 2);
+        for (int i = 0; i < F.cols(); ++i) {
+            for (int j = 0; j < 3; ++j) {
+                int v1 = F(j, i);
+                int v2 = F((j + 1) % 3, i);
+                Vector3d diff = V.col(v2) - V.col(v1);
+                Vector3d q_1 = Q.col(v1);
+                Vector3d q_2 = Q.col(v2);
+                Vector3d n_1 = N.col(v1);
+                Vector3d n_2 = N.col(v2);
+                Vector3d q_1_y = n_1.cross(q_1);
+                auto index = compat_orientation_extrinsic_index_4(q_1, n_1, q_2, n_2);
+                int v1_x = v1 * 2, v1_y = v1 * 2 + 1, v2_x = v2 * 2, v2_y = v2 * 2 + 1;
 
-            double dx = diff.dot(q_1);
-            double dy = diff.dot(q_1_y);
+                double dx = diff.dot(q_1);
+                double dy = diff.dot(q_1_y);
 
-            double kx_g = K(0, v1);
-            double ky_g = K(1, v1);
+                double kx_g = K(0, v1);
+                double ky_g = K(1, v1);
 
-            if (index.first % 2 != index.second % 2) {
-                std::swap(v2_x, v2_y);
-            }
-            double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.3), 3));
-            double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.3), 3));
+                if (index.first % 2 != index.second % 2) {
+                    std::swap(v2_x, v2_y);
+                }
+                double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.3), 3));
+                double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.3), 3));
 
-            auto it = entries[v1_x].find(v2_x);
-            if (it == entries[v1_x].end()) {
-                entries[v1_x][v2_x] = -scale_x;
-                entries[v2_x][v1_x] = scale_x;
-                entries[v1_y][v2_y] = -scale_y;
-                entries[v2_y][v1_y] = scale_y;
-            } else {
-                it->second -= scale_x;
-                entries[v2_x][v1_x] += scale_x;
-                entries[v1_y][v2_y] -= scale_y;
-                entries[v2_y][v1_y] += scale_y;
+                auto it = entries[v1_x].find(v2_x);
+                if (it == entries[v1_x].end()) {
+                    entries[v1_x][v2_x] = -scale_x;
+                    entries[v2_x][v1_x] = scale_x;
+                    entries[v1_y][v2_y] = -scale_y;
+                    entries[v2_y][v1_y] = scale_y;
+                } else {
+                    it->second -= scale_x;
+                    entries[v2_x][v1_x] += scale_x;
+                    entries[v1_y][v2_y] -= scale_y;
+                    entries[v2_y][v1_y] += scale_y;
+                }
             }
         }
-    }
 
-    Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
-    VectorXd rhs(V.cols() * 2);
-    rhs.setZero();
-    for (int i = 0; i < entries.size(); ++i) {
-        lhsTriplets.push_back(Eigen::Triplet<double>(i, i, entries[i].size()));
-        for (auto& rec : entries[i]) {
-            rhs(i) += rec.second;
-            lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, -1));
+        Eigen::SparseMatrix<double> A(V.cols() * 2, V.cols() * 2);
+        VectorXd rhs(V.cols() * 2);
+        rhs.setZero();
+        for (int i = 0; i < entries.size(); ++i) {
+            lhsTriplets.push_back(Eigen::Triplet<double>(i, i, entries[i].size()));
+            for (auto& rec : entries[i]) {
+                rhs(i) += rec.second;
+                lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, -1));
+            }
+        }
+        A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
+        Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+        solver.analyzePattern(A);
+
+        solver.factorize(A);
+
+        VectorXd result = solver.solve(rhs);
+
+        double total_area = 0;
+        for (int i = 0; i < V.cols(); ++i) {
+            S(0, i) = exp(result(i * 2));
+            S(1, i) = exp(result(i * 2 + 1));
+            total_area += S(0, i) * S(1, i);
+        }
+        total_area = sqrt(V.cols() / total_area);
+        for (int i = 0; i < V.cols(); ++i) {
+            S(0, i) *= total_area;
+            S(1, i) *= total_area;
+        }
+    } else {
+        for (int i = 0; i < V.cols(); ++i) {
+            S(0, i) = 1;
+            S(1, i) = 1;
         }
     }
-    A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    solver.analyzePattern(A);
-
-    solver.factorize(A);
-
-    VectorXd result = solver.solve(rhs);
-
-    double total_area = 0;
+    /*
     for (int i = 0; i < V.cols(); ++i) {
-        S(0, i) = exp(result(i * 2));
-        S(1, i) = exp(result(i * 2 + 1));
-        total_area += S(0, i) * S(1, i);
+        double sc1 = std::max(0.25, rho[i] * 0.5 / mRes.mScale) * 0.501;
+        for (int j = 0; j < 2; ++j) {
+            S(j, i) = std::min(S(j, i), sc1);
+        }
     }
-    total_area = sqrt(V.cols() / total_area);
-    for (int i = 0; i < V.cols(); ++i) {
-        S(0, i) *= total_area;
-        S(1, i) *= total_area;
-    }
+     */
     for (int l = 0; l < mRes.mS.size() - 1; ++l) {
         const MatrixXd& S = mRes.mS[l];
         MatrixXd& S_next = mRes.mS[l + 1];
