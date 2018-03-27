@@ -26,11 +26,11 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& O = hierarchy.mO[0];
     auto& S = hierarchy.mS[0];
     // ComputeOrientationSingularities();
-
+    
     BuildEdgeInfo();
-
+    
     if (flag_preserve_sharp) {
-//        ComputeSharpO();
+        //        ComputeSharpO();
     }
     for (int i = 0; i < sharp_edges.size(); ++i) {
         if (sharp_edges[i]) {
@@ -55,8 +55,6 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             sharpvert.insert(F((i+1)%3,i/3));
         }
     }
-    
-    std::set<int> long_edge;
     allow_changes.resize(edge_diff.size() * 2, 1);
     for (int i = 0; i < sharp_edges.size(); ++i) {
         int e = face_edgeIds[i/3][i%3];
@@ -66,48 +64,30 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                     if (edge_diff[e][k] == 0) {
                         allow_changes[e * 2 + k] = 0;
                     } else {
-//                        allow_changes[e * 2 + k] = 2;
+                        //                        allow_changes[e * 2 + k] = 2;
                     }
                 }
             } else {
-//                for (int k = 0; k < 2; ++k) {
-                    if (edge_diff[e][0] != 0 && edge_diff[e][1] != 0) {
-                        allow_changes[e * 2 + 0] = 2;
-                        allow_changes[e * 2 + 1] = 2;
-                        long_edge.insert(e * 2 + 0);
-                        long_edge.insert(e * 2 + 1);
-                    }
-//                }
+                if (edge_diff[e][0] != 0 && edge_diff[e][1] != 0) {
+                    allow_changes[e * 2 + 0] = 2;
+                    allow_changes[e * 2 + 1] = 2;
+                }
             }
         }
     }
-
+    
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
     BuildIntegerConstraints();
-
+    
     ComputeMaxFlow();
-    for (auto& e : long_edge) {
-        if (edge_diff[e/2][e%2] == 0) {
-            printf(".....\n");
-            exit(0);
-        }
-    }
     
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
-    
-    sharpvert.clear();
-    for (int i = 0; i < sharp_edges.size(); ++i) {
-        if (sharp_edges[i]) {
-            sharpvert.insert(F(i%3,i/3));
-            sharpvert.insert(F((i+1)%3,i/3));
-        }
-    }
     
     allow_changes.clear();
     allow_changes.resize(edge_diff.size() * 2, 1);
@@ -120,11 +100,11 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                 allow_changes[e * 2 + k] = 0;
         }
     }
-
+    
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
 #endif
-
+    
     int t1 = GetCurrentTime64();
     
     for (int i = 0; i < face_edgeIds.size(); ++i) {
@@ -138,15 +118,15 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
     FixFlipHierarchy();
-
+    
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
-//    FixFlipSat();
-
-//    DebugSharp();
+    //    FixFlipSat();
+    
+    //    DebugSharp();
     
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
-
+    
 #ifdef LOG_OUTPUT
     printf("Post Linear Solver...\n");
 #endif
@@ -159,13 +139,13 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     }
     
     Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges, sharp_vertices, sharp_constraints, with_scale);
-
+    
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices, sharp_constraints, flag_adaptive_scale);
-
+    
     AdvancedExtractQuad();
-
+    
     FixValence();
-
+    
     std::vector<int> sharp_o(O_compact.size(), 0);
     std::map<int, std::pair<Vector3d, Vector3d> > compact_sharp_constraints;
     for (int i = 0; i < Vset.size(); ++i) {
@@ -269,6 +249,26 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
     
+    for (int i = 0; i < diff_count.size(); ++i) {
+        if (diff_count[i] != 0) {
+            diffs[i] /= diff_count[i];
+            diff_count[i] = 1;
+        }
+    }
+    
+    this->normalize_scale = 1;
+    this->normalize_offset = Vector3d::Zero();
+    Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
+                                          E2E_compact, sqrt(surface_area / F_compact.size()),
+                                          diffs, diff_count, o2e, sharp_o,
+                                          compact_sharp_constraints, flag_adaptive_scale);
+    
+    //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
+    //    E2E_compact,
+    //                            V, N, Q, O, F, V2E, hierarchy.mE2E, disajoint_tree,
+    //                            hierarchy.mScale, false);
+}
+
     for (int i = 0; i < diff_count.size(); ++i) {
         if (diff_count[i] != 0) {
             diffs[i] /= diff_count[i];
