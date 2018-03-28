@@ -76,6 +76,9 @@ artifacts/
 *.svclog
 *.scc
 
+open-wbo
+open-wbo_*
+
 # Chutzpah Test files
 _Chutzpah*
 
