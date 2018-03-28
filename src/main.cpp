@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
     printf("Solve for scale...\n");
     t1 = GetCurrentTime64();
     Optimizer::optimize_scale(field.hierarchy, field.rho, field.flag_adaptive_scale);
+    field.flag_adaptive_scale = 1;
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 

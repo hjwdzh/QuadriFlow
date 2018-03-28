@@ -70,18 +70,22 @@ void Parametrizer::Initialize(int faces) {
             ;
         subdivide(F, V, rho, V2E, E2E, boundary, nonManifold, target_len);
     }
-    double minK = 1e30, maxK = -1e30;
-    std::sort((double*)&rho[0], (double*)&rho[V.cols()-1]);
-    for (int i = 0; i < rho.size(); ++i) {
-        minK = std::min(minK, rho[i]);
-        maxK = std::max(maxK, rho[i]);
-    }
-
+    
     int t1 = GetCurrentTime64();
     while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
         ;
     generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
 
+    for (int iter = 0; iter < 5; ++iter) {
+        VectorXd r(rho.size());
+        for (int i = 0; i < rho.size(); ++i) {
+            r[i] = rho[i];
+            for (auto& id : adj[i]) {
+                r[i] = std::min(r[i], rho[id.id]);
+            }
+        }
+        rho = r;
+    }
     ComputeSharpEdges();
     ComputeSmoothNormal();
     ComputeVertexArea();

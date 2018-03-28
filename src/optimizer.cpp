@@ -128,7 +128,19 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
         std::vector<Eigen::Triplet<double>> lhsTriplets;
 
         lhsTriplets.reserve(F.cols() * 6);
+        for (int i = 0; i < V.cols(); ++i) {
+            for (int j = 0; j < 2; ++j) {
+                S(j, i) = 1.0;
+                double sc1 = std::max(0.75 * S(j, i), rho[i] * 1.0 / mRes.mScale);
+                S(j, i) = std::min(S(j, i), sc1);
+            }
+        }
+        
         std::vector<std::map<int, double>> entries(V.cols() * 2);
+        double lambda = 1;
+        for (int i = 0; i < entries.size(); ++i) {
+            entries[i][i] = lambda;
+        }
         for (int i = 0; i < F.cols(); ++i) {
             for (int j = 0; j < 3; ++j) {
                 int v1 = F(j, i);
@@ -151,20 +163,25 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
                 if (index.first % 2 != index.second % 2) {
                     std::swap(v2_x, v2_y);
                 }
-                double scale_x = log(fmin(fmax(1 + kx_g * dy, 0.3), 3));
-                double scale_y = log(fmin(fmax(1 + ky_g * dx, 0.3), 3));
-
+                double scale_x = (fmin(fmax(1 + kx_g * dy, 0.3), 3));
+                double scale_y = (fmin(fmax(1 + ky_g * dx, 0.3), 3));
+//                (v2_x - scale_x * v1_x)^2 = 0
+                //x^2 - 2s xy + s^2 y^2
+                entries[v2_x][v2_x] += 1;
+                entries[v1_x][v1_x] += scale_x * scale_x;
+                entries[v2_y][v2_y] += 1;
+                entries[v1_y][v1_y] += scale_y * scale_y;
                 auto it = entries[v1_x].find(v2_x);
                 if (it == entries[v1_x].end()) {
                     entries[v1_x][v2_x] = -scale_x;
-                    entries[v2_x][v1_x] = scale_x;
+                    entries[v2_x][v1_x] = -scale_x;
                     entries[v1_y][v2_y] = -scale_y;
-                    entries[v2_y][v1_y] = scale_y;
+                    entries[v2_y][v1_y] = -scale_y;
                 } else {
                     it->second -= scale_x;
-                    entries[v2_x][v1_x] += scale_x;
+                    entries[v2_x][v1_x] -= scale_x;
                     entries[v1_y][v2_y] -= scale_y;
-                    entries[v2_y][v1_y] += scale_y;
+                    entries[v2_y][v1_y] -= scale_y;
                 }
             }
         }
@@ -173,14 +190,13 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
         VectorXd rhs(V.cols() * 2);
         rhs.setZero();
         for (int i = 0; i < entries.size(); ++i) {
-            lhsTriplets.push_back(Eigen::Triplet<double>(i, i, entries[i].size()));
+            rhs(i) = lambda * S(i%2, i/2);
             for (auto& rec : entries[i]) {
-                rhs(i) += rec.second;
-                lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, -1));
+                lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
             }
         }
         A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-        Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+        Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
         solver.analyzePattern(A);
 
         solver.factorize(A);
@@ -189,14 +205,14 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
 
         double total_area = 0;
         for (int i = 0; i < V.cols(); ++i) {
-            S(0, i) = exp(result(i * 2));
-            S(1, i) = exp(result(i * 2 + 1));
+            S(0, i) = (result(i * 2));
+            S(1, i) = (result(i * 2 + 1));
             total_area += S(0, i) * S(1, i);
         }
         total_area = sqrt(V.cols() / total_area);
         for (int i = 0; i < V.cols(); ++i) {
-            S(0, i) *= total_area;
-            S(1, i) *= total_area;
+//            S(0, i) *= total_area;
+//            S(1, i) *= total_area;
         }
     } else {
         for (int i = 0; i < V.cols(); ++i) {
@@ -204,14 +220,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
             S(1, i) = 1;
         }
     }
-    /*
-    for (int i = 0; i < V.cols(); ++i) {
-        double sc1 = std::max(0.25, rho[i] * 0.5 / mRes.mScale) * 0.501;
-        for (int j = 0; j < 2; ++j) {
-            S(j, i) = std::min(S(j, i), sc1);
-        }
-    }
-     */
+    
     for (int l = 0; l < mRes.mS.size() - 1; ++l) {
         const MatrixXd& S = mRes.mS[l];
         MatrixXd& S_next = mRes.mS[l + 1];
@@ -1162,7 +1171,7 @@ void Optimizer::optimize_positions_fixed(
 }
 
 void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
-    int edge_capacity = 1;
+    int edge_capacity = 2;
     bool FullFlow = false;
     std::vector<std::vector<int>>& AllowChange = mRes.mAllowChanges;
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {

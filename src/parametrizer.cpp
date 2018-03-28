@@ -119,7 +119,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
     printf("Solve sat!\n");
-    FixFlipSat();
+//    FixFlipSat();
 
     //    DebugSharp();
 
@@ -252,6 +252,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             diff_count[i] = 1;
         }
     }
+
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
                                           diffs, diff_count, o2e, sharp_o,

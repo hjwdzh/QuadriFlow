@@ -20,7 +20,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXd& rho, VectorXi &V2E, VectorXi 
         int v0 = F(i % 3, i / 3), v1 = F((i + 1) % 3, i / 3);
         if (nonmanifold[v0] || nonmanifold[v1]) continue;
         double length = (V.col(v0) - V.col(v1)).squaredNorm();
-        if (length > maxLength || length > std::max(maxLength * 0.25, std::min(rho[v0], rho[v1]) * 0.5) * 0.501) {
+        if (length > maxLength || length > std::max(maxLength * 0.75, std::min(rho[v0], rho[v1]) * 1.0)) {
             int other = E2E[i];
             if (other == -1 || other > i) queue.push(Edge(length, i));
         }
@@ -69,7 +69,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXd& rho, VectorXi &V2E, VectorXi 
 
         /* Update V */
         V.col(vn) = (V.col(v0) + V.col(v1)) * 0.5f;
-        rho[vn] = std::min(rho[v0], rho[v1]);
+        rho[vn] = 0.5f * (rho[v0], rho[v1]);
         nonmanifold[vn] = false;
         boundary[vn] = is_boundary;
 
@@ -122,7 +122,7 @@ void subdivide(MatrixXi &F, MatrixXd &V, VectorXd& rho, VectorXi &V2E, VectorXi 
             for (int i = 0; i < 3; ++i) {
                 double length = (V.col(F(i, f)) - V.col(F((i + 1) % 3, f))).squaredNorm();
                 if (length > maxLength
-                    || length > std::max(maxLength * 0.25, std::min(rho[F(i, f)], rho[F((i + 1) % 3, f)]) * 0.5) * 0.501)
+                    || length > std::max(maxLength * 0.75, std::min(rho[F(i, f)], rho[F((i + 1) % 3, f)]) * 1.0))
                     queue.push(Edge(length, f * 3 + i));
             }
         };
