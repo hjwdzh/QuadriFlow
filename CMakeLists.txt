@@ -9,7 +9,24 @@ find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
 find_package(Ceres REQUIRED)
-FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED)
+
+
+find_path(
+    LEMON_SOURCE_ROOT_DIR
+    CMakeLists.txt
+    PATHS ${CMAKE_SOURCE_DIR}/3rd/lemon-1.3.1 NO_DEFAULT_PATH
+    DOC "Location of LEMON source as a CMAKE subproject"
+)
+
+if (EXISTS ${LEMON_SOURCE_ROOT_DIR})
+    add_subdirectory(${LEMON_SOURCE_ROOT_DIR})
+    set(LEMON_INCLUDE_DIRS ${LEMON_SOURCE_ROOT_DIR})
+    set(LEMON_LIBRARIES lemon)
+else()
+    find_package(LEMON QUIET NO_MODULE)
+    find_package(LEMON REQUIRED)
+endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
@@ -35,13 +52,14 @@ include_directories(src)
 include_directories(3rd/pcg32)
 include_directories(3rd/pss)
 include_directories(3rd/libigl/include)
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${CERES_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
+include_directories(${LEMON_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
-include_directories(${Boost_INCLUDE_DIRS})
 
 if(BUILD_PERFORMANCE_TEST)
     add_definitions(-DPERFORMANCE_TEST)
@@ -115,6 +133,7 @@ target_link_libraries(
     ${OPENGL_LIBRARIES}
     ${TBB_LIBRARIES}
     ${Boost_LIBRARIES}
+    ${LEMON_LIBRARIES}
 )
 
 target_link_libraries(
