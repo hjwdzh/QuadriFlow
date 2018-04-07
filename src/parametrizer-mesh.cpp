@@ -37,7 +37,7 @@ void Parametrizer::Load(const char* filename) {
     printf("faces size: %d\n", (int)F.cols());
 #endif
     this->normalize_scale = scale;
-    this->normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]), 0.5 * (maxV[1] + minV[1]), 0.5 * 0.5 * (maxV[2] + minV[2]));
+    this->normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]), 0.5 * (maxV[1] + minV[1]), 0.5 * (maxV[2] + minV[2]));
     //    merge_close(V, F, 1e-6);
 }
 
