@@ -119,7 +119,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
     printf("Solve sat!\n");
-    FixFlipSat();
+    //FixFlipSat();
 
     //    DebugSharp();
 

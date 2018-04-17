@@ -43,8 +43,11 @@ void Parametrizer::Load(const char* filename) {
 
 void Parametrizer::Initialize(int faces) {
     ComputeMeshStatus();
-    ComputeCurvature(V, F, rho);
-
+    //ComputeCurvature(V, F, rho);
+    rho.resize(V.cols(), 1);
+    for (int i = 0; i < V.cols(); ++i) {
+        rho[i] = 1;
+    }
 #ifdef PERFORMANCE_TEST
     num_vertices = V.cols() * 10;
     num_faces = num_vertices;
