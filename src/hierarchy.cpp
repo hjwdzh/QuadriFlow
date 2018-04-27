@@ -455,26 +455,33 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
 
         for (int i = 0; i < E2F.size(); ++i) {
             if (EdgeDiff[i] != Vector2i::Zero()) continue;
-            if (fixed_faces[E2F[i][0]] || fixed_faces[E2F[i][1]]) {
+            if ((E2F[i][0] >= 0 && fixed_faces[E2F[i][0]]) ||
+                (E2F[i][1] >= 0 && fixed_faces[E2F[i][1]])) {
                 continue;
             }
             for (int j = 0; j < 2; ++j) {
                 int f = E2F[i][j];
+                if (f < 0)
+                    continue;
                 for (int k = 0; k < 3; ++k) {
                     int neighbor_e = F2E[f][k];
                     for (int m = 0; m < 2; ++m) {
                         int neighbor_f = E2F[neighbor_e][m];
+                        if (neighbor_f < 0)
+                            continue;
                         if (fixed_faces[neighbor_f] == 0) fixed_faces[neighbor_f] = 1;
                     }
                 }
             }
-            fixed_faces[E2F[i][0]] = 2;
-            fixed_faces[E2F[i][1]] = 2;
+            if (E2F[i][0] >= 0)
+                fixed_faces[E2F[i][0]] = 2;
+            if (E2F[i][1] >= 0)
+                fixed_faces[E2F[i][1]] = 2;
             toUpper[i] = -2;
         }
         for (int i = 0; i < E2F.size(); ++i) {
             if (toUpper[i] == -2) continue;
-            if (fixed_faces[E2F[i][0]] == 2 && fixed_faces[E2F[i][1]] == 2) {
+            if ((E2F[i][0] < 0 || fixed_faces[E2F[i][0]] == 2) && (E2F[i][1] < 0 || fixed_faces[E2F[i][1]] == 2)) {
                 toUpper[i] = -3;
                 continue;
             }
@@ -482,13 +489,13 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         int numE = 0;
         for (int i = 0; i < toUpper.size(); ++i) {
             if (toUpper[i] == -1) {
-                if (fixed_faces[E2F[i][0]] < 2 && fixed_faces[E2F[i][1]] < 2) {
+                if ((E2F[i][0] < 0 || fixed_faces[E2F[i][0]] < 2) && (E2F[i][1] < 0 || fixed_faces[E2F[i][1]] < 2)) {
                     nE2F.push_back(E2F[i]);
                     toUpperOrients[i] = 0;
                     toUpper[i] = numE++;
                     continue;
                 }
-                int f0 = fixed_faces[E2F[i][0]] < 2 ? E2F[i][0] : E2F[i][1];
+                int f0 = (E2F[i][1] < 0 || fixed_faces[E2F[i][0]] < 2) ? E2F[i][0] : E2F[i][1];
                 int e = i;
                 int f = f0;
                 std::vector<std::pair<int, int>> paths;
@@ -498,7 +505,7 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
                         f = E2F[e][1];
                     else if (E2F[e][1] == f)
                         f = E2F[e][0];
-                    if (fixed_faces[f] < 2) {
+                    if (f < 0 || fixed_faces[f] < 2) {
                         for (int j = 0; j < paths.size(); ++j) {
                             auto& p = paths[j];
                             toUpper[p.first] = numE;
@@ -583,7 +590,8 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
         }
         for (int i = 0; i < nE2F.size(); ++i) {
             for (int j = 0; j < 2; ++j) {
-                nE2F[i][j] = upperface[nE2F[i][j]];
+                if (nE2F[i][j] >= 0)
+                    nE2F[i][j] = upperface[nE2F[i][j]];
             }
         }
 
@@ -622,12 +630,16 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
         int v2 = E2F[i][1];
         int t1 = 0;
         int t2 = 2;
-        while (F2E[v1][t1] != i) t1 += 1;
-        while (F2E[v2][t2] != i) t2 -= 1;
+        if (v1 != -1)
+            while (F2E[v1][t1] != i) t1 += 1;
+        if (v2 != -1)
+            while (F2E[v2][t2] != i) t2 -= 1;
         t1 += v1 * 3;
         t2 += v2 * 3;
-        E2E[t1] = t2;
-        E2E[t2] = t1;
+        if (v1 != -1)
+            E2E[t1] = (v2 == -1) ? -1 : t2;
+        if (v2 != -1)
+            E2E[t2] = (v1 == -1) ? -1 : t1;
     }
 
     auto IntegerArea = [&](int f) {
@@ -868,12 +880,16 @@ void Hierarchy::FixFlip() {
         int v2 = E2F[i][1];
         int t1 = 0;
         int t2 = 2;
-        while (F2E[v1][t1] != i) t1 += 1;
-        while (F2E[v2][t2] != i) t2 -= 1;
+        if (v1 != -1)
+            while (F2E[v1][t1] != i) t1 += 1;
+        if (v2 != -1)
+            while (F2E[v2][t2] != i) t2 -= 1;
         t1 += v1 * 3;
         t2 += v2 * 3;
-        E2E[t1] = t2;
-        E2E[t2] = t1;
+        if (v1 != -1)
+            E2E[t1] = (v2 == -1) ? -1 : t2;
+        if (v2 != -1)
+            E2E[t2] = (v1 == -1) ? -1 : t1;
     }
 
     auto Area = [&](int f) {
@@ -891,16 +907,21 @@ void Hierarchy::FixFlip() {
         std::vector<int> corresponding_faces;
         std::vector<int> corresponding_edges;
         std::vector<Vector2i> corresponding_diff;
+        int deid0 = deid;
+        while (deid != -1) {
+            deid = deid / 3 * 3 + (deid + 2) % 3;
+            if (E2E[deid] == -1)
+                break;
+            deid = E2E[deid];
+            if (deid == deid0)
+                break;
+        }
         Vector2i diff = EdgeDiff[F2E[deid / 3][deid % 3]];
         do {
             corresponding_diff.push_back(diff);
             corresponding_edges.push_back(deid);
             corresponding_faces.push_back(deid / 3);
-            if (corresponding_faces.size() > F2E.size() * 10) {
-                for (int i = 0; i < corresponding_edges.size(); ++i) {
-                }
-                exit(0);
-            }
+
             // transform to the next face
             deid = E2E[deid];
             if (deid == -1) {
@@ -913,7 +934,7 @@ void Hierarchy::FixFlip() {
             diff = rshift90(diff, (4 - FQ[deid / 3][deid % 3]) % 4);
         } while (deid != corresponding_edges.front());
         // check diff
-        if (diff != corresponding_diff.front()) {
+        if (deid != -1 && diff != corresponding_diff.front()) {
             return false;
         }
         std::unordered_map<int, Vector2i> new_values;

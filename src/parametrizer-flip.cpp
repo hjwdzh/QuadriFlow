@@ -205,20 +205,6 @@ void Parametrizer::AdvancedExtractQuad() {
     auto& EdgeDiff = fh.mEdgeDiff.back();
     auto& FQ = fh.mFQ.back();
 
-    std::vector<int> E2E(F2E.size() * 3, -1);
-    for (int i = 0; i < E2F.size(); ++i) {
-        int v1 = E2F[i][0];
-        int v2 = E2F[i][1];
-        int t1 = 0;
-        int t2 = 2;
-        while (F2E[v1][t1] != i) t1 += 1;
-        while (F2E[v2][t2] != i) t2 -= 1;
-        t1 += v1 * 3;
-        t2 += v2 * 3;
-        E2E[t1] = t2;
-        E2E[t2] = t1;
-    }
-
     std::vector<int> edge(E2F.size());
     std::vector<int> face(F2E.size());
     for (int i = 0; i < diffs.size(); ++i) {
@@ -282,12 +268,16 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
         int v2 = E2F[i][1];
         int t1 = 0;
         int t2 = 2;
-        while (F2E[v1][t1] != i) t1 += 1;
-        while (F2E[v2][t2] != i) t2 -= 1;
+        if (v1 != -1)
+            while (F2E[v1][t1] != i) t1 += 1;
+        if (v2 != -1)
+            while (F2E[v2][t2] != i) t2 -= 1;
         t1 += v1 * 3;
         t2 += v2 * 3;
-        E2E[t1] = t2;
-        E2E[t2] = t1;
+        if (v1 != -1)
+            E2E[t1] = (v2 == -1) ? -1 : t2;
+        if (v2 != -1)
+            E2E[t2] = (v1 == -1) ? -1 : t1;
     }
 
     std::vector<Vector3i> triangle_vertices(F2E.size(), Vector3i(-1, -1, -1));
@@ -308,7 +298,17 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
             do {
                 triangle_vertices[deid / 3][deid % 3] = num_v;
                 deid = E2E[deid / 3 * 3 + (deid + 2) % 3];
-            } while (deid != deid0);
+            } while (deid != deid0 && deid != -1);
+            if (deid == -1) {
+                deid = deid0;
+                do {
+                    deid = E2E[deid];
+                    if (deid == -1)
+                        break;
+                    deid = deid / 3 * 3 + (deid + 1) % 3;
+                    triangle_vertices[deid/3][deid%3] = num_v;
+                } while (deid != -1);
+            }
             num_v += 1;
         }
     }

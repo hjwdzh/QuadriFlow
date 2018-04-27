@@ -63,19 +63,11 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                 for (int k = 0; k < 2; ++k) {
                     if (edge_diff[e][k] == 0) {
                         allow_changes[e * 2 + k] = 0;
-                    } else {
-                        //                        allow_changes[e * 2 + k] = 2;
                     }
-                }
-            } else {
-                if (edge_diff[e][0] != 0 && edge_diff[e][1] != 0) {
-//                    allow_changes[e * 2 + 0] = 2;
-//                    allow_changes[e * 2 + 1] = 2;
                 }
             }
         }
     }
-    
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
@@ -114,19 +106,24 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             exit(0);
         }
     }
+
     FixFlipHierarchy();
+
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
+    
+#ifdef LOG_OUTPUT
     printf("Solve sat!\n");
+#endif
     //FixFlipSat();
 
     //    DebugSharp();
 
     int t2 = GetCurrentTime64();
-    printf("Flip use %lf\n", (t2 - t1) * 1e-3);
-
+    
 #ifdef LOG_OUTPUT
+    printf("Flip use %lf\n", (t2 - t1) * 1e-3);
     printf("Post Linear Solver...\n");
 #endif
     std::set<int> sharp_vertices;

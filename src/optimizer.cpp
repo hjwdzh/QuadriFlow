@@ -1206,6 +1206,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             std::vector<int> arc_ids;
             for (int i = 0; i < edge_to_constraints.size(); ++i) {
                 if (AllowChange[level][i] == 0) continue;
+                if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1)
+                    continue;
                 if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
                     int v1 = edge_to_constraints[i][0];
                     int v2 = edge_to_constraints[i][2];
@@ -1238,7 +1240,6 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             else
                 flow = new BoykovMaxFlowHelper;
 
-            //    flow.resize(constraints_index.size() + 2, edge_diff.size() * 2);
             flow->resize(initial.size() + 2, arc_ids.size());
             std::set<int> ids;
             for (int i = 0; i < arcs.size(); ++i) {
@@ -1263,14 +1264,11 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             }
 
             int flow_count = flow->compute();
-            // flow.compute(edge_diff, face_edgeIds, face_edgeOrients, true);
-            //    flow_count += flow.compute(edge_diff, face_edgeIds, face_edgeOrients, false);
             flow->Apply(EdgeDiff);
             delete flow;
             if (flow_count == supply) {
                 FullFlow = true;
             }
-
             if (level != 0 || FullFlow) break;
             edge_capacity += 1;
 #ifdef LOG_OUTPUT

@@ -324,10 +324,6 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         int sharp_eid01 = sharp_edges[f0 * 3 + (e0 + 1) % 3];
         int eid02 = face_edgeIds[f0][(e0 + 2) % 3];
         int sharp_eid02 = sharp_edges[f0 * 3 + (e0 + 2) % 3];
-        int eid11 = face_edgeIds[f1][(e1 + 1) % 3];
-        int sharp_eid11 = sharp_edges[f1 * 3 + (e1 + 1) % 3];
-        int eid12 = face_edgeIds[f1][(e1 + 2) % 3];
-        int sharp_eid12 = sharp_edges[f1 * 3 + (e1 + 2) % 3];
 
         int eid0, eid1, eid0p, eid1p;
         int sharp_eid0, sharp_eid1, sharp_eid0p, sharp_eid1p;
@@ -364,17 +360,10 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         auto D01 = diffs[e0];
         auto D1p = diffs[e0 / 3 * 3 + (e0 + 1) % 3];
         auto Dp0 = diffs[e0 / 3 * 3 + (e0 + 2) % 3];
-        auto Ds10 = diffs[e1];
-        auto Ds0p = diffs[e1 / 3 * 3 + (e1 + 1) % 3];
-
-        auto Dsp1 = diffs[e1 / 3 * 3 + (e1 + 2) % 3];
-        int orient = 0;
-        while (rshift90(D01, orient) != Ds10) orient += 1;
-
-        Vector2i D0n = D01 / 2, Dsn0 = rshift90(D0n, orient);
+        
+        Vector2i D0n = D01 / 2;
 
         auto orients1 = face_spaces[f0];
-        auto orients2 = face_spaces[f1];
         F.col(f0) << vn, v0p, v0;
         face_edgeIds[f0] = Vector3i(eid0p, eid02, eid0);
         sharp_edges[f0 * 3] = sharp_eid0p;
@@ -387,6 +376,20 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         int o1 = e0 % 3, o2 = e1 % 3;
         AnalyzeOrient(f0, Vector3i(0, orients1.d[(o1 + 2) % 3], orients1.d[o1]));
         if (!is_boundary) {
+            auto orients2 = face_spaces[f1];
+            int eid11 = face_edgeIds[f1][(e1 + 1) % 3];
+            int sharp_eid11 = sharp_edges[f1 * 3 + (e1 + 1) % 3];
+            int eid12 = face_edgeIds[f1][(e1 + 2) % 3];
+            int sharp_eid12 = sharp_edges[f1 * 3 + (e1 + 2) % 3];
+
+            auto Ds10 = diffs[e1];
+            auto Ds0p = diffs[e1 / 3 * 3 + (e1 + 1) % 3];
+            
+            auto Dsp1 = diffs[e1 / 3 * 3 + (e1 + 2) % 3];
+            int orient = 0;
+            while (rshift90(D01, orient) != Ds10) orient += 1;
+            Vector2i Dsn0 = rshift90(D0n, orient);
+            
             F.col(f1) << vn, v0, v1p;
             eid1p = edge_values.size();
             sharp_eid1p = 0;
@@ -428,8 +431,10 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         AnalyzeOrient(f3, Vector3i(orients1.d[o1], orients1.d[(o1 + 1) % 3], 0));
 
         FixOrient(f0);
-        FixOrient(f1);
-        FixOrient(f2);
+        if (!is_boundary) {
+            FixOrient(f1);
+            FixOrient(f2);
+        }
         FixOrient(f3);
 
         const int e0p = E2E[dedge_prev_3(e0)], e0n = E2E[dedge_next_3(e0)];
@@ -478,7 +483,6 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         };
         schedule(f3);
     }
-
     F.conservativeResize(F.rows(), nF);
     V.conservativeResize(V.rows(), nV);
     N.conservativeResize(V.rows(), nV);
