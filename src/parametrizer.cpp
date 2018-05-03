@@ -141,7 +141,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                                         sharp_constraints, flag_adaptive_scale);
 
     AdvancedExtractQuad();
-
+    
     FixValence();
 
     std::vector<int> sharp_o(O_compact.size(), 0);

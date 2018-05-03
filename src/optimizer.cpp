@@ -333,7 +333,7 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
 
 void Optimizer::optimize_positions_dynamic(
     MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int>>& Vset,
-    std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, VectorXi& V2E_compact,
+    std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, std::vector<int>& V2E_compact,
     std::vector<int>& E2E_compact, double mScale, std::vector<Vector3d>& diffs,
     std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e,
     std::vector<int>& sharp_o,

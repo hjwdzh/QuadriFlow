@@ -508,6 +508,7 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
     FixHoles();
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
+
     /*
     for (auto& p : flip_vertices) {
         int deid0 = V2E_compact[p];

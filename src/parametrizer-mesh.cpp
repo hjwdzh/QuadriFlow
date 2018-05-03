@@ -346,7 +346,11 @@ void Parametrizer::FixValence()
                 marks[v2] = true;
                 marks[v3] = true;
                 marks[v4] = true;
-                F_compact[dedges[0]/4] = Vector4i(v1, v2, v3, v4);
+                if (v1 == v2 || v1 == v3 || v1 == v4 || v2 == v3 || v2 == v4 || v3 == v4) {
+                    erasedF[dedges[0]/4] = 1;
+                } else {
+                    F_compact[dedges[0]/4] = Vector4i(v1, v2, v3, v4);
+                }
                 erasedF[dedges[1]/4] = 1;
                 update = true;
             }
@@ -365,6 +369,53 @@ void Parametrizer::FixValence()
             break;
         }
     }
+    std::vector<std::vector<int> > v_dedges(V2E_compact.size());
+    for (int i = 0; i < F_compact.size(); ++i) {
+        for (int j = 0; j < 4; ++j) {
+            v_dedges[F_compact[i][j]].push_back(i * 4 + j);
+        }
+    }
+    int top = V2E_compact.size();
+    for (int i = 0; i < v_dedges.size(); ++i) {
+        std::map<int, int> groups;
+        int group_id = 0;
+        for (int j = 0; j < v_dedges[i].size(); ++j) {
+            int deid = v_dedges[i][j];
+            if (groups.count(deid))
+                continue;
+            int deid0 = deid;
+            do {
+                groups[deid] = group_id;
+                deid = deid / 4 * 4 + (deid + 3) % 4;
+                deid = E2E_compact[deid];
+            } while (deid != deid0 && deid != -1);
+            if (deid == -1) {
+                deid = deid0;
+                while (E2E_compact[deid] != -1) {
+                    deid = E2E_compact[deid];
+                    deid = deid / 4 * 4 + (deid + 1) % 4;
+                    groups[deid] = group_id;
+                }
+            }
+            group_id += 1;
+        }
+        if (group_id > 1) {
+            for (auto& g : groups) {
+                if (g.second >= 1)
+                    F_compact[g.first/4][g.first%4] = top - 1 + g.second;
+            }
+            for (int j = 1; j < group_id; ++j) {
+                Vset.push_back(Vset[i]);
+                N_compact.push_back(N_compact[i]);
+                Q_compact.push_back(Q_compact[i]);
+                O_compact.push_back(O_compact[i]);
+            }
+            top = O_compact.size();
+        }
+    }
+    compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                              nonManifold_compact);
+    
     // Decrease Valence
     while (true) {
         bool update = false;
@@ -378,9 +429,14 @@ void Parametrizer::FixValence()
             int count = 0;
             do {
                 count += 1;
-                int deid1 = deid / 4 * 4 + (deid + 3) % 4;
-                deid = E2E_compact[deid1];
+                int deid1 = E2E_compact[deid];
+                if (deid1 == -1) {
+                    break;
+                }
+                deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
             } while (deid != deid0 && deid != -1);
+            if (deid == -1)
+                count += 1;
             valences[i] = count;
         }
         std::priority_queue<std::pair<int, int> > prior_queue;
@@ -405,38 +461,49 @@ void Parametrizer::FixValence()
                 loop_vertices.push_back(v);
                 if (marks[v])
                     marked = true;
-                int deid1 = deid / 4 * 4 + (deid + 3) % 4;
-                deid = E2E_compact[deid1];
+                int deid1 = E2E_compact[deid];
+                if (deid1 == -1)
+                    break;
+                deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
             } while (deid != deid0 && deid != -1);
             if (marked)
                 continue;
-            int step = (info.first + 1) / 2;
-            std::pair<int, int> min_val(0x7fffffff, 0x7fffffff);
-            int split_idx = -1;
-            for (int i = 0; i < loop_vertices.size(); ++i) {
-                if (i + step >= loop_vertices.size())
-                    continue;
-                int v1 = valences[loop_vertices[i]];
-                int v2 = valences[loop_vertices[i + step]];
-                if (v1 < v2)
-                    std::swap(v1, v2);
-                auto key = std::make_pair(v1, v2);
-                if (key < min_val) {
-                    min_val = key;
-                    split_idx = i;
+
+            if (deid != -1) {
+                int step = (info.first + 1) / 2;
+                std::pair<int, int> min_val(0x7fffffff, 0x7fffffff);
+                int split_idx = -1;
+                for (int i = 0; i < loop_vertices.size(); ++i) {
+                    if (i + step >= loop_vertices.size())
+                        continue;
+                    int v1 = valences[loop_vertices[i]];
+                    int v2 = valences[loop_vertices[i + step]];
+                    if (v1 < v2)
+                        std::swap(v1, v2);
+                    auto key = std::make_pair(v1, v2);
+                    if (key < min_val) {
+                        min_val = key;
+                        split_idx = i;
+                    }
                 }
+                if (min_val.first >= info.first)
+                    continue;
+                update = true;
+                for (int id = split_idx; id < split_idx + step; ++id) {
+                    F_compact[loop_dedges[id]/4][loop_dedges[id]%4] = O_compact.size();
+                }
+                F_compact.push_back(Vector4i(O_compact.size(), loop_vertices[(split_idx+loop_vertices.size()-1)%loop_vertices.size()],info.second, loop_vertices[(split_idx + step - 1 + loop_vertices.size()) % loop_vertices.size()]));
+            } else {
+                for (int id = loop_vertices.size() / 2; id < loop_vertices.size(); ++id) {
+                    F_compact[loop_dedges[id]/4][loop_dedges[id]%4] = O_compact.size();
+                }
+                update = true;
             }
-            if (min_val.first >= info.first)
-                continue;
-            update = true;
             marks[info.second] = 1;
             for (int i = 0; i < loop_vertices.size(); ++i) {
                 marks[loop_vertices[i]] = 1;
             }
-            for (int id = split_idx; id < split_idx + step; ++id) {
-                F_compact[loop_dedges[id]/4][loop_dedges[id]%4] = O_compact.size();
-            }
-            F_compact.push_back(Vector4i(info.second, loop_vertices[split_idx], O_compact.size(), loop_vertices[split_idx + step]));
+            marks[O_compact.size()] = 1;
             Vset.push_back(Vset[info.second]);
             O_compact.push_back(O_compact[info.second]);
             N_compact.push_back(N_compact[info.second]);
@@ -457,7 +524,7 @@ void Parametrizer::FixValence()
             valences[F_compact[i][j]] = 1;
         }
     }
-    int top = 0;
+    top = 0;
     std::vector<int> compact_indices(valences.size());
     for (int i = 0; i < valences.size(); ++i) {
         if (valences[i] == 0)
@@ -480,6 +547,51 @@ void Parametrizer::FixValence()
     Vset.resize(top);
     compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
                               nonManifold_compact);
+    {
+        compute_direct_graph_quad(O_compact, F_compact, V2E_compact, E2E_compact, boundary_compact,
+                                  nonManifold_compact);
+        std::vector<int> masks(F_compact.size() * 4, 0);
+        for (int i = 0; i < V2E_compact.size(); ++i) {
+            int deid0 = V2E_compact[i];
+            if (deid0 == -1)
+                continue;
+            int deid = deid0;
+            do {
+                masks[deid] = 1;
+                deid = E2E_compact[deid];
+                if (deid == -1) {
+                    break;
+                }
+                deid = deid / 4 * 4 + (deid + 1) % 4;
+            } while (deid != deid0 && deid != -1);
+        }
+        std::vector<std::vector<int> > v_dedges(V2E_compact.size());
+        for (int i = 0; i < F_compact.size(); ++i) {
+            for (int j = 0; j < 4; ++j) {
+                v_dedges[F_compact[i][j]].push_back(i * 4 + j);
+            }
+        }
+    }
+    std::map<int, int> pts;
+    for (int i = 0; i < V2E_compact.size(); ++i) {
+        int deid0 = V2E_compact[i];
+        if (deid0 == -1)
+            continue;
+        int deid = deid0;
+        int count = 0;
+        do {
+            count += 1;
+            int deid1 = E2E_compact[deid];
+            if (deid1 == -1)
+                break;
+            deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
+        } while (deid != deid0 && deid != -1);
+        if (pts.count(count) == 0)
+            pts[count] = 1;
+        else
+            pts[count] += 1;
+    }
+    return;
 }
 
 void Parametrizer::OutputMesh(const char* obj_name) {

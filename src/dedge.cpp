@@ -196,13 +196,12 @@ bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
     return true;
 }
 
-void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, VectorXi& V2E, std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold) {
-    V2E = VectorXi();
+void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& F, std::vector<int>& V2E, std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold) {
+    V2E.clear();
     E2E.clear();
     boundary = VectorXi();
     nonManifold = VectorXi();
-    V2E.resize(V.size());
-    V2E.setConstant(INVALID);
+    V2E.resize(V.size(), INVALID);
 
     uint32_t deg = 4;
     std::vector<std::pair<uint32_t, uint32_t>> tmp(F.size() * deg);
@@ -236,10 +235,10 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
             if (idx_cur >= V.size() || idx_next >= V.size())
                 throw std::runtime_error("Mesh data contains an out-of-bounds vertex reference!");
             if (idx_cur == idx_next) continue;
-
             tmp[edge_id] = std::make_pair(idx_next, -1);
-            if (V2E[idx_cur] == -1)
+            if (V2E[idx_cur] == -1) {
                 V2E[idx_cur] = edge_id;
+            }
             else {
                 unsigned int idx = V2E[idx_cur];
                 while (tmp[idx].second != -1) {
