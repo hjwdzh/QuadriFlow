@@ -431,6 +431,7 @@ void Parametrizer::FixValence()
                 count += 1;
                 int deid1 = E2E_compact[deid];
                 if (deid1 == -1) {
+                    count += 1;
                     break;
                 }
                 deid = deid1 / 4 * 4 + (deid1 + 1) % 4;
@@ -483,7 +484,7 @@ void Parametrizer::FixValence()
                     auto key = std::make_pair(v1, v2);
                     if (key < min_val) {
                         min_val = key;
-                        split_idx = i;
+                        split_idx = i + 1;
                     }
                 }
                 if (min_val.first >= info.first)
@@ -503,7 +504,6 @@ void Parametrizer::FixValence()
             for (int i = 0; i < loop_vertices.size(); ++i) {
                 marks[loop_vertices[i]] = 1;
             }
-            marks[O_compact.size()] = 1;
             Vset.push_back(Vset[info.second]);
             O_compact.push_back(O_compact[info.second]);
             N_compact.push_back(N_compact[info.second]);
@@ -516,7 +516,6 @@ void Parametrizer::FixValence()
                                       nonManifold_compact);
         }
     }
-
     // Remove Zero Valence
     std::vector<int> valences(V2E_compact.size(), 0);
     for (int i = 0; i < F_compact.size(); ++i) {

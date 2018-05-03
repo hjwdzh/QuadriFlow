@@ -92,37 +92,19 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
-#endif
-    
     int t1 = GetCurrentTime64();
-
-    for (int i = 0; i < face_edgeIds.size(); ++i) {
-        Vector2i diff(0, 0);
-        for (int j = 0; j < 3; ++j) {
-            diff += rshift90(edge_diff[face_edgeIds[i][j]], face_edgeOrients[i][j]);
-        }
-        if (diff != Vector2i::Zero()) {
-            printf("Non zero!\n");
-            exit(0);
-        }
-    }
-
+#endif
     FixFlipHierarchy();
-
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
-    
 #ifdef LOG_OUTPUT
     printf("Solve sat!\n");
 #endif
     //FixFlipSat();
-
-    //    DebugSharp();
-
-    int t2 = GetCurrentTime64();
     
 #ifdef LOG_OUTPUT
+    int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
     printf("Post Linear Solver...\n");
 #endif
