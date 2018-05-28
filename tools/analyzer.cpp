@@ -96,9 +96,30 @@ void Load(const char* filename) {
 		}
 	}
 	V.resize(3, positions.size());
-	memcpy(V.data(), positions.data(), sizeof(double) * 3 * positions.size());
 	F.resize(4, faces.size());
 	memcpy(F.data(), faces.data(), sizeof(int) * 4 * faces.size());
+	
+	std::vector<std::set<int> > VF(positions.size());
+	for (int i = 0; i < F.cols(); ++i) {
+		for (int j = 0; j < 4; ++j) {
+			int x = F(j, i);
+			int y = F((j + 1) % 4, i);
+			VF[x].insert(y);
+			VF[y].insert(x);
+		}
+	}
+	std::vector<Vector3d> new_positions(positions.size());
+	for (int i = 0; i < positions.size(); ++i) {
+		new_positions[i] = Eigen::Vector3d(0, 0, 0);
+	}
+	for (int i = 0; i < VF.size(); ++i) {
+		for (auto& ind : VF[i]) {
+			new_positions[i] += positions[ind];
+		}
+		new_positions[i] /= VF[i].size();
+	}
+	
+	memcpy(V.data(), new_positions.data(), sizeof(double) * 3 * positions.size());
 }
 
 void ReportFaceInfo()
@@ -164,6 +185,9 @@ void ReportSingularity()
 	for (int i = 0; i < links.size(); ++i) {
 		int v = links[i].size();
 		if (v != 0) {
+			if (v > 5) {
+				//printf("Weird %d\n", i);
+			}
 			if (valences.count(v)) {
 				valences[v] += 1;
 			} else {
@@ -196,6 +220,27 @@ void ReportAngleDifference()
 	}
 	printf("min max angle: %lf %lf\n", min_angle, max_angle);
 	printf("angle average error: %lf\n", sqrt(e / 4 / F.cols()));
+	std::vector<double> len;
+	double sum_area = 0;
+	for (int i = 0; i < F.cols(); ++i) {
+		Eigen::Vector3d a1 = V.col(F(1, i)) - V.col(F(0, i));
+		Eigen::Vector3d a2 = V.col(F(3, i)) - V.col(F(0, i));
+		Eigen::Vector3d a3 = V.col(F(1, i)) - V.col(F(2, i));
+		Eigen::Vector3d a4 = V.col(F(3, i)) - V.col(F(2, i));
+		double t1 = a1.cross(a2).norm();
+		double t2 = a3.cross(a4).norm();
+		len.push_back(t1 + t2);
+		sum_area += t1 + t2;
+	}
+	double med_area = sum_area / F.cols();
+	for (int i = 0; i < len.size(); ++i) {
+		len[i] = (len[i] - med_area) / med_area;
+	}
+	double t = 0;
+	for (int i = 0; i < len.size(); ++i) {
+		t += len[i] * len[i];
+	}
+	printf("area %lf\n", sqrt(t / len.size()));
 }
 
 void Analyze()
