@@ -52,7 +52,6 @@ include_directories(3rd/pcg32)
 include_directories(3rd/pss)
 include_directories(3rd/libigl/include)
 include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${CERES_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
@@ -116,7 +115,6 @@ add_executable(
     ${parametrize_SRC}
 )
 
-
 target_link_libraries(
     parametrize
     ${GLUT_LIBRARIES}
@@ -125,6 +123,5 @@ target_link_libraries(
     ${Boost_LIBRARIES}
     ${LEMON_LIBRARIES}
 )
-
 
 
