@@ -8,7 +8,6 @@ find_package(GLUT REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
-find_package(Ceres REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 
 
@@ -107,8 +106,6 @@ set(
     src/parametrizer-scale.cpp
     src/parametrizer-sing.cpp
     src/parametrizer.hpp
-    src/post-solver.cpp
-    src/post-solver.hpp
     src/serialize.hpp
     src/subdivide.cpp
     src/subdivide.hpp
@@ -119,16 +116,9 @@ add_executable(
     ${parametrize_SRC}
 )
 
-add_executable(
-    postsolver
-    src/post-solver.hpp
-    src/post-solver.cpp
-    src/disajoint-tree.hpp
-)
 
 target_link_libraries(
     parametrize
-    ${CERES_LIBRARIES}
     ${GLUT_LIBRARIES}
     ${OPENGL_LIBRARIES}
     ${TBB_LIBRARIES}
@@ -136,12 +126,5 @@ target_link_libraries(
     ${LEMON_LIBRARIES}
 )
 
-target_link_libraries(
-    postsolver
-    ${CERES_LIBRARIES}
-    ${Boost_LIBRARIES}
-)
-
-target_compile_definitions(postsolver PRIVATE POST_SOLVER=1)
 
 
