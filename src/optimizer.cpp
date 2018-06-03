@@ -4,8 +4,10 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <queue>
 #include <unordered_map>
+
 #include "config.hpp"
 #include "field-math.hpp"
 #include "flow.hpp"
@@ -123,7 +125,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
     MatrixXd& S = mRes.mS[0];
     MatrixXd& K = mRes.mK[0];
     MatrixXi& F = mRes.mF;
-    
+
     if (adaptive) {
         std::vector<Eigen::Triplet<double>> lhsTriplets;
 
@@ -135,7 +137,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
                 S(j, i) = std::min(S(j, i), sc1);
             }
         }
-        
+
         std::vector<std::map<int, double>> entries(V.cols() * 2);
         double lambda = 1;
         for (int i = 0; i < entries.size(); ++i) {
@@ -165,8 +167,8 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
                 }
                 double scale_x = (fmin(fmax(1 + kx_g * dy, 0.3), 3));
                 double scale_y = (fmin(fmax(1 + ky_g * dx, 0.3), 3));
-//                (v2_x - scale_x * v1_x)^2 = 0
-                //x^2 - 2s xy + s^2 y^2
+                //                (v2_x - scale_x * v1_x)^2 = 0
+                // x^2 - 2s xy + s^2 y^2
                 entries[v2_x][v2_x] += 1;
                 entries[v1_x][v1_x] += scale_x * scale_x;
                 entries[v2_y][v2_y] += 1;
@@ -190,7 +192,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
         VectorXd rhs(V.cols() * 2);
         rhs.setZero();
         for (int i = 0; i < entries.size(); ++i) {
-            rhs(i) = lambda * S(i%2, i/2);
+            rhs(i) = lambda * S(i % 2, i / 2);
             for (auto& rec : entries[i]) {
                 lhsTriplets.push_back(Eigen::Triplet<double>(i, rec.first, rec.second));
             }
@@ -211,8 +213,8 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
         }
         total_area = sqrt(V.cols() / total_area);
         for (int i = 0; i < V.cols(); ++i) {
-//            S(0, i) *= total_area;
-//            S(1, i) *= total_area;
+            //            S(0, i) *= total_area;
+            //            S(1, i) *= total_area;
         }
     } else {
         for (int i = 0; i < V.cols(); ++i) {
@@ -220,7 +222,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
             S(1, i) = 1;
         }
     }
-    
+
     for (int l = 0; l < mRes.mS.size() - 1; ++l) {
         const MatrixXd& S = mRes.mS[l];
         MatrixXd& S_next = mRes.mS[l + 1];
@@ -1172,14 +1174,14 @@ void Optimizer::optimize_positions_fixed(
 
 void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
     int edge_capacity = 2;
-    bool FullFlow = false;
+    bool fullFlow = false;
     std::vector<std::vector<int>>& AllowChange = mRes.mAllowChanges;
     for (int level = mRes.mToUpperEdges.size(); level >= 0; --level) {
         auto& EdgeDiff = mRes.mEdgeDiff[level];
         auto& FQ = mRes.mFQ[level];
         auto& F2E = mRes.mF2E[level];
         auto& E2F = mRes.mE2F[level];
-        while (!FullFlow) {
+        while (!fullFlow) {
             std::vector<Vector4i> edge_to_constraints(E2F.size() * 2, Vector4i(-1, 0, -1, 0));
             std::vector<int> initial(F2E.size() * 2, 0);
             for (int i = 0; i < F2E.size(); ++i) {
@@ -1234,47 +1236,45 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                 }
             }
 
-            MaxFlowHelper* flow = 0;
-            if (supply < 5)
-                flow = new ECMaxFlowHelper;
+            std::unique_ptr<MaxFlowHelper> solver = 0;
+            if (supply < 3)
+                solver = std::make_unique<ECMaxFlowHelper>();
             else
-                flow = new BoykovMaxFlowHelper;
+                solver = std::make_unique<NetworkSimplexFlowHelper>();
 
-            flow->resize(initial.size() + 2, arc_ids.size());
+            solver->resize(initial.size() + 2, arc_ids.size());
             std::set<int> ids;
             for (int i = 0; i < arcs.size(); ++i) {
                 int v1 = arcs[i].first[0] + 1;
                 int v2 = arcs[i].first[1] + 1;
                 int c = arcs[i].second;
                 if (v1 == 0 || v2 == initial.size() + 1) {
-                    flow->AddEdge(v1, v2, c, 0, -1);
+                    solver->addEdge(v1, v2, c, 0, -1);
                 } else {
                     if (arc_ids[i] > 0)
-                        flow->AddEdge(v1, v2, std::max(0, c + edge_capacity),
-                                      std::max(0, -c + edge_capacity), arc_ids[i] - 1);
+                        solver->addEdge(v1, v2, std::max(0, c + edge_capacity),
+                                        std::max(0, -c + edge_capacity), arc_ids[i] - 1);
                     else {
                         if (c > 0)
-                            flow->AddEdge(v1, v2, std::max(0, c - 1),
-                                          std::max(0, -c + edge_capacity), -1 - arc_ids[i]);
+                            solver->addEdge(v1, v2, std::max(0, c - 1),
+                                            std::max(0, -c + edge_capacity), -1 - arc_ids[i]);
                         else
-                            flow->AddEdge(v1, v2, std::max(0, c + edge_capacity),
-                                          std::max(0, -c - 1), -1 - arc_ids[i]);
+                            solver->addEdge(v1, v2, std::max(0, c + edge_capacity),
+                                            std::max(0, -c - 1), -1 - arc_ids[i]);
                     }
                 }
             }
 
-            int flow_count = flow->compute();
-            flow->Apply(EdgeDiff);
-            delete flow;
-            if (flow_count == supply) {
-                FullFlow = true;
-            }
-            if (level != 0 || FullFlow) break;
+            int flow_count = solver->compute();
+            solver->applyTo(EdgeDiff);
+
+            lprintf("flow_count = %d, supply = %d\n", flow_count, supply);
+            if (flow_count == supply) fullFlow = true;
+            if (level != 0 || fullFlow) break;
             edge_capacity += 1;
-#ifdef LOG_OUTPUT
-            printf("Not full flow, edge_capacity += 1\n");
-#endif
+            lprintf("Not full flow, edge_capacity += 1\n");
         }
+
         if (level != 0) {
             auto& nEdgeDiff = mRes.mEdgeDiff[level - 1];
             auto& toUpper = mRes.mToUpperEdges[level - 1];

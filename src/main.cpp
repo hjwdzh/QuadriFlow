@@ -37,26 +37,23 @@ int main(int argc, char** argv) {
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
-    fflush(stdout);
     if (input_obj.size() >= 1) {
         field.Load(input_obj.c_str());
     } else {
-        field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
+        assert(0);
+        // field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
     }
 
     printf("Initialize...\n");
-    fflush(stdout);
     field.Initialize(faces);
 
     printf("Solve Orientation Field...\n");
-    fflush(stdout);
     t1 = GetCurrentTime64();
 
     Optimizer::optimize_orientations(field.hierarchy);
     field.ComputeOrientationSingularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
-    fflush(stdout);
 
     if (field.flag_adaptive_scale == 1) {
         printf("Estimate Slop...\n");
@@ -73,7 +70,6 @@ int main(int argc, char** argv) {
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     printf("Solve for position field...\n");
-    fflush(stdout);
     t1 = GetCurrentTime64();
     Optimizer::optimize_positions(field.hierarchy, field.flag_adaptive_scale);
 
@@ -87,10 +83,12 @@ int main(int argc, char** argv) {
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
     printf("Writing the file...\n");
 
-    if (output_obj.size() < 1)
-        field.OutputMesh((std::string(DATA_PATH) + "/result.obj").c_str());
-    else
+    if (output_obj.size() < 1) {
+        assert(0);
+        // field.OutputMesh((std::string(DATA_PATH) + "/result.obj").c_str());
+    } else {
         field.OutputMesh(output_obj.c_str());
+    }
     printf("finish...\n");
     //	field.LoopFace(2);
 #ifdef WITH_OPENGL

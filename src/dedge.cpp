@@ -21,13 +21,14 @@ inline bool atomicCompareAndExchange(volatile int* v, uint32_t newValue, int old
 #endif
 }
 
+const int INVALID = -1;
+
 #undef max
 #undef min
-bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
-	VectorXi& E2E, VectorXi& boundary, VectorXi& nonManifold)
-{
-	V2E.resize(V.cols());
-	V2E.setConstant(INVALID);
+bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E, VectorXi& E2E,
+                          VectorXi& boundary, VectorXi& nonManifold) {
+    V2E.resize(V.cols());
+    V2E.setConstant(INVALID);
 
     uint32_t deg = F.rows();
     std::vector<std::pair<uint32_t, uint32_t>> tmp(F.size());
@@ -153,7 +154,7 @@ bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
     printf("counter triangle %d %d\n", (int)boundaryCounter, (int)nonManifoldCounter);
 #endif
     return true;
-    std::vector<std::vector<int> > vert_to_edges(V2E.size());
+    std::vector<std::vector<int>> vert_to_edges(V2E.size());
     for (int i = 0; i < F.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
             int v = F(j, i);
@@ -172,8 +173,7 @@ bool compute_direct_graph(MatrixXd& V, MatrixXi& F, VectorXi& V2E,
                 int deid = deid0;
                 do {
                     colors[deid] = num_color;
-                    if (num_color != 0)
-                        F(deid%3, deid/3) = num_v;
+                    if (num_color != 0) F(deid % 3, deid / 3) = num_v;
                     deid = deid / 3 * 3 + (deid + 2) % 3;
                     deid = E2E[deid];
                 } while (deid != deid0);

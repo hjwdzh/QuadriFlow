@@ -8,9 +8,7 @@
 // #define WITH_TBB
 // #define WITH_OPENGL
 
-#define DATA_PATH "./data"
-#define INVALID -1
-#define GRAIN_SIZE 1024
+const int GRAIN_SIZE = 1024;
 
 #ifdef LOG_OUTPUT
 
