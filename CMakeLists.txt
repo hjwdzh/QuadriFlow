@@ -115,6 +115,11 @@ add_executable(
     ${parametrize_SRC}
 )
 
+add_executable(
+    analyzer
+    tools/analyzer.cpp
+)
+
 target_link_libraries(
     parametrize
     ${GLUT_LIBRARIES}
