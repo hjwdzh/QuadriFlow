@@ -1245,6 +1245,12 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             } else {
                 solver = std::make_unique<BoykovMaxFlowHelper>();
             }
+
+#ifdef WITH_GUROBI
+            if (use_minimum_cost_flow && level == mRes.mToUpperEdges.size()) {
+                solver = std::make_unique<GurobiFlowHelper>();
+            }
+#endif
             solver->resize(initial.size() + 2, arc_ids.size());
 
             std::set<int> ids;
@@ -1268,8 +1274,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                     }
                 }
             }
-
             int flow_count = solver->compute();
+
             solver->applyTo(EdgeDiff);
 
             lprintf("flow_count = %d, supply = %d\n", flow_count, supply);

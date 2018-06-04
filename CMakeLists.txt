@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.1)
 project(Parametrize)
 
+
+option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
+option(BUILD_OPENMP "Enable support for OpenMP" OFF)
+option(BUILD_LOG "Enable verbose log" OFF)
+option(BUILD_GUROBI "Enable GUROBI for comparison ONLY" OFF)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(OpenGL REQUIRED)
@@ -9,6 +15,10 @@ find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
+
+if (BUILD_GUROBI)
+    find_package(GUROBI REQUIRED)
+endif(BUILD_GUROBI)
 
 set(LEMON_3RD_PATH 3rd/lemon-1.3.1)
 
@@ -48,9 +58,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 endif()
 
-option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
-option(BUILD_OPENMP "Enable support for OpenMP" OFF)
-option(BUILD_LOG "Enable verbose log" OFF)
 
 include_directories(src)
 include_directories(3rd/pcg32)
@@ -63,18 +70,23 @@ include_directories(${GLUT_INCLUDE_DIRS})
 include_directories(${LEMON_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
+include_directories(${GUROBI_INCLUDE_DIRS})
 
-if(BUILD_PERFORMANCE_TEST)
+if (BUILD_PERFORMANCE_TEST)
     add_definitions(-DPERFORMANCE_TEST)
 endif(BUILD_PERFORMANCE_TEST)
 
-if(BUILD_OPENMP)
+if (BUILD_OPENMP)
     add_definitions(-DWITH_OMP)
 endif(BUILD_OPENMP)
 
-if(BUILD_LOG)
+if (BUILD_LOG)
     add_definitions(-DLOG_OUTPUT)
 endif(BUILD_LOG)
+
+if (BUILD_GUROBI)
+    add_definitions(-DWITH_GUROBI)
+endif(BUILD_GUROBI)
 
 set(
     parametrize_SRC
@@ -130,4 +142,5 @@ target_link_libraries(
     ${TBB_LIBRARIES}
     ${Boost_LIBRARIES}
     ${LEMON_LIBRARIES}
+    ${GUROBI_LIBRARIES}
 )

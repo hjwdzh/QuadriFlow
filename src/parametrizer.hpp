@@ -34,11 +34,7 @@ struct ExpandInfo {
 
 class Parametrizer {
    public:
-    Parametrizer()
-        : flag_preserve_sharp(0),
-          flag_adaptive_scale(0),
-          flag_aggresive_sat(0),
-          flag_minimum_cost_flow(0) {}
+    Parametrizer() {}
     // Mesh Initialization
     void Load(const char* filename);
     void ComputeMeshStatus();
@@ -165,10 +161,10 @@ class Parametrizer {
     std::vector<MatrixXd> triangle_space;
 
     // flag
-    int flag_preserve_sharp;
-    int flag_adaptive_scale;
-    int flag_aggresive_sat;
-    int flag_minimum_cost_flow;
+    int flag_preserve_sharp = 0;
+    int flag_adaptive_scale = 0;
+    int flag_aggresive_sat = 0;
+    int flag_minimum_cost_flow = 0;
 };
 
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,

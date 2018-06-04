@@ -25,8 +25,8 @@ class MaxFlowHelper {
     MaxFlowHelper() {}
     virtual ~MaxFlowHelper(){};
     virtual void resize(int n, int m) = 0;
-    virtual int compute() = 0;
     virtual void addEdge(int x, int y, int c, int rc, int v, int cost = 1) = 0;
+    virtual int compute() = 0;
     virtual void applyTo(std::vector<Vector2i>& edge_diff) = 0;
 };
 
@@ -54,8 +54,11 @@ class BoykovMaxFlowHelper : public MaxFlowHelper {
         for (int i = 0; i < n; ++i) vertex_descriptors[i] = add_vertex(g);
     }
     int compute() {
+        int t1 = GetCurrentTime64();
         EdgeWeightType flow =
             boykov_kolmogorov_max_flow(g, vertex_descriptors.front(), vertex_descriptors.back());
+        int t2 = GetCurrentTime64();
+        lprintf("boykov_kolmogorov uses %.2lfs\n", (t2 - t1) * 1e-3);
         return flow;
     }
     void addDirectEdge(Traits::vertex_descriptor& v1, Traits::vertex_descriptor& v2,
@@ -146,10 +149,16 @@ class NetworkSimplexFlowHelper : public MaxFlowHelper {
         Preflow pf(graph, capacity, nodes.front(), nodes.back());
         NetworkSimplex ns(graph);
 
+        int t1 = GetCurrentTime64();
+
         // Run preflow to find maximum flow
+        lprintf("push-relabel flow... ");
         pf.runMinCut();
         int maxflow = pf.flowValue();
 
+        int t2 = GetCurrentTime64();
+
+        lprintf("[%.2lfs]  ns flow... ", (t2 - t1) * 1e-3);
         // Run network simplex to find minimum cost maximum flow
         ns.costMap(cost).upperMap(capacity).stSupply(nodes.front(), nodes.back(), maxflow);
         auto status = ns.run();
@@ -167,6 +176,8 @@ class NetworkSimplexFlowHelper : public MaxFlowHelper {
                 break;
         }
 
+        int t3 = GetCurrentTime64();
+        lprintf("[%.2lfs] finished!\n", (t3 - t1) * 1e-3);
         return maxflow;
     }
     void applyTo(std::vector<Vector2i>& edge_diff) {
@@ -187,6 +198,80 @@ class NetworkSimplexFlowHelper : public MaxFlowHelper {
     std::vector<Node> nodes;
     std::vector<Arc> edges;
 };
+
+#ifdef WITH_GUROBI
+
+#include <gurobi_c++.h>
+
+class GurobiFlowHelper : public MaxFlowHelper {
+   public:
+    GurobiFlowHelper() {}
+    virtual ~GurobiFlowHelper(){};
+    virtual void resize(int n, int m) {
+        nodes.resize(n * 2);
+        edges.resize(m);
+    }
+    virtual void addEdge(int x, int y, int c, int rc, int v, int cost = 1) {
+        nodes[x * 2 + 0].push_back(vars.size());
+        nodes[y * 2 + 1].push_back(vars.size());
+        vars.push_back(model.addVar(0, c, 0, GRB_INTEGER));
+        edges.push_back(std::make_pair(v, 1));
+
+        nodes[y * 2 + 0].push_back(vars.size());
+        nodes[x * 2 + 1].push_back(vars.size());
+        vars.push_back(model.addVar(0, rc, 0, GRB_INTEGER));
+        edges.push_back(std::make_pair(v, -1));
+    }
+    virtual int compute() {
+        std::cerr << "compute" << std::endl;
+        int ns = nodes.size() / 2;
+
+        int flow;
+        for (int i = 1; i < ns - 1; ++i) {
+            GRBLinExpr cons = 0;
+            for (auto n : nodes[2 * i + 0]) cons += vars[n];
+            for (auto n : nodes[2 * i + 1]) cons -= vars[n];
+            model.addConstr(cons == 0);
+        }
+
+        // first pass, maximum flow
+        GRBLinExpr outbound = 0;
+        {
+            lprintf("first pass\n");
+            for (auto& n : nodes[0]) outbound += vars[n];
+            for (auto& n : nodes[1]) outbound -= vars[n];
+            model.setObjective(outbound, GRB_MAXIMIZE);
+            model.optimize();
+
+            flow = (int)model.get(GRB_DoubleAttr_ObjVal);
+            lprintf("Gurobi result: %d\n", flow);
+        }
+
+        // second pass, minimum cost flow
+        {
+            lprintf("second pass\n");
+            model.addConstr(outbound == flow);
+            GRBLinExpr cost = 0;
+            for (auto& v : vars) cost += v;
+            model.setObjective(cost, GRB_MINIMIZE);
+            model.optimize();
+
+            double optimal_cost = (int)model.get(GRB_DoubleAttr_ObjVal);
+            lprintf("Gurobi result: %.3f\n", optimal_cost);
+        }
+        return flow;
+    }
+    virtual void applyTo(std::vector<Vector2i>& edge_diff) { assert(0); };
+
+   private:
+    GRBEnv env = GRBEnv();
+    GRBModel model = GRBModel(env);
+    std::vector<GRBVar> vars;
+    std::vector<std::pair<int, int>> edges;
+    std::vector<std::vector<int>> nodes;
+};
+
+#endif
 
 class ECMaxFlowHelper : public MaxFlowHelper {
    public:
