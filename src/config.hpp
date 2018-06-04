@@ -10,6 +10,8 @@
 
 const int GRAIN_SIZE = 1024;
 
+#define LOG_OUTPUT
+
 #ifdef LOG_OUTPUT
 
 #define lprintf(...) printf(__VA_ARGS__)

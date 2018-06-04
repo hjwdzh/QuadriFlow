@@ -1,4 +1,6 @@
 #include "curvature.hpp"
+
+/*
 #include <igl/avg_edge_length.h>
 #include <igl/cotmatrix.h>
 #include <igl/invert_diag.h>
@@ -37,3 +39,5 @@ void ComputeCurvature(const Eigen::MatrixXd& Vt, const Eigen::MatrixXi& Ft, Eige
         K[i] = rho;
     }
 }
+
+*/

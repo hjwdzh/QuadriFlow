@@ -335,10 +335,10 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
 
 void Optimizer::optimize_positions_dynamic(
     MatrixXi& F, MatrixXd& V, MatrixXd& N, MatrixXd& Q, std::vector<std::vector<int>>& Vset,
-    std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact, std::vector<int>& V2E_compact,
-    std::vector<int>& E2E_compact, double mScale, std::vector<Vector3d>& diffs,
-    std::vector<int>& diff_count, std::map<std::pair<int, int>, int>& o2e,
-    std::vector<int>& sharp_o,
+    std::vector<Vector3d>& O_compact, std::vector<Vector4i>& F_compact,
+    std::vector<int>& V2E_compact, std::vector<int>& E2E_compact, double mScale,
+    std::vector<Vector3d>& diffs, std::vector<int>& diff_count,
+    std::map<std::pair<int, int>, int>& o2e, std::vector<int>& sharp_o,
     std::map<int, std::pair<Vector3d, Vector3d>>& compact_sharp_constraints, int with_scale) {
     std::set<int> uncertain;
     for (auto& info : o2e) {
@@ -1172,7 +1172,8 @@ void Optimizer::optimize_positions_fixed(
     }
 }
 
-void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities) {
+void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>& singularities,
+                                             bool use_minimum_cost_flow) {
     int edge_capacity = 2;
     bool fullFlow = false;
     std::vector<std::vector<int>>& AllowChange = mRes.mAllowChanges;
@@ -1208,8 +1209,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             std::vector<int> arc_ids;
             for (int i = 0; i < edge_to_constraints.size(); ++i) {
                 if (AllowChange[level][i] == 0) continue;
-                if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1)
-                    continue;
+                if (edge_to_constraints[i][0] == -1 || edge_to_constraints[i][2] == -1) continue;
                 if (edge_to_constraints[i][1] == -edge_to_constraints[i][3]) {
                     int v1 = edge_to_constraints[i][0];
                     int v2 = edge_to_constraints[i][2];
@@ -1236,13 +1236,17 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                 }
             }
 
-            std::unique_ptr<MaxFlowHelper> solver = 0;
-            if (supply < 3)
-                solver = std::make_unique<ECMaxFlowHelper>();
-            else
+            std::unique_ptr<MaxFlowHelper> solver = nullptr;
+            if (use_minimum_cost_flow && level == mRes.mToUpperEdges.size()) {
+                lprintf("network simplex MCF is used\n");
                 solver = std::make_unique<NetworkSimplexFlowHelper>();
-
+            } else if (supply < 20) {
+                solver = std::make_unique<ECMaxFlowHelper>();
+            } else {
+                solver = std::make_unique<BoykovMaxFlowHelper>();
+            }
             solver->resize(initial.size() + 2, arc_ids.size());
+
             std::set<int> ids;
             for (int i = 0; i < arcs.size(); ++i) {
                 int v1 = arcs[i].first[0] + 1;

@@ -82,8 +82,6 @@ set(
     src/adjacent-matrix.hpp
     src/compare-key.hpp
     src/config.hpp
-    src/curvature.hpp
-    src/curvature.cpp
     src/dedge.cpp
     src/dedge.hpp
     src/disajoint-tree.hpp
@@ -133,5 +131,3 @@ target_link_libraries(
     ${Boost_LIBRARIES}
     ${LEMON_LIBRARIES}
 )
-
-

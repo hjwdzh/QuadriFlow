@@ -22,18 +22,17 @@ int main(int argc, char** argv) {
     for (int i = 0; i < argc; ++i) {
         if (strcmp(argv[i], "-f") == 0) {
             sscanf(argv[i + 1], "%d", &faces);
-        }
-        if (strcmp(argv[i], "-i") == 0) {
+        } else if (strcmp(argv[i], "-i") == 0) {
             input_obj = argv[i + 1];
-        }
-        if (strcmp(argv[i], "-o") == 0) {
+        } else if (strcmp(argv[i], "-o") == 0) {
             output_obj = argv[i + 1];
-        }
-        if (strcmp(argv[i], "-sharp") == 0) {
+        } else if (strcmp(argv[i], "-sharp") == 0) {
             field.flag_preserve_sharp = 1;
-        }
-        if (strcmp(argv[i], "-adaptive") == 0) {
+        } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
+        } else if (strcmp(argv[i], "-mcf") == 0) {
+            printf("enable mcf\n");
+            field.flag_minimum_cost_flow = 1;
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
