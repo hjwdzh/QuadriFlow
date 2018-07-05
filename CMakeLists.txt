@@ -8,6 +8,7 @@ option(BUILD_LOG "Enable verbose log" OFF)
 option(BUILD_GUROBI "Enable GUROBI for comparison ONLY" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(OpenGL_GL_PREFERENCE "LEGACY")
 
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
