@@ -31,8 +31,9 @@ int main(int argc, char** argv) {
         } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
         } else if (strcmp(argv[i], "-mcf") == 0) {
-            printf("enable mcf\n");
             field.flag_minimum_cost_flow = 1;
+        } else if (strcmp(argv[i], "-sat") == 0) {
+            field.flag_aggresive_sat = 1;
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());

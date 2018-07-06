@@ -98,10 +98,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
-#ifdef LOG_OUTPUT
-    printf("Solve sat!\n");
-#endif
-    //FixFlipSat();
+    FixFlipSat();
     
 #ifdef LOG_OUTPUT
     int t2 = GetCurrentTime64();

@@ -171,6 +171,12 @@ void Parametrizer::FixFlipHierarchy() {
 }
 
 void Parametrizer::FixFlipSat() {
+#ifdef LOG_OUTPUT
+    printf("Solving SAT!\n");
+#endif
+
+    if (!this->flag_aggresive_sat) return;
+
     for (int threshold = 1; threshold <= 4; ++threshold) {
         lprintf("[FixFlipSat] threshold = %d\n", threshold);
 

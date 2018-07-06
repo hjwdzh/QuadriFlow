@@ -617,6 +617,10 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
 }
 
 int Hierarchy::FixFlipSat(int depth, int threshold) {
+    if (system("which minisat > /dev/null 2>&1")) {
+        printf("minisat not found, skip!\n");
+    }
+
     auto& F2E = mF2E[depth];
     auto& E2F = mE2F[depth];
     auto& FQ = mFQ[depth];
@@ -626,20 +630,16 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
     // build E2E
     std::vector<int> E2E(F2E.size() * 3, -1);
     for (int i = 0; i < E2F.size(); ++i) {
-        int v1 = E2F[i][0];
-        int v2 = E2F[i][1];
+        int f1 = E2F[i][0];
+        int f2 = E2F[i][1];
         int t1 = 0;
         int t2 = 2;
-        if (v1 != -1)
-            while (F2E[v1][t1] != i) t1 += 1;
-        if (v2 != -1)
-            while (F2E[v2][t2] != i) t2 -= 1;
-        t1 += v1 * 3;
-        t2 += v2 * 3;
-        if (v1 != -1)
-            E2E[t1] = (v2 == -1) ? -1 : t2;
-        if (v2 != -1)
-            E2E[t2] = (v1 == -1) ? -1 : t1;
+        if (f1 != -1) while (F2E[f1][t1] != i) t1 += 1;
+        if (f2 != -1) while (F2E[f2][t2] != i) t2 -= 1;
+        t1 += f1 * 3;
+        t2 += f2 * 3;
+        if (f1 != -1) E2E[t1] = (f2 == -1) ? -1 : t2;
+        if (f2 != -1) E2E[t2] = (f1 == -1) ? -1 : t1;
     }
 
     auto IntegerArea = [&](int f) {
@@ -668,19 +668,18 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
         mark_count++;
 
         int e = e0;
-        for (;;) {
+        do {
             int e1 = E2E[e];
             int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
             if (length == 0 && !mark_dedges[e1]) {
                 mark_dedges[e1] = true;
                 Q.push_front(std::make_pair(e1, depth));
             }
-            e = e1 / 3 * 3 + (e1 + 1) % 3;
+            e = (e1 / 3) * 3 + (e1 + 1) % 3;
             mark_dedges[e] = true;
-            if (e == e0) break;
-        }
+        } while (e != e0);
 
-        for (;;) {
+        do {
             int e1 = E2E[e];
             int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
             if (length > 0 && depth + length <= threshold && !mark_dedges[e1]) {
@@ -689,8 +688,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             }
             e = e1 / 3 * 3 + (e1 + 1) % 3;
             mark_dedges[e] = true;
-            if (e == e0) break;
-        }
+        } while (e != e0);
     }
     lprintf("[FlipH] Level %2d: marked = %d\n", depth, mark_count);
 

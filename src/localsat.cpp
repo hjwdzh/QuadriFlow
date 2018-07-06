@@ -20,11 +20,6 @@ using namespace Eigen;
 
 SolverStatus RunCNF(const std::string &fin_name, int n_variable, int timeout,
                     const std::vector<std::vector<int>> &sat_clause, std::vector<int> &value) {
-    if (system("which minisat > /dev/null 2>&1")) {
-        lprintf("minisat not found");
-        return SolverStatus::Unsat;
-    }
-
     int n_sat_variable = 3 * n_variable;
     auto fout_name = fin_name + ".result.txt";
 
@@ -78,89 +73,12 @@ SolverStatus RunCNF(const std::string &fin_name, int n_variable, int timeout,
     return SolverStatus::Sat;
 }
 
-SolverStatus RunWCNF(const std::string &fin_name, int n_variable, int timeout,
-                     const std::vector<std::vector<int>> &sat_clause,
-                     const std::vector<bool> &sat_hard, std::vector<int> &value) {
-    if (system("which open-wbo > /dev/null 2>&1")) {
-        lprintf("open-wbo not found");
-        return SolverStatus::Unsat;
-    }
-
-    lprintf("MaxSAT: ");
-    int n_sat_variable = 3 * n_variable;
-    auto fout_name = fin_name + ".result.txt";
-
-    FILE *fout = fopen(fin_name.c_str(), "w");
-
-    fprintf(fout, "p wcnf %d %d 15\n", n_sat_variable, (int)sat_clause.size());
-    assert(sat_clause.size() == sat_hard.size());
-    for (int i = 0; i < (int)sat_clause.size(); ++i) {
-        fprintf(fout, "%d ", sat_hard[i] ? 15 : 1);
-        for (auto e : sat_clause[i]) fprintf(fout, "%d ", e);
-        fputs("0\n", fout);
-    }
-    fclose(fout);
-
-    char cmd[100];
-    snprintf(cmd, 99, "rm %s > /dev/null 2>&1", fout_name.c_str());
-    system(cmd);
-    snprintf(cmd, 99, "timeout %d open-wbo %s > %s", timeout, fin_name.c_str(), fout_name.c_str());
-    int exit_code = system(cmd);
-    if (exit_code == 124) return SolverStatus::Timeout;
-
-    char buf[150] = {0};
-    FILE *fin = fopen(fout_name.c_str(), "r");
-
-    int current_flip = 0;
-    for (;;) {
-        char ch = fgetc(fin);
-        switch (ch) {
-            case 'c':
-                fgets(buf, 150, fin);
-                break;
-
-            case 's':
-                fgets(buf, 150, fin);
-                // if (buf[1] == 'O') optimal = true;
-                break;
-
-            case 'o':
-                fscanf(fin, "%d ", &current_flip);
-                break;
-
-            case 'v':
-                lprintf("o=%2d ", current_flip);
-                for (int i = 0; i < n_variable; ++i) {
-                    int sign[3];
-                    fscanf(fin, "%d %d %d", sign + 0, sign + 1, sign + 2);
-
-                    int nvalue = -2;
-                    for (int j = 0; j < 3; ++j) {
-                        assert(abs(sign[j]) == 3 * i + j + 1);
-                        if ((sign[j] > 0) == (value[i] != j - 1)) {
-                            assert(nvalue == -2);
-                            nvalue = j - 1;
-                        }
-                    }
-                    value[i] = nvalue;
-                }
-                fclose(fin);
-                return SolverStatus::Sat;
-
-            default:
-                lprintf("Failed! ");
-                fclose(fin);
-                return SolverStatus::Unsat;
-        }
-    }
-}
-
 SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,
                              const std::vector<bool> flexible,  // NOQA
                              const std::vector<Vector3i> &variable_eq,
                              const std::vector<Vector3i> &constant_eq,
                              const std::vector<Vector4i> &variable_ge,
-                             const std::vector<Vector2i> &constant_ge, bool doMaxSAT,
+                             const std::vector<Vector2i> &constant_ge,
                              int timeout) {
     for (auto v : value) assert(-1 <= v && v <= +1);
 
@@ -228,8 +146,6 @@ SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,
 
     lprintf("  [SAT] nvar: %6d nflip: %3d ", n_flexible * 2, nflip_before);
     auto rcnf = RunCNF("test.out", n_variable, timeout, sat_clause, value);
-    if (rcnf == SolverStatus::Unsat && doMaxSAT)
-        rcnf = RunWCNF("test-msat.out", n_variable, timeout, sat_clause, sat_ishard, value);
 
     for (int i = 0; i < (int)variable_eq.size(); ++i) {
         auto &var = variable_eq[i];

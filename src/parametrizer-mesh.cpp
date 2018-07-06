@@ -5,7 +5,6 @@
 #include "merge-vertex.hpp"
 #include "parametrizer.hpp"
 #include "subdivide.hpp"
-#include "curvature.hpp"
 #include "dedge.hpp"
 #include <queue>
 

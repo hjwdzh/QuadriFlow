@@ -49,6 +49,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare -Wno-maybe-uninitialized")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")  # enable assert
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
@@ -88,6 +89,7 @@ endif(BUILD_LOG)
 if (BUILD_GUROBI)
     add_definitions(-DWITH_GUROBI)
 endif(BUILD_GUROBI)
+
 
 set(
     parametrize_SRC

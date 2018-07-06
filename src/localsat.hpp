@@ -17,7 +17,7 @@ SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,
                              const std::vector<Vector3i> &variable_eq,
                              const std::vector<Vector3i> &constant_eq,
                              const std::vector<Vector4i> &variable_ge,
-                             const std::vector<Vector2i> &constant_ge, bool doMaxSAT = false,
+                             const std::vector<Vector2i> &constant_ge,
                              int timeout = 8);
 
 void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i> &face_edgeIds,
