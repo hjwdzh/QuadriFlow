@@ -80,7 +80,7 @@ SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,
                              const std::vector<Vector4i> &variable_ge,
                              const std::vector<Vector2i> &constant_ge,
                              int timeout) {
-    for (auto v : value) assert(-1 <= v && v <= +1);
+    for (int v : value) assert(-1 <= v && v <= +1);
 
     auto VAR = [&](int i, int v) {
         int index = 1 + 3 * i + v + 1;

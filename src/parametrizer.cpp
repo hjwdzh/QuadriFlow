@@ -72,14 +72,16 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     printf("Build Integer Constraints...\n");
 #endif
     BuildIntegerConstraints();
-    
+
     ComputeMaxFlow();
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
-    subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold, edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges, singularities, 1);
-    
+    subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
+                       edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
+                       singularities, 1);
+
     allow_changes.clear();
     allow_changes.resize(edge_diff.size() * 2, 1);
     for (int i = 0; i < sharp_edges.size(); ++i) {
@@ -89,7 +91,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
             if (edge_diff[e][k] == 0) allow_changes[e * 2 + k] = 0;
         }
     }
-    
+
 #ifdef LOG_OUTPUT
     printf("Fix flip advance...\n");
     int t1 = GetCurrentTime64();

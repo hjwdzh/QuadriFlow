@@ -667,9 +667,10 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
         Q.pop_front();
         mark_count++;
 
-        int e = e0;
+        int e = e0, e1;
         do {
-            int e1 = E2E[e];
+            e1 = E2E[e];
+            if (e1 == -1) break;
             int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
             if (length == 0 && !mark_dedges[e1]) {
                 mark_dedges[e1] = true;
@@ -678,9 +679,23 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             e = (e1 / 3) * 3 + (e1 + 1) % 3;
             mark_dedges[e] = true;
         } while (e != e0);
+        if (e1 == -1) {
+            do {
+                e1 = E2E[e];
+                if (e1 == -1) break;
+                int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
+                if (length == 0 && !mark_dedges[e1]) {
+                    mark_dedges[e1] = true;
+                    Q.push_front(std::make_pair(e1, depth));
+                }
+                e = (e1 / 3) * 3 + (e1 + 2) % 3;
+                mark_dedges[e] = true;
+            } while (e != e0);
+        }
 
         do {
-            int e1 = E2E[e];
+            e1 = E2E[e];
+            if (e1 == -1) break;
             int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
             if (length > 0 && depth + length <= threshold && !mark_dedges[e1]) {
                 mark_dedges[e1] = true;
@@ -689,6 +704,19 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             e = e1 / 3 * 3 + (e1 + 1) % 3;
             mark_dedges[e] = true;
         } while (e != e0);
+        if (e1 == -1) {
+            do {
+                e1 = E2E[e];
+                if (e1 == -1) break;
+                int length = EdgeDiff[F2E[e1 / 3][e1 % 3]].array().abs().sum();
+                if (length > 0 && depth + length <= threshold && !mark_dedges[e1]) {
+                    mark_dedges[e1] = true;
+                    Q.push_back(std::make_pair(e1, depth + length));
+                }
+                e = e1 / 3 * 3 + (e1 + 2) % 3;
+                mark_dedges[e] = true;
+            } while (e != e0);
+        }
     }
     lprintf("[FlipH] Level %2d: marked = %d\n", depth, mark_count);
 
@@ -722,6 +750,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
                 q.pop();
                 int f[] = {E2F[e][0], E2F[e][1]};
                 for (int j = 0; j < 2; ++j) {
+                    if (f[j] == -1) continue;
                     for (int k = 0; k < 3; ++k) {
                         int e1 = F2E[f[j]][k];
                         if (flexible[e1] && groups[e1] == -1) {
@@ -734,6 +763,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             num_group += 1;
         }
     }
+
     std::vector<int> num_edges(num_group);
     std::vector<int> num_flips(num_group);
     std::vector<std::vector<int>> values(num_group);
@@ -777,6 +807,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
                 ind[j] = indices[F2E[i][j]];
             }
         }
+        for (int j = 0; j < 3; ++j) assert(ind[j] != -1);
         for (int j = 0; j < 3; ++j) {
             var[j] = rshift90(Vector2i(ind[j] * 2 + 1, ind[j] * 2 + 2), FQ[i][j]);
             cst[j] = var[j].array().sign();
@@ -804,7 +835,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             flexible[j] = false;
         }
         SolveSatProblem(values[i].size(), values[i], flexible, variable_eq[i], constant_eq[i],
-                        variable_ge[i], constant_ge[i], depth == 6 && num_flips[i] > 10);
+                        variable_ge[i], constant_ge[i]);
     }
 
     for (int i = 0; i < EdgeDiff.size(); ++i) {

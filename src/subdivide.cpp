@@ -494,20 +494,19 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
     boundary.conservativeResize(nV);
     nonmanifold.conservativeResize(nV);
     E2E.conservativeResize(nF * 3);
-    /*
-        for (int i = 0; i < F.cols(); ++i) {
-            for (int j = 0; j < 3; ++j) {
-                auto diff = edge_diff[face_edgeIds[i][j]];
-                if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
-                    printf("wrong init %d %d!\n", face_edgeIds[i][j], i * 3 + j);
-                    exit(0);
-                }
-            }
-        }
-        for (int i = 0; i < edge_diff.size(); ++i) {
-            if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
-                printf("wrong...\n");
+    for (int i = 0; i < F.cols(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            auto diff = edge_diff[face_edgeIds[i][j]];
+            if (abs(diff[0]) > 1 || abs(diff[1]) > 1) {
+                printf("wrong init %d %d!\n", face_edgeIds[i][j], i * 3 + j);
                 exit(0);
             }
-        }*/
+        }
+    }
+    for (int i = 0; i < edge_diff.size(); ++i) {
+        if (abs(edge_diff[i][0]) > 1 || abs(edge_diff[i][1]) > 1) {
+            printf("wrong...\n");
+            exit(0);
+        }
+    }
 }
