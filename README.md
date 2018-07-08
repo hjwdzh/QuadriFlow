@@ -14,21 +14,21 @@ The software supports cmake build for Linux/Mac/Windows systems. For linux and m
 
 ### Install
 
+```
 git clone --recursive -j8 git://github.com/hjwdzh/quadriflow
-
 mkdir build
-
 cd build
-
 cmake ..
-
 make
+```
 
 ### QuadriFlow Software
 
 We take a manifold triangle mesh "input.obj" and generate a manifold quad mesh "output.obj". The face number increases linearly with the resolution controled by the user.
 
+```
 ./quadriflow -i input.obj -o output.obj -f [resolution]
+```
 
 ## Dependencies
 Require: Boost, GLM, Eigen
