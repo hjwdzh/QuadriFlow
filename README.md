@@ -6,7 +6,7 @@ Jingwei Huang, Yichao Zhou, Matthias Niessner, Jonathan Shewchuk and Leonidas Gu
 
 ## Demo
 
-The software supports cmake build for Linux/Mac/Windows systems. For linux and mac users, run **sh demo.sh** to build and try the manifold example.
+The software supports cmake build for Linux/Mac/Windows systems. For linux and mac users, run **sh demo.sh** to build and try the QuadriFlow example, which converts examples/Gargoyle_input.obj to examples/Gargoyle_quadriflow.obj.
 
 ### Install
 
