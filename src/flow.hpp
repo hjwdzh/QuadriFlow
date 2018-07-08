@@ -54,11 +54,8 @@ class BoykovMaxFlowHelper : public MaxFlowHelper {
         for (int i = 0; i < n; ++i) vertex_descriptors[i] = add_vertex(g);
     }
     int compute() {
-        int t1 = GetCurrentTime64();
         EdgeWeightType flow =
             boykov_kolmogorov_max_flow(g, vertex_descriptors.front(), vertex_descriptors.back());
-        int t2 = GetCurrentTime64();
-        lprintf("boykov_kolmogorov uses %.2lfs\n", (t2 - t1) * 1e-3);
         return flow;
     }
     void addDirectEdge(Traits::vertex_descriptor& v1, Traits::vertex_descriptor& v2,
@@ -149,16 +146,11 @@ class NetworkSimplexFlowHelper : public MaxFlowHelper {
         Preflow pf(graph, capacity, nodes.front(), nodes.back());
         NetworkSimplex ns(graph);
 
-        int t1 = GetCurrentTime64();
-
         // Run preflow to find maximum flow
         lprintf("push-relabel flow... ");
         pf.runMinCut();
         int maxflow = pf.flowValue();
 
-        int t2 = GetCurrentTime64();
-
-        lprintf("[%.2lfs]  ns flow... ", (t2 - t1) * 1e-3);
         // Run network simplex to find minimum cost maximum flow
         ns.costMap(cost).upperMap(capacity).stSupply(nodes.front(), nodes.back(), maxflow);
         auto status = ns.run();
@@ -176,8 +168,6 @@ class NetworkSimplexFlowHelper : public MaxFlowHelper {
                 break;
         }
 
-        int t3 = GetCurrentTime64();
-        lprintf("[%.2lfs] finished!\n", (t3 - t1) * 1e-3);
         return maxflow;
     }
     void applyTo(std::vector<Vector2i>& edge_diff) {

@@ -1,6 +1,5 @@
 #include "config.hpp"
 #include "field-math.hpp"
-#include "gldraw.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
 
@@ -91,8 +90,5 @@ int main(int argc, char** argv) {
     }
     printf("finish...\n");
     //	field.LoopFace(2);
-#ifdef WITH_OPENGL
-    gldraw();
-#endif
     return 0;
 }

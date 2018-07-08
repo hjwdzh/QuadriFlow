@@ -6,7 +6,6 @@
 // #define WITH_SCALE
 // #define WITH_CUDA
 // #define WITH_TBB
-// #define WITH_OPENGL
 
 const int GRAIN_SIZE = 1024;
 

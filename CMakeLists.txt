@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(Parametrize)
+project(QuadriFlow)
 
 
 option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
@@ -8,10 +8,6 @@ option(BUILD_LOG "Enable verbose log" OFF)
 option(BUILD_GUROBI "Enable GUROBI for comparison ONLY" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-set(OpenGL_GL_PREFERENCE "LEGACY")
-
-find_package(OpenGL REQUIRED)
-find_package(GLUT REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(glm REQUIRED)
@@ -46,7 +42,7 @@ endif()
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare -Wno-maybe-uninitialized")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")  # enable assert
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
@@ -70,7 +66,6 @@ include_directories(${EIGEN_INCLUDE_DIRS})
 include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${GLUT_INCLUDE_DIRS})
 include_directories(${LEMON_INCLUDE_DIRS})
-include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
 include_directories(${GUROBI_INCLUDE_DIRS})
 
@@ -92,7 +87,7 @@ endif(BUILD_GUROBI)
 
 
 set(
-    parametrize_SRC
+    quadriflow_SRC
     src/adjacent-matrix.cpp
     src/adjacent-matrix.hpp
     src/compare-key.hpp
@@ -103,8 +98,6 @@ set(
     src/dset.hpp
     src/field-math.hpp
     src/flow.hpp
-    src/gldraw.cpp
-    src/gldraw.hpp
     src/hierarchy.cpp
     src/hierarchy.hpp
     src/loader.cpp
@@ -129,19 +122,12 @@ set(
 )
 
 add_executable(
-    parametrize
-    ${parametrize_SRC}
-)
-
-add_executable(
-    analyzer
-    tools/analyzer.cpp
+    quadriflow
+    ${quadriflow_SRC}
 )
 
 target_link_libraries(
-    parametrize
-    ${GLUT_LIBRARIES}
-    ${OPENGL_LIBRARIES}
+    quadriflow
     ${TBB_LIBRARIES}
     ${Boost_LIBRARIES}
     ${LEMON_LIBRARIES}
