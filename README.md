@@ -45,6 +45,7 @@ Optional: TBB, OpenMP
   pages={1--14},
   year={2018},
   organization={Eurographics Association}
-}```
+}
+```
 
 
