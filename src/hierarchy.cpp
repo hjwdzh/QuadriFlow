@@ -618,7 +618,12 @@ void Hierarchy::DownsampleEdgeGraph(std::vector<Vector3i>& FQ, std::vector<Vecto
 
 int Hierarchy::FixFlipSat(int depth, int threshold) {
     if (system("which minisat > /dev/null 2>&1")) {
-        printf("minisat not found, skip!\n");
+        printf("minisat not found, \"-sat\" will not be used!\n");
+        return 0;
+    }
+    if (system("which timeout > /dev/null 2>&1")) {
+        printf("timeout not found, \"-sat\" will not be used!\n");
+        return 0;
     }
 
     auto& F2E = mF2E[depth];
@@ -718,7 +723,7 @@ int Hierarchy::FixFlipSat(int depth, int threshold) {
             } while (e != e0);
         }
     }
-    lprintf("[FlipH] Level %2d: marked = %d\n", depth, mark_count);
+    lprintf("[FlipH] Depth %2d: marked = %d\n", depth, mark_count);
 
     std::vector<bool> flexible(EdgeDiff.size(), false);
     for (int i = 0; i < F2E.size(); ++i) {
