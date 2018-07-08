@@ -4,7 +4,7 @@ Source code for the paper:
 
 Jingwei Huang, Yichao Zhou, Matthias Niessner, Jonathan Shewchuk and Leonidas Guibas. [**QuadriFlow: A Scalable and Robust Method for Quadrangulation**](http://stanford.edu/~jingweih/papers/quadriflow/quadriflow.pdf), The Eurographics Symposium on Geometry Processing (SGP) 2018.
 
-## Screenshot
+## Processing Result
 
 ![QuadriFlow Results](https://github.com/hjwdzh/quadriflow/raw/master/img/result.jpg)
 
