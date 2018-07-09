@@ -107,4 +107,6 @@ Optional: TBB, OpenMP
 }
 ```
 
+## Triangle Manifold
 
+In case you are dealing with a triangle mesh that is not a manifold, we implemented the software that converts any triangle mesh to watertight manifold. Please visit https://github.com/hjwdzh/Manifold for details.
