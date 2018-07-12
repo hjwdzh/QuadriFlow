@@ -97,13 +97,14 @@ Optional: TBB, OpenMP
 
 **IMPORTANT**: If you use this software please cite the following in any resulting publication:
 ```
-@inproceedings{huang2018quadriflow,
-  title={QuadriFlow: A Scalable and Robust Method for Quadrangulation},
-  author={Huang, Jingwei and Zhou, Yichao and Nie{\ss}ner, Matthias and Shewchuk, Jonathan and Guibas, Leonidas},
-  booktitle={Proceedings of the Eleventh Eurographics/ACMSIGGRAPH Symposium on Geometry Processing},
-  pages={1--14},
-  year={2018},
-  organization={Eurographics Association}
+@article {10.1111:cgf.13498,
+    journal = {Computer Graphics Forum},
+    title = {{QuadriFlow: A Scalable and Robust Method for Quadrangulation}},
+    author = {Huang, Jingwei and Zhou, Yichao and Niessner, Matthias and Shewchuk, Jonathan Richard and Guibas, Leonidas J.},
+    year = {2018},
+    publisher = {The Eurographics Association and John Wiley & Sons Ltd.},
+    ISSN = {1467-8659},
+    DOI = {10.1111/cgf.13498}
 }
 ```
 
