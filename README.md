@@ -30,6 +30,8 @@ We take a manifold triangle mesh `input.obj` and generate a manifold quad mesh `
 ./quadriflow -i input.obj -o output.obj -f [resolution]
 ```
 
+Here, the resolution is the desired number of faces in the quad mesh.
+
 ## Advanced Functions
 
 ### Min-cost Flow
