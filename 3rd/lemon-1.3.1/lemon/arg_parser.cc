@@ -221,6 +221,7 @@ namespace lemon {
                                 const std::string &opt)
   {
     Opts::iterator o = _opts.find(opt);
+    Opts::iterator s = _opts.find(syn);
     LEMON_ASSERT(o!=_opts.end(), "Unknown option: '"+opt+"'");
     LEMON_ASSERT(s==_opts.end(), "Option already used: '"+syn+"'");
     ParData p;

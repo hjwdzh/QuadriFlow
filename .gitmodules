@@ -1,4 +1,0 @@
-[submodule "3rd/libigl"]
-	path = 3rd/libigl
-	url = https://github.com/libigl/libigl
-	branch = master

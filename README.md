@@ -15,7 +15,7 @@ The software supports cmake build for Linux/Mac/Windows systems. For linux and m
 ### Install
 
 ```
-git clone --recursive -j8 git://github.com/hjwdzh/quadriflow
+git clone git://github.com/hjwdzh/quadriflow
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=release
