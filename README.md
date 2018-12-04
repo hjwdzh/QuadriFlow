@@ -95,7 +95,7 @@ Optional: TBB, OpenMP
 - [Jingwei Huang](mailto:jingweih@stanford.edu)
 - [Yichao Zhou](mailto:zyc@berkeley.edu)
 
-&copy; Jingwei Huang, Stanford University
+&copy; 2018 Jingwei Huang, Stanford University  Yichao Zhou, University of California, Berkeley
 
 **IMPORTANT**: If you use this software please cite the following in any resulting publication:
 ```
