@@ -4,12 +4,16 @@ Source code for the paper:
 
 Jingwei Huang, Yichao Zhou, Matthias Niessner, Jonathan Shewchuk and Leonidas Guibas. [**QuadriFlow: A Scalable and Robust Method for Quadrangulation**](http://stanford.edu/~jingweih/papers/quadriflow/quadriflow.pdf), The Eurographics Symposium on Geometry Processing (SGP) 2018.
 
-## Processing Result
-
+<!-- ## Processing Result -->
 ![QuadriFlow Results](https://github.com/hjwdzh/quadriflow/raw/master/img/result.jpg)
 
-## Demo
+## WebGL Application
+Our 3D WebGL Apps for QuadriFlow are online!  Without any installation, you are able to
+*  [**Compare**](https://yichaozhou.com/publication/1805quadriflow/#demo) QuadriFlow with previous methods;
+*  [**Quadrangulate**](https://yichaozhou.com/publication/1805quadriflow/#tool) your own meshes and
+    download the result!
 
+## Desktop Software
 The software supports cmake build for Linux/Mac/Windows systems. For linux and mac users, run **`sh demo.sh`** to build and try the QuadriFlow example, which converts `examples/Gargoyle_input.obj` to `examples/Gargoyle_quadriflow.obj`.
 
 ### Install
@@ -95,7 +99,7 @@ Optional: TBB, OpenMP
 - [Jingwei Huang](mailto:jingweih@stanford.edu)
 - [Yichao Zhou](mailto:zyc@berkeley.edu)
 
-&copy; 2018 Jingwei Huang, Stanford University  Yichao Zhou, University of California, Berkeley
+&copy; 2018 Jingwei Huang and Yichao Zhou All Rights Reserved
 
 **IMPORTANT**: If you use this software please cite the following in any resulting publication:
 ```
