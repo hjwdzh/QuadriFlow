@@ -180,9 +180,9 @@ void Parametrizer::FixFlipSat() {
     for (int threshold = 1; threshold <= 4; ++threshold) {
         lprintf("[FixFlipSat] threshold = %d\n", threshold);
 
-        int nflip;
         Hierarchy fh;
         fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
+        int nflip = 0;
         for (int depth = std::min(5, (int)fh.mFQ.size() - 1); depth >= 0; --depth) {
             nflip = fh.FixFlipSat(depth, threshold);
             if (depth > 0) fh.PushDownwardFlip(depth);

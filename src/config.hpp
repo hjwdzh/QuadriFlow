@@ -1,11 +1,10 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
-// Move settings to cmake to make git happy :)
+// Move settings to cmake to make CMake happy :)
 
 // #define WITH_SCALE
 // #define WITH_CUDA
-// #define WITH_TBB
 
 const int GRAIN_SIZE = 1024;
 

@@ -1,21 +1,24 @@
 cmake_minimum_required(VERSION 3.1)
-project(QuadriFlow)
-
+project(QuadriFlow LANGUAGES CXX)
 
 option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
-option(BUILD_OPENMP "Enable support for OpenMP" OFF)
 option(BUILD_LOG "Enable verbose log" OFF)
 option(BUILD_GUROBI "Enable GUROBI for comparison ONLY" OFF)
+option(BUILD_OPENMP "Enable support for OpenMP" OFF)
+option(BUILD_TBB "Enable support for TBB" OFF)
+option(BUILD_FREE_LICENSE "Only use libraries with permissive licenses" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-find_package(TBB REQUIRED)
 find_package(Eigen REQUIRED)
-find_package(glm REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 
 if (BUILD_GUROBI)
     find_package(GUROBI REQUIRED)
 endif(BUILD_GUROBI)
+
+if (BUILD_TBB)
+    find_package(TBB REQUIRED)
+endif(BUILD_TBB)
 
 set(LEMON_3RD_PATH 3rd/lemon-1.3.1)
 
@@ -83,6 +86,14 @@ endif(BUILD_LOG)
 if (BUILD_GUROBI)
     add_definitions(-DWITH_GUROBI)
 endif(BUILD_GUROBI)
+
+if (BUILD_TBB)
+    add_definitions(-DWITH_TBB)
+endif(BUILD_TBB)
+
+if (BUILD_FREE_LICENSE)
+    add_definitions(-DEIGEN_MPL2_ONLY)
+endif(BUILD_FREE_LICENSE)
 
 
 set(

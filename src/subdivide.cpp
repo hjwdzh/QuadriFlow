@@ -173,7 +173,7 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         }
     }
     for (int i = 0; i < F.cols(); ++i) {
-        FaceOrient orient;
+        FaceOrient orient{};
         orient.q = Q.col(F(0, i));
         orient.n = N.col(F(0, i));
         int orient_diff[3];

@@ -1,10 +1,12 @@
 #ifndef FIELD_MATH_H_
 #define FIELD_MATH_H_
 
+#ifdef WITH_CUDA
+#    include <glm/glm.hpp>
+#endif
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <algorithm>
-#include <glm/glm.hpp>
 #include <vector>
 using namespace Eigen;
 
@@ -393,7 +395,7 @@ inline Vector3d TravelField(Vector3d p, Vector3d &pt, double &len, int &f, Vecto
         int edge_id = f * 3;
         double max_len = 1e30;
         bool found = false;
-        int next_id, next_f;
+        int next_id = -1, next_f = -1;
         Vector3d next_q;
         Matrix3d m, n;
         m.col(0) = t1;

@@ -1,15 +1,16 @@
 #include "hierarchy.hpp"
 #include <fstream>
+#include <algorithm>
 #include <unordered_map>
 #include "config.hpp"
 #include "field-math.hpp"
-#ifdef WITH_TBB
-#include "tbb_common.h"
-#endif
 #include <queue>
 #include "localsat.hpp"
 #include "pcg32/pcg32.h"
-#include "pss/parallel_stable_sort.h"
+#ifdef WITH_TBB
+#  include "tbb_common.h"
+#  include "pss/parallel_stable_sort.h"
+#endif
 Hierarchy::Hierarchy() {
     mAdj.resize(MAX_DEPTH + 1);
     mV.resize(MAX_DEPTH + 1);
@@ -257,7 +258,11 @@ void Hierarchy::DownsampleGraph(const AdjacentMatrix adj, const MatrixXd& V, con
         }
     }
 
+#ifdef WITH_TBB
     pss::parallel_stable_sort(entries.begin(), entries.end(), std::less<Entry>());
+#else
+    std::stable_sort(entries.begin(), entries.end(), std::less<Entry>());
+#endif
 
     std::vector<bool> mergeFlag(V.cols(), false);
 

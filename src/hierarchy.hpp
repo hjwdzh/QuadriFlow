@@ -1,6 +1,10 @@
 #ifndef HIERARCHY_H_
 #define HIERARCHY_H_
-#include <glm/glm.hpp>
+
+#ifdef WITH_CUDA
+#    include <glm/glm.hpp>
+#endif
+
 #include <map>
 #include <vector>
 #include "adjacent-matrix.hpp"
