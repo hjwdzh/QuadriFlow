@@ -14,7 +14,15 @@
 #include "parametrizer.hpp"
 
 #ifdef WITH_CUDA
-#include <cuda_runtime.h>
+#    include <cuda_runtime.h>
+#endif
+
+#ifndef EIGEN_MPL2_ONLY
+template<class T>
+using LinearSolver = Eigen::SimplicialLLT<T>;
+#else
+template<class T>
+using LinearSolver = Eigen::SparseLU<T>;
 #endif
 
 Optimizer::Optimizer() {}
@@ -198,7 +206,7 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
             }
         }
         A.setFromTriplets(lhsTriplets.begin(), lhsTriplets.end());
-        Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
+        LinearSolver<Eigen::SparseMatrix<double>> solver;
         solver.analyzePattern(A);
 
         solver.factorize(A);
@@ -638,7 +646,7 @@ void Optimizer::optimize_positions_dynamic(
         // I suspected either there is a implementation bug in IncompleteCholesky Preconditioner
         // or there is a memory corruption somewhere.  However, g++'s address sanitizer does not
         // report anything useful.
-        Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
+        LinearSolver<Eigen::SparseMatrix<double>> solver;
         solver.analyzePattern(A);
         solver.factorize(A);
         //        Eigen::setNbThreads(1);
@@ -1132,7 +1140,7 @@ void Optimizer::optimize_positions_fixed(
 
         solver.compute(A);
      */
-    Eigen::SimplicialLLT<Eigen::SparseMatrix<double>> solver;
+    LinearSolver<Eigen::SparseMatrix<double>> solver;
     solver.analyzePattern(A);
     solver.factorize(A);
 
