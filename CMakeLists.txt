@@ -10,7 +10,7 @@ option(BUILD_FREE_LICENSE "Only use libraries with permissive licenses" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 find_package(Eigen REQUIRED)
-find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(Boost REQUIRED)
 
 if (BUILD_GUROBI)
     find_package(GUROBI REQUIRED)
@@ -139,7 +139,6 @@ add_executable(
 target_link_libraries(
     quadriflow
     ${TBB_LIBRARIES}
-    ${Boost_LIBRARIES}
     ${LEMON_LIBRARIES}
     ${GUROBI_LIBRARIES}
 )

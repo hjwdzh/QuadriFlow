@@ -92,7 +92,7 @@ cmake .. -DCMAKE_BUILD_TYPE=release -DBUILD_GUROBI=ON -DBUILD_LOG=ON
 This override other solvers and should only be used for benchmark purpose.
 
 ## External Dependencies
-* Boost `program_options`
+* Boost
 * Eigen
 * OpenMP (optional in CMake)
 * TBB (optional in CMake)
