@@ -91,9 +91,23 @@ cmake .. -DCMAKE_BUILD_TYPE=release -DBUILD_GUROBI=ON -DBUILD_LOG=ON
 ```
 This override other solvers and should only be used for benchmark purpose.
 
-## Dependencies
-Require: Boost, GLM, Eigen
-Optional: TBB, OpenMP
+## External Dependencies
+* Boost `program_options`
+* Eigen
+* OpenMP (optional in CMake)
+* TBB (optional in CMake)
+* GUROBI (for benchmark purpose only)
+
+## Licenses
+
+QuadriFlow is released under [MIT License](LICENSE.txt).
+For 3rd dependencies,
+* Boost and Lemon are released under [Boost Software License](https://lemon.cs.elte.hu/trac/lemon/wiki/License)
+* Most part of Eigen is released under [MPL2](https://www.mozilla.org/en-US/MPL/2.0/FAQ/)
+    * Sparse Cholesky Decomposition algorithms are released under LGPL
+    * To replace it using Sparse LU decomposition with a more permissive MPL2 license (a little slower), enable `BUILD_FREE_LICENSE` in CMake (e.g., `-DBUILD_FREE_LICENSE=ON`).
+* `pcg32.h` is released under the Apache License, Version 2.0
+* `parallel_stable_sort.h` is released under the MIT License
 
 ## Authors
 - [Jingwei Huang](mailto:jingweih@stanford.edu)
