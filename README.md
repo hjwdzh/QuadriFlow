@@ -55,7 +55,7 @@ enable this feature, uses
 ```
 
 ### SAT Flip Removal (Unix Only)
-By default, `quadriflow` does not use the SAT solver to remove the flips in the interger offsets
+By default, `quadriflow` does not use the SAT solver to remove the flips in the integer offsets
 map.  To remove the flips and guarantee a watertight result mesh, you can enable the SAT solver.
 First, make sure that `minisat` and `timeout` is properly installed under your `${PATH}`.  The
 former can be done by building `3rd/MapleCOMSPS_LRB/CMakeLists.txt` and copying `minisat` to `/usr/bin`.
