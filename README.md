@@ -20,6 +20,7 @@ The software supports cmake build for Linux/Mac/Windows systems. For linux and m
 
 ```
 git clone git://github.com/hjwdzh/quadriflow
+cd quadriflow
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=release
