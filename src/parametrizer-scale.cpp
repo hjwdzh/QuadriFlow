@@ -1,5 +1,7 @@
 #include "parametrizer.hpp"
 
+namespace qflow {
+
 void Parametrizer::ComputeInverseAffine()
 {
     if (flag_adaptive_scale == 0)
@@ -113,3 +115,5 @@ void Parametrizer::EstimateSlope() {
         }
     }
 }
+
+} // namespace qflow

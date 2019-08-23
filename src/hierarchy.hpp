@@ -14,6 +14,8 @@
 
 using namespace Eigen;
 
+namespace qflow {
+
 class Hierarchy {
    public:
     Hierarchy();
@@ -39,6 +41,7 @@ class Hierarchy {
     void LoadFromFile(FILE* fp);
 
     double mScale;
+    int rng_seed;
 
     MatrixXi mF;    // mF(i, j) i \in [0, 3) ith index in face j
     VectorXi mE2E;  // inverse edge
@@ -81,4 +84,7 @@ class Hierarchy {
     void CopyToHost();
 #endif
 };
+
+} // namespace qflow
+
 #endif

@@ -8,9 +8,12 @@
 #include "localsat.hpp"
 #include "pcg32/pcg32.h"
 #ifdef WITH_TBB
-#  include "tbb_common.h"
+#  include "tbb/tbb.h"
 #  include "pss/parallel_stable_sort.h"
 #endif
+
+namespace qflow {
+
 Hierarchy::Hierarchy() {
     mAdj.resize(MAX_DEPTH + 1);
     mV.resize(MAX_DEPTH + 1);
@@ -19,6 +22,7 @@ Hierarchy::Hierarchy() {
     mPhases.resize(MAX_DEPTH + 1);
     mToLower.resize(MAX_DEPTH);
     mToUpper.resize(MAX_DEPTH);
+    rng_seed = 0;
 }
 
 #undef max
@@ -45,10 +49,10 @@ void Hierarchy::Initialize(double scale, int with_scale) {
     mS.resize(mV.size());
     mK.resize(mV.size());
 
+    //Set random seed
+    srand(rng_seed);
+
     mScale = scale;
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
     for (int i = 0; i < mV.size(); ++i) {
         mQ[i].resize(mN[i].rows(), mN[i].cols());
         mO[i].resize(mN[i].rows(), mN[i].cols());
@@ -57,6 +61,7 @@ void Hierarchy::Initialize(double scale, int with_scale) {
         for (int j = 0; j < mN[i].cols(); ++j) {
             Vector3d s, t;
             coordinate_system(mN[i].col(j), s, t);
+            //rand() is not thread safe!
             double angle = ((double)rand()) / RAND_MAX * 2 * M_PI;
             double x = ((double)rand()) / RAND_MAX * 2 - 1.f;
             double y = ((double)rand()) / RAND_MAX * 2 - 1.f;
@@ -1205,3 +1210,5 @@ void Hierarchy::CopyToDevice() {
 void Hierarchy::CopyToHost() {}
 
 #endif
+
+} // namespace qflow

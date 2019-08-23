@@ -3,7 +3,11 @@
 #include <queue>
 #include <unordered_map>
 #include <vector>
+#include <random>
 #include "optimizer.hpp"
+
+namespace qflow {
+
 
 void Parametrizer::BuildEdgeInfo() {
     auto& F = hierarchy.mF;
@@ -51,6 +55,11 @@ void Parametrizer::BuildIntegerConstraints() {
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
     face_edgeOrients.resize(F.cols());
+
+    //Random number generator (for shuffling)
+    std::random_device rd;
+    std::mt19937 g(rd());
+    g.seed(hierarchy.rng_seed);
 
     // undirected edge to direct edge
     std::vector<std::pair<int, int>> E2D(edge_diff.size(), std::make_pair(-1, -1));
@@ -257,7 +266,7 @@ void Parametrizer::BuildIntegerConstraints() {
         // uniformly random manually modify variables so that the network has full flow.
         for (int i = 0; i < 2; ++i)
             for (auto& modified_var : modified_variables[i])
-                std::random_shuffle(modified_var.begin(), modified_var.end());
+                std::shuffle(modified_var.begin(), modified_var.end(), g);
 
         for (int j = 0; j < total_flows.size(); ++j) {
             for (int ii = 0; ii < 2; ++ii) {
@@ -397,7 +406,7 @@ void Parametrizer::BuildIntegerConstraints() {
     // uniformly random manually modify variables so that the network has full flow.
     for (int j = 0; j < 2; ++j) {
         for (auto& modified_var : modified_variables[j])
-            std::random_shuffle(modified_var.begin(), modified_var.end());
+            std::shuffle(modified_var.begin(), modified_var.end(), g);
     }
     for (int j = 0; j < total_flows.size(); ++j) {
         for (int ii = 0; ii < 2; ++ii) {
@@ -425,3 +434,5 @@ void Parametrizer::ComputeMaxFlow() {
     Optimizer::optimize_integer_constraints(hierarchy, singularities, flag_minimum_cost_flow);
     hierarchy.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
 }
+
+} // namespace qflow

@@ -2,6 +2,9 @@
 #define DISAJOINT_TREE_H_
 
 #include <vector>
+
+namespace qflow {
+
 class DisajointTree {
    public:
     DisajointTree() {}
@@ -142,5 +145,7 @@ class DisajointOrientTree {
     std::vector<int> indices;
     std::vector<int> rank;
 };
+
+} // namespace qflow
 
 #endif

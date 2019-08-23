@@ -4,6 +4,8 @@
 #include <Eigen/Core>
 #include <vector>
 
+namespace qflow {
+
 using namespace Eigen;
 
 enum class SolverStatus {
@@ -23,5 +25,7 @@ SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,
 void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i> &face_edgeIds,
                     const std::vector<Vector3i> &face_edgeOrients, const MatrixXi &F,
                     const VectorXi &V2E, const VectorXi &E2E);
+
+} // namespace qflow
 
 #endif

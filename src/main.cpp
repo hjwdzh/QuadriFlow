@@ -2,10 +2,13 @@
 #include "field-math.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
+#include <stdlib.h>
 
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 #endif
+
+using namespace qflow;
 
 Parametrizer field;
 
@@ -33,6 +36,8 @@ int main(int argc, char** argv) {
             field.flag_minimum_cost_flow = 1;
         } else if (strcmp(argv[i], "-sat") == 0) {
             field.flag_aggresive_sat = 1;
+        } else if (strcmp(argv[i], "-seed") == 0) {
+            field.hierarchy.rng_seed = atoi(argv[i + 1]);
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
@@ -44,7 +49,10 @@ int main(int argc, char** argv) {
     }
 
     printf("Initialize...\n");
+    t1 = GetCurrentTime64();
     field.Initialize(faces);
+    t2 = GetCurrentTime64();
+    printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
     printf("Solve Orientation Field...\n");
     t1 = GetCurrentTime64();

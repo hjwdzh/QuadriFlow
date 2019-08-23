@@ -8,6 +8,9 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <vector>
+
+namespace qflow {
+
 using namespace Eigen;
 
 struct DEdge
@@ -474,5 +477,7 @@ inline Vector3d TravelField(Vector3d p, Vector3d &pt, double &len, int &f, Vecto
 
     return p;
 }
+
+} // namespace qflow
 
 #endif

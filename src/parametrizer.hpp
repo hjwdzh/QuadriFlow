@@ -18,6 +18,9 @@
 #include "hierarchy.hpp"
 #include "post-solver.hpp"
 #include "serialize.hpp"
+
+namespace qflow {
+
 using namespace Eigen;
 
 typedef std::pair<unsigned int, unsigned int> Edge;
@@ -37,6 +40,7 @@ class Parametrizer {
     Parametrizer() {}
     // Mesh Initialization
     void Load(const char* filename);
+    void NormalizeMesh();
     void ComputeMeshStatus();
     void ComputeSmoothNormal();
     void ComputeSharpEdges();
@@ -170,5 +174,7 @@ class Parametrizer {
 extern void generate_adjacency_matrix_uniform(const MatrixXi& F, const VectorXi& V2E,
                                               const VectorXi& E2E, const VectorXi& nonManifold,
                                               AdjacentMatrix& adj);
+
+} // namespace qflow
 
 #endif

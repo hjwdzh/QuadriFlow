@@ -13,6 +13,8 @@
 #include "flow.hpp"
 #include "parametrizer.hpp"
 
+namespace qflow {
+
 #ifdef WITH_CUDA
 #    include <cuda_runtime.h>
 #endif
@@ -540,12 +542,12 @@ void Optimizer::optimize_positions_dynamic(
         }
         std::vector<double> b(O_compact.size() * 2);
         std::vector<double> x(O_compact.size() * 2);
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
         std::vector<Vector3d> Q_compact(O_compact.size());
         std::vector<Vector3d> N_compact(O_compact.size());
         std::vector<Vector3d> V_compact(O_compact.size());
+#ifdef WITH_OMP
+#pragma omp parallel for
+#endif
         for (int i = 0; i < O_compact.size(); ++i) {
             Q_compact[i] = Q.col(Vind[i]);
             N_compact[i] = N.col(Vind[i]);
@@ -1373,3 +1375,5 @@ void Optimizer::optimize_positions_cuda(Hierarchy& mRes) {
 }
 
 #endif
+
+} // namespace qflow

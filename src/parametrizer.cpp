@@ -16,6 +16,8 @@
 #include <queue>
 #include <set>
 
+namespace qflow {
+
 void Parametrizer::ComputeIndexMap(int with_scale) {
     // build edge info
     auto& V = hierarchy.mV[0];
@@ -25,9 +27,9 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& O = hierarchy.mO[0];
     auto& S = hierarchy.mS[0];
     // ComputeOrientationSingularities();
-    
+
     BuildEdgeInfo();
-    
+
     if (flag_preserve_sharp) {
         //        ComputeSharpO();
     }
@@ -101,7 +103,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
     FixFlipSat();
-    
+
 #ifdef LOG_OUTPUT
     int t2 = GetCurrentTime64();
     printf("Flip use %lf\n", (t2 - t1) * 1e-3);
@@ -122,7 +124,7 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
                                         sharp_constraints, flag_adaptive_scale);
 
     AdvancedExtractQuad();
-    
+
     FixValence();
 
     std::vector<int> sharp_o(O_compact.size(), 0);
@@ -242,3 +244,4 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     //                            hierarchy.mScale, false);
 }
 
+}  // namespace qflow

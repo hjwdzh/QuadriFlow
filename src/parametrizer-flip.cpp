@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
+namespace qflow {
+
 double Parametrizer::QuadEnergy(std::vector<int>& loop_vertices, std::vector<Vector4i>& res_quads,
                                 int level) {
     if (loop_vertices.size() < 4) return 0;
@@ -577,3 +579,5 @@ void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vec
                               nonManifold_compact);
      */
 }
+
+} // namespace qflow

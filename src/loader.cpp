@@ -11,6 +11,8 @@
 #include <fstream>
 #include <unordered_map>
 
+namespace qflow {
+
 inline std::vector<std::string> &str_tokenize(const std::string &s, char delim, std::vector<std::string> &elems, bool include_empty = false) {
 	std::stringstream ss(s);
 	std::string item;
@@ -153,3 +155,5 @@ void load(const char* filename, MatrixXd& V, MatrixXi& F)
 	for (uint32_t i = 0; i<vertices.size(); ++i)
 		V.col(i) = positions.at(vertices[i].p - 1);
 }
+
+} // namespace qflow

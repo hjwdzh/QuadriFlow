@@ -4,6 +4,8 @@
 #include <iostream>
 #include <map>
 
+namespace qflow {
+
 struct Key2i
 {
 	Key2i(int x, int y)
@@ -94,5 +96,7 @@ struct KeySorted3i
 	std::pair<int, std::pair<int, int> > key;
 };
 
+
+} // namespace qflow
 
 #endif
