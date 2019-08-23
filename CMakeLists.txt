@@ -9,6 +9,7 @@ option(BUILD_TBB "Enable support for TBB" OFF)
 option(BUILD_FREE_LICENSE "Only use libraries with permissive licenses" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+set(Boost_USE_STATIC_LIBS ON)
 find_package(Eigen REQUIRED)
 find_package(Boost REQUIRED)
 
