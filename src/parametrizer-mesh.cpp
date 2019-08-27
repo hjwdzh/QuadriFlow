@@ -48,18 +48,12 @@ void Parametrizer::Initialize(int faces) {
         rho[i] = 1;
     }
 #ifdef PERFORMANCE_TEST
-    num_vertices = V.cols() * 10;
-    num_faces = num_vertices;
-    scale = sqrt(surface_area / num_faces);
+    scale = sqrt(surface_area / (V.cols() * 10));
 #else
-    if (faces == -1) {
-        num_vertices = V.cols();
-        num_faces = num_vertices;
-        scale = sqrt(surface_area / num_faces);
+    if (faces <= 0) {
+        scale = sqrt(surface_area / V.cols());
     } else {
-        double face_area = surface_area / faces;
-        num_vertices = faces;
-        scale = std::sqrt(face_area) / 2;
+        scale = std::sqrt(surface_area / faces);
     }
 #endif
     double target_len = std::min(scale / 2, average_edge_length * 2);

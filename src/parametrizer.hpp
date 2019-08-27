@@ -106,10 +106,6 @@ class Parametrizer {
     double max_edge_length;
     VectorXd A;
 
-    // target mesh
-    int num_vertices;
-    int num_faces;
-
     // just for test
     DisajointTree disajoint_tree;
 
