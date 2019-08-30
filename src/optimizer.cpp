@@ -42,6 +42,8 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
     for (int level = mRes.mN.size() - 1; level >= 0; --level) {
         AdjacentMatrix& adj = mRes.mAdj[level];
         const MatrixXd& N = mRes.mN[level];
+        const MatrixXd& CQ = mRes.mCQ[level];
+        const VectorXd& CQw = mRes.mCQw[level];
         MatrixXd& Q = mRes.mQ[level];
         auto& phases = mRes.mPhases[level];
         for (int iter = 0; iter < levelIterations; ++iter) {
@@ -69,6 +71,20 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
                         double norm = sum.norm();
                         if (norm > RCPOVERFLOW) sum /= norm;
                     }
+
+                    if (CQw.size() > 0) {
+                        float cw = CQw[i];
+                        if (cw != 0) {
+                            std::pair<Vector3d, Vector3d> value =
+                                compat_orientation_extrinsic_4(sum, n_i, CQ.col(i), n_i);
+                            sum = value.first * (1 - cw) + value.second * cw;
+                            sum -= n_i * n_i.dot(sum);
+
+                            float norm = sum.norm();
+                            if (norm > RCPOVERFLOW) sum /= norm;
+                        }
+                    }
+
                     if (weight_sum > 0) {
                         Q.col(i) = sum;
                     }
@@ -260,6 +276,9 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
         for (int iter = 0; iter < levelIterations; ++iter) {
             AdjacentMatrix& adj = mRes.mAdj[level];
             const MatrixXd &N = mRes.mN[level], &Q = mRes.mQ[level], &V = mRes.mV[level];
+            const MatrixXd& CQ = mRes.mCQ[level];
+            const MatrixXd& CO = mRes.mCO[level];
+            const VectorXd& COw = mRes.mCOw[level];
             MatrixXd& O = mRes.mO[level];
             MatrixXd& S = mRes.mS[level];
             auto& phases = mRes.mPhases[level];
@@ -311,6 +330,17 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
                         weight_sum += weight;
                         if (weight_sum > RCPOVERFLOW) sum /= weight_sum;
                         sum -= n_i.dot(sum - v_i) * n_i;
+                    }
+
+                    if (COw.size() > 0) {
+                        float cw = COw[i];
+                        if (cw != 0) {
+                            Vector3d co = CO.col(i), cq = CQ.col(i);
+                            Vector3d d = co - sum;
+                            d -= cq.dot(d) * cq;
+                            sum += cw * d;
+                            sum -= n_i.dot(sum - v_i) * n_i;
+                        }
                     }
 
                     if (weight_sum > 0) {

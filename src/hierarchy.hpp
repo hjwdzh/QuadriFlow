@@ -40,6 +40,9 @@ class Hierarchy {
     void SaveToFile(FILE* fp);
     void LoadFromFile(FILE* fp);
 
+    void clearConstraints();
+    void propagateConstraints();
+
     double mScale;
     int rng_seed;
 
@@ -57,6 +60,12 @@ class Hierarchy {
     std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in V; i \in [0, 2); j \in V
     std::vector<MatrixXd> mS;
     std::vector<MatrixXd> mK;
+
+    // constraints
+    std::vector<MatrixXd> mCQ;
+    std::vector<MatrixXd> mCO;
+    std::vector<VectorXd> mCQw;
+    std::vector<VectorXd> mCOw;
 
     int with_scale;
 

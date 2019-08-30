@@ -128,6 +128,20 @@ void Parametrizer::ComputeMeshStatus() {
 }
 
 void Parametrizer::ComputeSharpEdges() {
+    sharp_edges.resize(F.cols() * 3, 0);
+
+    if (flag_preserve_border) {
+        for (int i = 0; i < sharp_edges.size(); ++i) {
+            int re = E2E[i];
+            if (re == -1) {
+                sharp_edges[i] = 1;
+            }
+        }
+    }
+
+    if (flag_preserve_sharp == 0)
+        return;
+
     std::vector<Vector3d> face_normals(F.cols());
     for (int i = 0; i < F.cols(); ++i) {
         Vector3d p1 = V.col(F(0, i));
@@ -137,9 +151,6 @@ void Parametrizer::ComputeSharpEdges() {
     }
 
     double cos_thres = cos(60.0/180.0*3.141592654);
-    sharp_edges.resize(F.cols() * 3, 0);
-    if (flag_preserve_sharp == 0)
-        return;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         int e = i;
         int re = E2E[e];

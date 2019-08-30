@@ -166,6 +166,7 @@ class Parametrizer {
 
     // flag
     int flag_preserve_sharp = 0;
+    int flag_preserve_border = 0;
     int flag_adaptive_scale = 0;
     int flag_aggresive_sat = 0;
     int flag_minimum_cost_flow = 0;
