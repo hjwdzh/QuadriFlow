@@ -324,19 +324,6 @@ void Parametrizer::BuildIntegerConstraints() {
         for (int j = 0; j < 3; ++j) {
             int orient = face_edgeOrients[i][j];
             diff += rshift90(edge_diff[face_edgeIds[i][j]], orient);
-            if (i == 24231) {
-                for (int k = 0; k < 2; ++k) {
-                    int eid = face_edgeIds[i][j] * 2 + k;
-                    int f1 = edge_to_constraints[eid][0];
-                    int f2 = edge_to_constraints[eid][2];
-                    if (f1 != -1) {
-                        f1 = tree.Index(f1);
-                    }
-                    if (f2 != -1) {
-                        f2 = tree.Index(f2);
-                    }
-                }
-            }
         }
         for (int j = 0; j < 2; ++j) {
             total_flows[tree.Index(i * 2 + j)] += diff[j];
@@ -406,7 +393,7 @@ void Parametrizer::BuildIntegerConstraints() {
             if (ii == 0)
                 max_num = std::min(abs(total_flows[j]) / 2, (int)modified_variables[ii][j].size());
             else
-                max_num = abs(total_flows[j]);
+                max_num = std::min(abs(total_flows[j]), (int)modified_variables[ii][j].size());
             int dir = (total_flows[j] > 0) ? -1 : 1;
             for (int i = 0; i < max_num; ++i) {
                 auto& info = modified_variables[ii][j][i];
