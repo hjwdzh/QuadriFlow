@@ -8,9 +8,12 @@
 #include "localsat.hpp"
 #include "pcg32/pcg32.h"
 #ifdef WITH_TBB
-#  include "tbb_common.h"
+#  include "tbb/tbb.h"
 #  include "pss/parallel_stable_sort.h"
 #endif
+
+namespace qflow {
+
 Hierarchy::Hierarchy() {
     mAdj.resize(MAX_DEPTH + 1);
     mV.resize(MAX_DEPTH + 1);
@@ -19,6 +22,12 @@ Hierarchy::Hierarchy() {
     mPhases.resize(MAX_DEPTH + 1);
     mToLower.resize(MAX_DEPTH);
     mToUpper.resize(MAX_DEPTH);
+    rng_seed = 0;
+
+    mCQ.reserve(MAX_DEPTH + 1);
+    mCQw.reserve(MAX_DEPTH + 1);
+    mCO.reserve(MAX_DEPTH + 1);
+    mCOw.reserve(MAX_DEPTH + 1);
 }
 
 #undef max
@@ -26,6 +35,7 @@ Hierarchy::Hierarchy() {
 void Hierarchy::Initialize(double scale, int with_scale) {
     this->with_scale = with_scale;
     generate_graph_coloring_deterministic(mAdj[0], mV[0].cols(), mPhases[0]);
+
     for (int i = 0; i < MAX_DEPTH; ++i) {
         DownsampleGraph(mAdj[i], mV[i], mN[i], mA[i], mV[i + 1], mN[i + 1], mA[i + 1], mToUpper[i],
                         mToLower[i], mAdj[i + 1]);
@@ -45,10 +55,15 @@ void Hierarchy::Initialize(double scale, int with_scale) {
     mS.resize(mV.size());
     mK.resize(mV.size());
 
+    mCO.resize(mV.size());
+    mCOw.resize(mV.size());
+    mCQ.resize(mV.size());
+    mCQw.resize(mV.size());
+
+    //Set random seed
+    srand(rng_seed);
+
     mScale = scale;
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
     for (int i = 0; i < mV.size(); ++i) {
         mQ[i].resize(mN[i].rows(), mN[i].cols());
         mO[i].resize(mN[i].rows(), mN[i].cols());
@@ -57,6 +72,7 @@ void Hierarchy::Initialize(double scale, int with_scale) {
         for (int j = 0; j < mN[i].cols(); ++j) {
             Vector3d s, t;
             coordinate_system(mN[i].col(j), s, t);
+            //rand() is not thread safe!
             double angle = ((double)rand()) / RAND_MAX * 2 * M_PI;
             double x = ((double)rand()) / RAND_MAX * 2 - 1.f;
             double y = ((double)rand()) / RAND_MAX * 2 - 1.f;
@@ -1085,6 +1101,124 @@ void Hierarchy::PropagateEdge() {
     }
 }
 
+void Hierarchy::clearConstraints() {
+    int levels = mV.size();
+    if (levels == 0) return;
+    for (int i = 0; i < levels; ++i) {
+        int size = mV[i].cols();
+        mCQ[i].resize(3, size);
+        mCO[i].resize(3, size);
+        mCQw[i].resize(size);
+        mCOw[i].resize(size);
+        mCQw[i].setZero();
+        mCOw[i].setZero();
+    }
+}
+
+void Hierarchy::propagateConstraints() {
+    int levels = mV.size();
+    if (levels == 0) return;
+
+    for (int l = 0; l < levels - 1; ++l) {
+        auto& N = mN[l];
+        auto& N_next = mN[l + 1];
+        auto& V = mV[l];
+        auto& V_next = mV[l + 1];
+        auto& CQ = mCQ[l];
+        auto& CQ_next = mCQ[l + 1];
+        auto& CQw = mCQw[l];
+        auto& CQw_next = mCQw[l + 1];
+        auto& CO = mCO[l];
+        auto& CO_next = mCO[l + 1];
+        auto& COw = mCOw[l];
+        auto& COw_next = mCOw[l + 1];
+        auto& toUpper = mToUpper[l];
+        MatrixXd& S = mS[l];
+
+        for (uint32_t i = 0; i != mV[l + 1].cols(); ++i) {
+            Vector2i upper = toUpper.col(i);
+            Vector3d cq = Vector3d::Zero(), co = Vector3d::Zero();
+            float cqw = 0.0f, cow = 0.0f;
+
+            bool has_cq0 = CQw[upper[0]] != 0;
+            bool has_cq1 = upper[1] != -1 && CQw[upper[1]] != 0;
+            bool has_co0 = COw[upper[0]] != 0;
+            bool has_co1 = upper[1] != -1 && COw[upper[1]] != 0;
+
+            if (has_cq0 && !has_cq1) {
+                cq = CQ.col(upper[0]);
+                cqw = CQw[upper[0]];
+            } else if (has_cq1 && !has_cq0) {
+                cq = CQ.col(upper[1]);
+                cqw = CQw[upper[1]];
+            } else if (has_cq1 && has_cq0) {
+                Vector3d q_i = CQ.col(upper[0]);
+                Vector3d n_i = CQ.col(upper[0]);
+                Vector3d q_j = CQ.col(upper[1]);
+                Vector3d n_j = CQ.col(upper[1]);
+                auto result = compat_orientation_extrinsic_4(q_i, n_i, q_j, n_j);
+                cq = result.first * CQw[upper[0]] + result.second * CQw[upper[1]];
+                cqw = (CQw[upper[0]] + CQw[upper[1]]);
+            }
+            if (cq != Vector3d::Zero()) {
+                Vector3d n = N_next.col(i);
+                cq -= n.dot(cq) * n;
+                if (cq.squaredNorm() > RCPOVERFLOW) cq.normalize();
+            }
+
+            if (has_co0 && !has_co1) {
+                co = CO.col(upper[0]);
+                cow = COw[upper[0]];
+            } else if (has_co1 && !has_co0) {
+                co = CO.col(upper[1]);
+                cow = COw[upper[1]];
+            } else if (has_co1 && has_co0) {
+                double scale_x = mScale;
+                double scale_y = mScale;
+                if (with_scale) {
+                  // FIXME
+                    // scale_x *= S(0, i);
+                    // scale_y *= S(1, i);
+                }
+                double inv_scale_x = 1.0f / scale_x;
+                double inv_scale_y = 1.0f / scale_y;
+
+                double scale_x_1 = mScale;
+                double scale_y_1 = mScale;
+                if (with_scale) {
+                  // FIXME
+                    // scale_x_1 *= S(0, j);
+                    // scale_y_1 *= S(1, j);
+                }
+                double inv_scale_x_1 = 1.0f / scale_x_1;
+                double inv_scale_y_1 = 1.0f / scale_y_1;
+                auto result = compat_position_extrinsic_4(
+                    V.col(upper[0]), N.col(upper[0]), CQ.col(upper[0]), CO.col(upper[0]),
+                    V.col(upper[1]), N.col(upper[1]), CQ.col(upper[1]), CO.col(upper[1]), scale_x,
+                    scale_y, inv_scale_x, inv_scale_y, scale_x_1, scale_y_1, inv_scale_x_1,
+                    inv_scale_y_1);
+                cow = COw[upper[0]] + COw[upper[1]];
+                co = (result.first * COw[upper[0]] + result.second * COw[upper[1]]) / cow;
+            }
+            if (co != Vector3d::Zero()) {
+                Vector3d n = N_next.col(i), v = V_next.col(i);
+                co -= n.dot(cq - v) * n;
+            }
+#if 0
+                        cqw *= 0.5f;
+                        cow *= 0.5f;
+#else
+            if (cqw > 0) cqw = 1;
+            if (cow > 0) cow = 1;
+#endif
+
+            CQw_next[i] = cqw;
+            COw_next[i] = cow;
+            CQ_next.col(i) = cq;
+            CO_next.col(i) = co;
+        }
+    }
+}
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 
@@ -1205,3 +1339,5 @@ void Hierarchy::CopyToDevice() {
 void Hierarchy::CopyToHost() {}
 
 #endif
+
+} // namespace qflow

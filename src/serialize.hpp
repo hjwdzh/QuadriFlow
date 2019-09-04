@@ -8,6 +8,8 @@
 #include <vector>
 #include "adjacent-matrix.hpp"
 
+namespace qflow {
+
 template <typename T, int A, int B>
 inline void Save(FILE* fp, const Eigen::Matrix<T, A, B>& m) {
     int r = m.rows(), c = m.cols();
@@ -119,5 +121,7 @@ void Read(FILE* fp, std::set<T>& p) {
     p.clear();
     for (auto& q : buffer) p.insert(q);
 }
+
+} // namespace qflow
 
 #endif

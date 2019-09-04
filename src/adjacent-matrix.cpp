@@ -2,6 +2,9 @@
 #include "adjacent-matrix.hpp"
 #include "dedge.hpp"
 #include <fstream>
+
+namespace qflow {
+
 void generate_adjacency_matrix_uniform(
 	const MatrixXi &F, const VectorXi &V2E, const VectorXi &E2E,
 	const VectorXi &nonManifold, AdjacentMatrix& adj) {
@@ -28,3 +31,5 @@ void generate_adjacency_matrix_uniform(
 		} while (edge != start);
 	}
 }
+
+} // namespace qflow

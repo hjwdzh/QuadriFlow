@@ -16,6 +16,8 @@
 #include "post-solver.hpp"
 #include "serialize.hpp"
 
+namespace qflow {
+
 /// Coefficient of area constraint.  The magnitude is 1 if area is equal to 0.
 const double COEFF_AREA = 1;
 /// Coefficient of tangent constraint.  The magnitude is 0.03 if the bais is reference_length.
@@ -421,3 +423,5 @@ int main(int argc, char* argv[]) {
 }
 
 #endif
+
+} // namespace qflow

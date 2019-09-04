@@ -8,6 +8,8 @@
 #include "field-math.hpp"
 #include "parametrizer.hpp"
 
+namespace qflow {
+
 void subdivide(MatrixXi &F, MatrixXd &V, VectorXd& rho, VectorXi &V2E, VectorXi &E2E, VectorXi &boundary,
                VectorXi &nonmanifold, double maxLength) {
     typedef std::pair<double, int> Edge;
@@ -510,3 +512,5 @@ void subdivide_edgeDiff(MatrixXi &F, MatrixXd &V, MatrixXd &N, MatrixXd &Q, Matr
         }
     }
 }
+
+} // namespace qflow

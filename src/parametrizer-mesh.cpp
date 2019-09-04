@@ -8,13 +8,12 @@
 #include "dedge.hpp"
 #include <queue>
 
-void Parametrizer::Load(const char* filename) {
-    load(filename, V, F);
+namespace qflow {
+
+void Parametrizer::NormalizeMesh() {
     double maxV[3] = {-1e30, -1e30, -1e30};
     double minV[3] = {1e30, 1e30, 1e30};
-#ifdef WITH_OMP
-#pragma omp parallel for
-#endif
+
     for (int i = 0; i < V.cols(); ++i) {
         for (int j = 0; j < 3; ++j) {
             maxV[j] = std::max(maxV[j], V(j, i));
@@ -38,6 +37,11 @@ void Parametrizer::Load(const char* filename) {
     this->normalize_scale = scale;
     this->normalize_offset = Vector3d(0.5 * (maxV[0] + minV[0]), 0.5 * (maxV[1] + minV[1]), 0.5 * (maxV[2] + minV[2]));
     //    merge_close(V, F, 1e-6);
+}
+
+void Parametrizer::Load(const char* filename) {
+    load(filename, V, F);
+    NormalizeMesh();
 }
 
 void Parametrizer::Initialize(int faces) {
@@ -67,7 +71,6 @@ void Parametrizer::Initialize(int faces) {
         subdivide(F, V, rho, V2E, E2E, boundary, nonManifold, target_len);
     }
     
-    int t1 = GetCurrentTime64();
     while (!compute_direct_graph(V, F, V2E, E2E, boundary, nonManifold))
         ;
     generate_adjacency_matrix_uniform(F, V2E, E2E, nonManifold, adj);
@@ -99,8 +102,6 @@ void Parametrizer::Initialize(int faces) {
     hierarchy.mE2E = std::move(E2E);
     hierarchy.mF = std::move(F);
     hierarchy.Initialize(scale, flag_adaptive_scale);
-    int t2 = GetCurrentTime64();
-    printf("Initialize use time: %lf\n", (t2 - t1) * 1e-3);
 }
 
 void Parametrizer::ComputeMeshStatus() {
@@ -121,6 +122,20 @@ void Parametrizer::ComputeMeshStatus() {
 }
 
 void Parametrizer::ComputeSharpEdges() {
+    sharp_edges.resize(F.cols() * 3, 0);
+
+    if (flag_preserve_border) {
+        for (int i = 0; i < sharp_edges.size(); ++i) {
+            int re = E2E[i];
+            if (re == -1) {
+                sharp_edges[i] = 1;
+            }
+        }
+    }
+
+    if (flag_preserve_sharp == 0)
+        return;
+
     std::vector<Vector3d> face_normals(F.cols());
     for (int i = 0; i < F.cols(); ++i) {
         Vector3d p1 = V.col(F(0, i));
@@ -130,9 +145,6 @@ void Parametrizer::ComputeSharpEdges() {
     }
 
     double cos_thres = cos(60.0/180.0*3.141592654);
-    sharp_edges.resize(F.cols() * 3, 0);
-    if (flag_preserve_sharp == 0)
-        return;
     for (int i = 0; i < sharp_edges.size(); ++i) {
         int e = i;
         int re = E2E[e];
@@ -599,3 +611,5 @@ void Parametrizer::OutputMesh(const char* obj_name) {
     }
     os.close();
 }
+
+} // namespace qflow

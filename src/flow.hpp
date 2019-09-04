@@ -20,6 +20,8 @@
 using namespace boost;
 using namespace Eigen;
 
+namespace qflow {
+
 class MaxFlowHelper {
    public:
     MaxFlowHelper() {}
@@ -367,5 +369,7 @@ class ECMaxFlowHelper : public MaxFlowHelper {
     }
     std::vector<std::list<FlowInfo>> graph;
 };
+
+} // namespace qflow
 
 #endif

@@ -22,9 +22,13 @@ const int GRAIN_SIZE = 1024;
 
 #include <chrono>
 
+namespace qflow {
+
 // simulation of Windows GetTickCount()
 unsigned long long inline GetCurrentTime64() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
+} // namespace qflow
+
 #endif

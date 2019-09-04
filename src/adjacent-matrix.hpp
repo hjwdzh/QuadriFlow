@@ -2,6 +2,9 @@
 #define ADJACENT_MATRIX_H_
 
 #include <vector>
+
+namespace qflow {
+
 struct Link
 {
 	Link(){}
@@ -28,5 +31,7 @@ struct TaggedLink {
 };
 
 typedef std::vector<std::vector<Link> > AdjacentMatrix;
+
+} // namespace qflow
 
 #endif

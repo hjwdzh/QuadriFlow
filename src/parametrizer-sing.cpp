@@ -1,6 +1,9 @@
 #include "config.hpp"
 #include "field-math.hpp"
 #include "parametrizer.hpp"
+
+namespace qflow {
+
 void Parametrizer::ComputeOrientationSingularities() {
     MatrixXd &N = hierarchy.mN[0], &Q = hierarchy.mQ[0];
     const MatrixXi& F = hierarchy.mF;
@@ -135,3 +138,5 @@ void Parametrizer::AnalyzeValence() {
     printf("singularity: <%d %d> <%d %d>\n", (int)sing1.size(), (int)sing2.size(), count3, count4);
 }
 
+
+} // namespace qflow

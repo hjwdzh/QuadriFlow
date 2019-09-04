@@ -5,6 +5,8 @@
 #include <atomic>
 #include <iostream>
 
+namespace qflow {
+
 /**
 * Lock-free parallel disjoint set data structure (aka UNION-FIND)
 * with path compression and union by rank
@@ -155,5 +157,7 @@ public:
 
 	mutable std::vector<std::atomic<uint64_t>> mData;
 };
+
+} // namespace qflow
 
 #endif /* __UNIONFIND_H */

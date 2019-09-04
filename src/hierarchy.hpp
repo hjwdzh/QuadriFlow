@@ -14,6 +14,8 @@
 
 using namespace Eigen;
 
+namespace qflow {
+
 class Hierarchy {
    public:
     Hierarchy();
@@ -38,7 +40,11 @@ class Hierarchy {
     void SaveToFile(FILE* fp);
     void LoadFromFile(FILE* fp);
 
+    void clearConstraints();
+    void propagateConstraints();
+
     double mScale;
+    int rng_seed;
 
     MatrixXi mF;    // mF(i, j) i \in [0, 3) ith index in face j
     VectorXi mE2E;  // inverse edge
@@ -54,6 +60,12 @@ class Hierarchy {
     std::vector<MatrixXi> mToUpper;  // mToUpper[h](i, j) \in V; i \in [0, 2); j \in V
     std::vector<MatrixXd> mS;
     std::vector<MatrixXd> mK;
+
+    // constraints
+    std::vector<MatrixXd> mCQ;
+    std::vector<MatrixXd> mCO;
+    std::vector<VectorXd> mCQw;
+    std::vector<VectorXd> mCOw;
 
     int with_scale;
 
@@ -81,4 +93,7 @@ class Hierarchy {
     void CopyToHost();
 #endif
 };
+
+} // namespace qflow
+
 #endif

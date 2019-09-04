@@ -8,8 +8,10 @@
 #include <vector>
 #include "compare-key.hpp"
 #ifdef WITH_TBB
-#include "tbb_common.h"
+#include "tbb/tbb.h"
 #endif
+namespace qflow {
+
 inline int dedge_prev(int e, int deg) { return (e % deg == 0u) ? e + (deg - 1) : e - 1; }
 
 inline bool atomicCompareAndExchange(volatile int* v, uint32_t newValue, int oldValue) {
@@ -214,7 +216,7 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
                 for (uint32_t i = 0; i < deg; ++i) {
                     uint32_t idx_cur = F[f][i], idx_next = F[f][(i + 1) % deg],
                              edge_id = deg * f + i;
-                    if (idx_cur >= V.cols() || idx_next >= V.cols())
+                    if (idx_cur >= V.size() || idx_next >= V.size())
                         throw std::runtime_error(
                             "Mesh data contains an out-of-bounds vertex reference!");
                     if (idx_cur == idx_next) continue;
@@ -481,3 +483,5 @@ void remove_nonmanifold(std::vector<Vector4i>& F, std::vector<Vector3d>& V) {
         std::cout << "Faces reduced from " << nFacesOrig << " -> " << nFaces << std::endl;
     }
 }
+
+} // namespace qflow

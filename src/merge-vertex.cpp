@@ -5,6 +5,8 @@
 #include <map>
 #include <vector>
 
+namespace qflow {
+
 void merge_close(MatrixXd& V, MatrixXi& F, double threshold)
 {
 	std::map<Key3f, int> vid_maps;
@@ -38,3 +40,5 @@ void merge_close(MatrixXd& V, MatrixXi& F, double threshold)
 	memcpy(newF.data(), F.data(), sizeof(int) * 3 * f_num);
 	F = std::move(newF);
 }
+
+} // namespace qflow

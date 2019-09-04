@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+namespace qflow {
+
 const int max_depth = 0;
 
 using namespace Eigen;
@@ -289,3 +291,5 @@ void ExportLocalSat(std::vector<Vector2i> &edge_diff, const std::vector<Vector3i
         edge_diff[i][1] = value[2 * i + 1];
     }
 }
+
+} // namespace qflow

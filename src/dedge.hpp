@@ -5,6 +5,8 @@
 #include <Eigen/Dense>
 #include <vector>
 
+namespace qflow {
+
 using namespace Eigen;
 
 inline int dedge_prev_3(int e) { return (e % 3 == 0) ? e + 2 : e - 1; }
@@ -17,5 +19,7 @@ void compute_direct_graph_quad(std::vector<Vector3d>& V, std::vector<Vector4i>& 
                                std::vector<int>& E2E, VectorXi& boundary, VectorXi& nonManifold);
 
 void remove_nonmanifold(std::vector<Vector4i> &F, std::vector<Vector3d> &V);
+
+} // namespace qflow
 
 #endif

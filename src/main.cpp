@@ -2,10 +2,13 @@
 #include "field-math.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
+#include <stdlib.h>
 
 #ifdef WITH_CUDA
 #include <cuda_runtime.h>
 #endif
+
+using namespace qflow;
 
 Parametrizer field;
 
@@ -27,12 +30,16 @@ int main(int argc, char** argv) {
             output_obj = argv[i + 1];
         } else if (strcmp(argv[i], "-sharp") == 0) {
             field.flag_preserve_sharp = 1;
+        } else if (strcmp(argv[i], "-border") == 0) {
+            field.flag_preserve_border = 1;
         } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
         } else if (strcmp(argv[i], "-mcf") == 0) {
             field.flag_minimum_cost_flow = 1;
         } else if (strcmp(argv[i], "-sat") == 0) {
             field.flag_aggresive_sat = 1;
+        } else if (strcmp(argv[i], "-seed") == 0) {
+            field.hierarchy.rng_seed = atoi(argv[i + 1]);
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
@@ -44,7 +51,33 @@ int main(int argc, char** argv) {
     }
 
     printf("Initialize...\n");
+    t1 = GetCurrentTime64();
     field.Initialize(faces);
+    t2 = GetCurrentTime64();
+    printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+
+    if (field.flag_preserve_border) {
+        printf("Add border constrains...\n");
+        Hierarchy& mRes = field.hierarchy;
+        mRes.clearConstraints();
+        for (uint32_t i = 0; i < 3 * mRes.mF.cols(); ++i) {
+            if (mRes.mE2E[i] == -1) {
+                uint32_t i0 = mRes.mF(i % 3, i / 3);
+                uint32_t i1 = mRes.mF((i + 1) % 3, i / 3);
+                Vector3d p0 = mRes.mV[0].col(i0), p1 = mRes.mV[0].col(i1);
+                Vector3d edge = p1 - p0;
+                if (edge.squaredNorm() > 0) {
+                    edge.normalize();
+                    mRes.mCO[0].col(i0) = p0;
+                    mRes.mCO[0].col(i1) = p1;
+                    mRes.mCQ[0].col(i0) = mRes.mCQ[0].col(i1) = edge;
+                    mRes.mCQw[0][i0] = mRes.mCQw[0][i1] = mRes.mCOw[0][i0] = mRes.mCOw[0][i1] =
+                        1.0;
+                }
+            }
+        }
+        mRes.propagateConstraints();
+    }
 
     printf("Solve Orientation Field...\n");
     t1 = GetCurrentTime64();
