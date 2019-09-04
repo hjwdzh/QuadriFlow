@@ -839,6 +839,9 @@ void Optimizer::optimize_positions_sharp(
             }
 
             for (int i = 0; i < q.size(); ++i) {
+                if (sharp_to_original_indices[q[i]].size() == 0) {
+                  continue;
+                }
                 o[i] = O.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qx = Q.col(sharp_to_original_indices[q[i]][0]);
                 Vector3d qy = Vector3d(N.col(sharp_to_original_indices[q[i]][0])).cross(qx);
@@ -1190,6 +1193,8 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
         auto& FQ = mRes.mFQ[level];
         auto& F2E = mRes.mF2E[level];
         auto& E2F = mRes.mE2F[level];
+
+        int iter = 0;
         while (!fullFlow) {
             std::vector<Vector4i> edge_to_constraints(E2F.size() * 2, Vector4i(-1, 0, -1, 0));
             std::vector<int> initial(F2E.size() * 2, 0);
@@ -1290,6 +1295,11 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
             if (flow_count == supply) fullFlow = true;
             if (level != 0 || fullFlow) break;
             edge_capacity += 1;
+            iter++;
+            if (iter == 10) {
+              /* Probably won't converge. */
+              break;
+            }
             lprintf("Not full flow, edge_capacity += 1\n");
         }
 
