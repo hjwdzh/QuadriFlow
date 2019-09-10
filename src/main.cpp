@@ -30,8 +30,8 @@ int main(int argc, char** argv) {
             output_obj = argv[i + 1];
         } else if (strcmp(argv[i], "-sharp") == 0) {
             field.flag_preserve_sharp = 1;
-        } else if (strcmp(argv[i], "-border") == 0) {
-            field.flag_preserve_border = 1;
+        } else if (strcmp(argv[i], "-boundary") == 0) {
+            field.flag_preserve_boundary = 1;
         } else if (strcmp(argv[i], "-adaptive") == 0) {
             field.flag_adaptive_scale = 1;
         } else if (strcmp(argv[i], "-mcf") == 0) {
@@ -56,8 +56,8 @@ int main(int argc, char** argv) {
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
 
-    if (field.flag_preserve_border) {
-        printf("Add border constrains...\n");
+    if (field.flag_preserve_boundary) {
+        printf("Add boundary constrains...\n");
         Hierarchy& mRes = field.hierarchy;
         mRes.clearConstraints();
         for (uint32_t i = 0; i < 3 * mRes.mF.cols(); ++i) {
