@@ -124,7 +124,7 @@ void Parametrizer::ComputeMeshStatus() {
 void Parametrizer::ComputeSharpEdges() {
     sharp_edges.resize(F.cols() * 3, 0);
 
-    if (flag_preserve_border) {
+    if (flag_preserve_boundary) {
         for (int i = 0; i < sharp_edges.size(); ++i) {
             int re = E2E[i];
             if (re == -1) {
