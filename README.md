@@ -40,7 +40,7 @@ Here, the resolution is the desired number of faces in the quad mesh.
 ## Advanced Functions
 
 ### Min-cost Flow
-By default, `quadriflow` uses the Boykov maximum flow solver from boost becuase it is faster.  To
+By default, `quadriflow` uses the Boykov maximum flow solver from boost because it is faster.  To
 enable the adaptive network simplex minimum-cost flow solver, you can enable the `-mcf` option:
 
 ```
@@ -48,7 +48,7 @@ enable the adaptive network simplex minimum-cost flow solver, you can enable the
 ```
 
 ### Sharp Preserving
-By default, `quadriflow` does not explicitly detect and perserve the sharp edges in the model. To
+By default, `quadriflow` does not explicitly detect and preserve the sharp edges in the model. To
 enable this feature, uses
 
 ```
