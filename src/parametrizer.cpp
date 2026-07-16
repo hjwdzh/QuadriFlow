@@ -28,7 +28,22 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     auto& S = hierarchy.mS[0];
     // ComputeOrientationSingularities();
 
-    BuildEdgeInfo();
+#ifdef LOG_OUTPUT
+    auto T = [](const char* label, unsigned long long t0) {
+        double s = (GetCurrentTime64() - t0) * 1e-3;
+        if (s >= 0.01) printf("  [profile] %-36s %.3f s\n", label, s);
+        fflush(stdout);
+    };
+    unsigned long long t0;
+#   define PROFILE_T(label, t0) T(label, t0)
+#   define PROFILE_START(t0)    t0 = GetCurrentTime64()
+#else
+#   define PROFILE_T(label, t0) (void)0
+#   define PROFILE_START(t0)    (void)0
+#endif
+    unsigned long long t0 = 0;
+
+    PROFILE_START(t0); BuildEdgeInfo();
 
     if (flag_preserve_sharp) {
         //        ComputeSharpO();
@@ -73,16 +88,23 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
 #ifdef LOG_OUTPUT
     printf("Build Integer Constraints...\n");
 #endif
-    BuildIntegerConstraints();
+    PROFILE_T("BuildEdgeInfo + sharp setup", t0);
+    PROFILE_START(t0); BuildIntegerConstraints();
+    PROFILE_T("BuildIntegerConstraints", t0);
+    print_progress(92);
 
-    ComputeMaxFlow();
+    PROFILE_START(t0); ComputeMaxFlow();
+    PROFILE_T("ComputeMaxFlow (flow solver)", t0);
+    print_progress(93);
     // potential bug
 #ifdef LOG_OUTPUT
     printf("subdivide...\n");
 #endif
+    PROFILE_START(t0);
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
+    PROFILE_T("subdivide_edgeDiff (1st)", t0);
 
     allow_changes.clear();
     allow_changes.resize(edge_diff.size() * 2, 1);
@@ -98,11 +120,15 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
     printf("Fix flip advance...\n");
     int t1 = GetCurrentTime64();
 #endif
-    FixFlipHierarchy();
+    PROFILE_START(t0); FixFlipHierarchy();
+    PROFILE_T("FixFlipHierarchy", t0);
+    PROFILE_START(t0);
     subdivide_edgeDiff(F, V, N, Q, O, &hierarchy.mS[0], V2E, hierarchy.mE2E, boundary, nonManifold,
                        edge_diff, edge_values, face_edgeOrients, face_edgeIds, sharp_edges,
                        singularities, 1);
-    FixFlipSat();
+    PROFILE_T("subdivide_edgeDiff (2nd)", t0);
+    PROFILE_START(t0); FixFlipSat(); PROFILE_T("FixFlipSat", t0);
+    print_progress(94);
 
 #ifdef LOG_OUTPUT
     int t2 = GetCurrentTime64();
@@ -117,15 +143,21 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
 
+    PROFILE_START(t0);
     Optimizer::optimize_positions_sharp(hierarchy, edge_values, edge_diff, sharp_edges,
                                         sharp_vertices, sharp_constraints, with_scale);
-
+    PROFILE_T("optimize_positions_sharp", t0);
+    PROFILE_START(t0);
     Optimizer::optimize_positions_fixed(hierarchy, edge_values, edge_diff, sharp_vertices,
                                         sharp_constraints, flag_adaptive_scale);
+    PROFILE_T("optimize_positions_fixed (CG)", t0);
+    print_progress(95);
 
-    AdvancedExtractQuad();
-
-    FixValence();
+    PROFILE_START(t0); AdvancedExtractQuad();
+    PROFILE_T("AdvancedExtractQuad", t0);
+    PROFILE_START(t0); FixValence();
+    PROFILE_T("FixValence", t0);
+    print_progress(96);
 
     std::vector<int> sharp_o(O_compact.size(), 0);
     std::map<int, std::pair<Vector3d, Vector3d>> compact_sharp_constraints;
@@ -233,10 +265,16 @@ void Parametrizer::ComputeIndexMap(int with_scale) {
         }
     }
 
+    PROFILE_T("edge diff build + avg", t0);
+    print_progress(97);
+    PROFILE_START(t0);
     Optimizer::optimize_positions_dynamic(F, V, N, Q, Vset, O_compact, F_compact, V2E_compact,
                                           E2E_compact, sqrt(surface_area / F_compact.size()),
                                           diffs, diff_count, o2e, sharp_o,
                                           compact_sharp_constraints, flag_adaptive_scale);
+    PROFILE_T("optimize_positions_dynamic (CG x10)", t0);
+#undef PROFILE_T
+#undef PROFILE_START
 
     //    optimize_quad_positions(O_compact, N_compact, Q_compact, F_compact, V2E_compact,
     //    E2E_compact,

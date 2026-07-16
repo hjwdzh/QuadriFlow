@@ -2,6 +2,7 @@
 #include "field-math.hpp"
 #include "optimizer.hpp"
 #include "parametrizer.hpp"
+#include "subdivide-refine.hpp"
 #include <stdlib.h>
 
 #ifdef WITH_CUDA
@@ -21,6 +22,7 @@ int main(int argc, char** argv) {
     int t1, t2;
     std::string input_obj, output_obj;
     int faces = -1;
+    int subdivisions = 2;
     for (int i = 0; i < argc; ++i) {
         if (strcmp(argv[i], "-f") == 0) {
             sscanf(argv[i + 1], "%d", &faces);
@@ -40,9 +42,13 @@ int main(int argc, char** argv) {
             field.flag_aggresive_sat = 1;
         } else if (strcmp(argv[i], "-seed") == 0) {
             field.hierarchy.rng_seed = atoi(argv[i + 1]);
+        } else if (strcmp(argv[i], "-subdiv") == 0) {
+            sscanf(argv[i + 1], "%d", &subdivisions);
         }
     }
     printf("%d %s %s\n", faces, input_obj.c_str(), output_obj.c_str());
+    unsigned long long t_start = GetCurrentTime64();
+    print_progress(0);
     if (input_obj.size() >= 1) {
         field.Load(input_obj.c_str());
     } else {
@@ -50,11 +56,13 @@ int main(int argc, char** argv) {
         // field.Load((std::string(DATA_PATH) + "/fertility.obj").c_str());
     }
 
+    print_progress(2);
     printf("Initialize...\n");
     t1 = GetCurrentTime64();
     field.Initialize(faces);
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+    print_progress(4);
 
     if (field.flag_preserve_boundary) {
         printf("Add boundary constrains...\n");
@@ -108,11 +116,20 @@ int main(int argc, char** argv) {
     field.ComputePositionSingularities();
     t2 = GetCurrentTime64();
     printf("Use %lf seconds\n", (t2 - t1) * 1e-3);
+    print_progress(91);
     t1 = GetCurrentTime64();
     printf("Solve index map...\n");
     field.ComputeIndexMap();
     t2 = GetCurrentTime64();
     printf("Indexmap Use %lf seconds\n", (t2 - t1) * 1e-3);
+    print_progress(99);
+    if (subdivisions > 0) {
+        printf("Subdivide and refit (%d level%s)...\n",
+               subdivisions, subdivisions == 1 ? "" : "s");
+        SubdivideAndRefit(field.O_compact, field.F_compact,
+                          field.hierarchy.mV[0], field.hierarchy.mF,
+                          subdivisions);
+    }
     printf("Writing the file...\n");
 
     if (output_obj.size() < 1) {
@@ -121,6 +138,8 @@ int main(int argc, char** argv) {
     } else {
         field.OutputMesh(output_obj.c_str());
     }
+    print_progress(100);
+    printf("Total time: %.1f seconds\n", (GetCurrentTime64() - t_start) * 1e-3);
     printf("finish...\n");
     //	field.LoopFace(2);
     return 0;

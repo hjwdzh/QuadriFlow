@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
+cmake_policy(SET CMP0091 NEW)
 project(QuadriFlow LANGUAGES CXX)
 
 option(BUILD_PERFORMANCE_TEST "More subdivisition for performance test" OFF)
@@ -48,8 +49,15 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")  # enable assert
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
+if(MSVC)
+    # MSVC does not recognise -O3; use /O2 (maximize speed) + /Ob2 (any-suitable
+    # inlining) + /Oi (enable intrinsics) + /Ot (favour speed over size)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Oi /Ot /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Ob2 /Oi /Ot /DNDEBUG /Zi")
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")  # enable assert
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")  # enable assert
+endif()
 set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG}")
 
@@ -84,7 +92,13 @@ if (BUILD_PERFORMANCE_TEST)
 endif(BUILD_PERFORMANCE_TEST)
 
 if (BUILD_OPENMP)
+    find_package(OpenMP REQUIRED)
     add_definitions(-DWITH_OMP)
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    endif()
 endif(BUILD_OPENMP)
 
 if (BUILD_LOG)

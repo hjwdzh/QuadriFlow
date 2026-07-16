@@ -196,6 +196,21 @@ void Parametrizer::FixFlipSat() {
 }
 
 void Parametrizer::AdvancedExtractQuad() {
+#ifdef LOG_OUTPUT
+    auto T = [](const char* label, unsigned long long t0) {
+        double s = (GetCurrentTime64() - t0) * 1e-3;
+        if (s >= 0.01) printf("    [AEQ] %-32s %.3f s\n", label, s);
+        fflush(stdout);
+    };
+#   define AEQ_T(label, t0) T(label, t0)
+#   define AEQ_START(t0)    t0 = GetCurrentTime64()
+#else
+#   define AEQ_T(label, t0) (void)0
+#   define AEQ_START(t0)    (void)0
+#endif
+    unsigned long long t0 = 0;
+    AEQ_START(t0);
+
     Hierarchy fh;
     fh.DownsampleEdgeGraph(face_edgeOrients, face_edgeIds, edge_diff, allow_changes, -1);
     auto& V = hierarchy.mV[0];
@@ -232,7 +247,9 @@ void Parametrizer::AdvancedExtractQuad() {
         if (t >= 0) face[t] = i;
     }
     fh.UpdateGraphValue(face_edgeOrients, face_edgeIds, edge_diff);
+    AEQ_T("DownsampleEdgeGraph + DisajointTree + edge/face map", t0);
 
+    AEQ_START(t0);
     auto& O = hierarchy.mO[0];
     auto& Q = hierarchy.mQ[0];
     auto& N = hierarchy.mN[0];
@@ -261,7 +278,12 @@ void Parametrizer::AdvancedExtractQuad() {
         O_compact[i] /= counter[i];
     }
 
+    AEQ_T("compact vertex averaging (O/Q/N/Vset)", t0);
+    AEQ_START(t0);
     BuildTriangleManifold(disajoint_tree, edge, face, edge_values, F2E, E2F, EdgeDiff, FQ);
+    AEQ_T("BuildTriangleManifold + FixHoles + degenerate removal", t0);
+#undef AEQ_T
+#undef AEQ_START
 }
 
 void Parametrizer::BuildTriangleManifold(DisajointTree& disajoint_tree, std::vector<int>& edge,

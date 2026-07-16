@@ -13,6 +13,24 @@ Our 3D WebGL Apps for QuadriFlow are online!  Without any installation, you are 
 *  [**Quadrangulate**](https://yichaozhou.com/publication/1805quadriflow/#tool) your own meshes and
     download the result!
 
+## Windows Performance & Improvements
+See [`CHANGES.md`](CHANGES.md) for a detailed breakdown of all fixes and enhancements made for Windows/MSVC builds, including:
+- **~13.5× speedup** from fixing the MSVC optimization level (`/O2` vs the silently-ignored `-O3`)
+- Full **OpenMP parallelism** across all major solver stages
+- **`-subdiv N`** flag: run at low resolution then subdivide and refit to the original surface — produces ~400k faces in ~43 s instead of hours
+- **Progress output** (`N% done`) throughout the entire pipeline with total elapsed time
+- **`TravelField` hang fix** for large/irregular meshes with `-adaptive`
+- **ConjugateGradient** replacing serial Cholesky in position solvers (warm-started, no O(n^1.5) factorization)
+- **Profiling instrumentation** (enabled with `-DBUILD_LOG=ON`) identifying Boykov-Kolmogorov max flow as the dominant bottleneck at high face counts (78% of index map time at 25k, 69% at 200k)
+
+### Recommended workflow for high-resolution output
+For face counts above ~50k, running directly is slow due to super-linear flow solver scaling.
+Use `-subdiv` instead:
+```sh
+# ~400k faces in ~43 s (vs hours running directly at 400k)
+quadriflow -i mesh.obj -o out.obj -f 25000 -subdiv 2
+```
+
 ## Desktop Software
 The software supports cmake build for Linux/Mac/Windows systems. For linux and mac users, run **`sh demo.sh`** to build and try the QuadriFlow example, which converts `examples/Gargoyle_input.obj` to `examples/Gargoyle_quadriflow.obj`.
 
@@ -26,6 +44,43 @@ cd build
 cmake .. -DCMAKE_BUILD_TYPE=release
 make -j
 ```
+
+### Windows Build (Visual Studio / MSVC)
+
+Building on Windows requires [vcpkg](https://github.com/microsoft/vcpkg) for dependencies and
+CMake 3.5+. The `git://` protocol may be blocked by firewalls; use HTTPS instead.
+
+```powershell
+# 1. Clone with HTTPS and initialise submodules
+git clone --recursive https://github.com/hjwdzh/QuadriFlow.git
+cd QuadriFlow
+
+# 2. Install dependencies via vcpkg (adjust path as needed)
+C:\vcpkg\vcpkg.exe install eigen3:x64-windows boost-filesystem:x64-windows boost-system:x64-windows boost-program-options:x64-windows boost-graph:x64-windows
+
+# 3. Configure
+cmake -S . -B build `
+    "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+    "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL" `
+    -DBUILD_OPENMP=ON
+
+# 4. Build
+cmake --build build --config Release --parallel
+```
+
+The executable is placed at `build\Release\quadriflow.exe`. Add vcpkg's bin directory to
+your PATH so the required DLLs are found at runtime:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    'PATH',
+    [Environment]::GetEnvironmentVariable('PATH','User') + ';C:\vcpkg\installed\x64-windows\bin',
+    'User'
+)
+```
+
+**Note:** The CMakeLists.txt minimum version has been bumped from 3.1 to 3.5 to maintain
+compatibility with modern CMake. The same patch is applied to the bundled lemon submodule.
 
 ### QuadriFlow Software
 
@@ -95,9 +150,31 @@ This override other solvers and should only be used for benchmark purpose.
 ## External Dependencies
 * Boost
 * Eigen
-* OpenMP (optional in CMake)
+* OpenMP (optional, enabled with `-DBUILD_OPENMP=ON`; works on Linux/Mac/Windows)
 * TBB (optional in CMake)
 * GUROBI (for benchmark purpose only)
+
+### Enabling OpenMP
+
+OpenMP parallelises the orientation and position field solvers and typically delivers a
+**4–7× speedup** on multi-core hardware.
+
+**Linux / Mac (GCC / Clang)**
+```sh
+cmake .. -DCMAKE_BUILD_TYPE=release -DBUILD_OPENMP=ON
+make -j
+```
+
+**Windows (MSVC)**
+```powershell
+cmake -S . -B build `
+    "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+    "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL" `
+    -DBUILD_OPENMP=ON
+cmake --build build --config Release --parallel
+```
+
+MSVC ships with its own OpenMP runtime so no additional package installation is needed.
 
 ## Licenses
 

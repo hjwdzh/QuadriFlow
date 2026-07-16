@@ -39,7 +39,8 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
 #else
 
     int levelIterations = 6;
-    for (int level = mRes.mN.size() - 1; level >= 0; --level) {
+    int num_or_levels = (int)mRes.mN.size();
+    for (int level = num_or_levels - 1; level >= 0; --level) {
         AdjacentMatrix& adj = mRes.mAdj[level];
         const MatrixXd& N = mRes.mN[level];
         const MatrixXd& CQ = mRes.mCQ[level];
@@ -91,6 +92,7 @@ void Optimizer::optimize_orientations(Hierarchy& mRes) {
                 }
             }
         }
+        print_progress(4 + (num_or_levels - level) * 8 / num_or_levels);
         if (level > 0) {
             const MatrixXd& srcField = mRes.mQ[level];
             const MatrixXi& toUpper = mRes.mToUpper[level - 1];
@@ -267,6 +269,9 @@ void Optimizer::optimize_scale(Hierarchy& mRes, VectorXd& rho, int adaptive) {
 
 void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
     int levelIterations = 6;
+    int num_pos_levels = (int)mRes.mAdj.size();
+    int pos_total_steps = num_pos_levels * levelIterations;
+    int pos_done_steps = 0;
 #ifdef WITH_CUDA
     optimize_positions_cuda(mRes);
     cudaMemcpy(mRes.mO[0].data(), mRes.cudaO[0], sizeof(glm::dvec3) * mRes.mO[0].cols(),
@@ -349,6 +354,8 @@ void Optimizer::optimize_positions(Hierarchy& mRes, int with_scale) {
                     }
                 }
             }
+            pos_done_steps++;
+            print_progress(12 + pos_done_steps * 79 / pos_total_steps);
         }
         if (level > 0) {
             const MatrixXd& srcField = mRes.mO[level];
@@ -561,6 +568,7 @@ void Optimizer::optimize_positions_dynamic(
     BuildConnection();
     int max_iter = 10;
     for (int iter = 0; iter < max_iter; ++iter) {
+        print_progress(97 + (iter + 1) * 2 / max_iter);  // steps at iter 5 (98%) and 10 (99%)
         FindNearest();
         ComputeDistance();
 
@@ -1280,6 +1288,7 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                     arcs.push_back(std::make_pair(Vector2i(i, initial.size()), -init_val));
                 }
             }
+            int cap = edge_capacity;
 
             std::unique_ptr<MaxFlowHelper> solver = nullptr;
             if (use_minimum_cost_flow && level == mRes.mToUpperEdges.size()) {
@@ -1305,16 +1314,29 @@ void Optimizer::optimize_integer_constraints(Hierarchy& mRes, std::map<int, int>
                 int c = arcs[i].second;
                 if (v1 == 0 || v2 == initial.size() + 1) {
                     solver->addEdge(v1, v2, c, 0, -1);
-                } else {
+                } else if (level == 0) {
+                    // Finest level: use full edge_capacity (original behaviour).
                     if (arc_ids[i] > 0)
-                        solver->addEdge(v1, v2, std::max(0, c + edge_capacity),
-                                        std::max(0, -c + edge_capacity), arc_ids[i] - 1);
+                        solver->addEdge(v1, v2, std::max(0, c + cap),
+                                        std::max(0, -c + cap), arc_ids[i] - 1);
                     else {
                         if (c > 0)
                             solver->addEdge(v1, v2, std::max(0, c - 1),
-                                            std::max(0, -c + edge_capacity), -1 - arc_ids[i]);
+                                            std::max(0, -c + cap), -1 - arc_ids[i]);
                         else
-                            solver->addEdge(v1, v2, std::max(0, c + edge_capacity),
+                            solver->addEdge(v1, v2, std::max(0, c + cap),
+                                            std::max(0, -c - 1), -1 - arc_ids[i]);
+                    }
+                } else {
+                    if (arc_ids[i] > 0)
+                        solver->addEdge(v1, v2, std::max(0, c + cap),
+                                        std::max(0, -c + cap), arc_ids[i] - 1);
+                    else {
+                        if (c > 0)
+                            solver->addEdge(v1, v2, std::max(0, c - 1),
+                                            std::max(0, -c + cap), -1 - arc_ids[i]);
+                        else
+                            solver->addEdge(v1, v2, std::max(0, c + cap),
                                             std::max(0, -c - 1), -1 - arc_ids[i]);
                     }
                 }

@@ -21,8 +21,14 @@ const int GRAIN_SIZE = 1024;
 #endif
 
 #include <chrono>
+#include <cstdio>
 
 namespace qflow {
+
+inline void print_progress(int pct) {
+    printf("%3d%% done\n", pct);
+    fflush(stdout);
+}
 
 // simulation of Windows GetTickCount()
 unsigned long long inline GetCurrentTime64() {
